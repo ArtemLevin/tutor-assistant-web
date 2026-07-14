@@ -65,6 +65,14 @@ def test_student_and_lesson_happy_path(tmp_path):
         assert "Мария Иванова" in detail.text
         assert "/join/" in detail.text
 
+        processed = client.post(
+            f"{lesson.headers['location']}/process",
+            data={"csrf_token": csrf_from(detail.text)},
+        )
+        assert processed.status_code == 303
+        updated = client.get(lesson.headers["location"])
+        assert "Итоги занятия: Функции" in updated.text
+
 
 def test_health_reports_demo_dependencies(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'health.db'}")
@@ -78,3 +86,20 @@ def test_health_reports_demo_dependencies(tmp_path):
 
     assert response.status_code == 200
     assert response.json()["checks"]["bigbluebutton"] == "demo"
+    assert response.json()["checks"]["materials"] == "local-template"
+
+
+def test_feature_modules_can_be_enabled_with_dependencies(tmp_path):
+    database = Database(f"sqlite:///{tmp_path / 'modules.db'}")
+    settings = Settings(
+        app_secret_key="test-secret",
+        database_url=f"sqlite:///{tmp_path / 'modules.db'}",
+        seed_demo_data=False,
+        enabled_modules="students",
+    )
+    app = create_app(settings, database)
+
+    assert app.state.installed_modules == ["identity", "students"]
+    with TestClient(app) as client:
+        assert client.get("/students").status_code == 200
+        assert client.get("/schedule").status_code == 404

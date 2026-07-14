@@ -2,9 +2,14 @@ from __future__ import annotations
 
 from celery import Celery
 
+from tutor_assistant_web.bootstrap.container import (
+    build_conference_provider,
+    build_material_generator,
+)
 from tutor_assistant_web.config import get_settings
 from tutor_assistant_web.db import Database
-from tutor_assistant_web.services import process_job
+from tutor_assistant_web.modules.classroom.application import ClassroomService
+from tutor_assistant_web.modules.materials.application import MaterialsService
 
 settings = get_settings()
 celery_app = Celery("tutor_assistant_web", broker=settings.redis_url, backend=settings.redis_url)
@@ -28,11 +33,22 @@ celery_app.conf.update(
 def process_lesson_task(job_id: str) -> None:
     database = Database(settings.database_url)
     database.create_schema()
-    with database.sessions() as session:
-        process_job(session, job_id, settings)
+    conference = build_conference_provider(settings)
+    classroom = ClassroomService(
+        database,
+        conference,
+        settings.public_base_url,
+        settings.app_secret_key,
+    )
+    MaterialsService(
+        database,
+        build_material_generator(settings),
+        classroom,
+    ).process(job_id)
 
 
 def enqueue_processing(job_id: str) -> None:
+    """Compatibility helper retained for integrations using the pilot API."""
     process_lesson_task.delay(job_id)
 
 

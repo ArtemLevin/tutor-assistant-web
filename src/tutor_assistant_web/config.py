@@ -37,15 +37,18 @@ class Settings(BaseSettings):
     seed_demo_data: bool = True
     session_cookie_secure: bool = False
     session_max_age: int = Field(default=60 * 60 * 12, ge=300)
+    enabled_modules: str = ""
 
     @model_validator(mode="after")
     def validate_production(self) -> Settings:
+        enabled = {item.strip() for item in self.enabled_modules.split(",") if item.strip()}
+        classroom_enabled = not enabled or bool(enabled & {"classroom", "materials", "dashboard"})
         if self.app_env.lower() == "production":
             if self.app_secret_key == "change-me-in-production":
                 raise ValueError("APP_SECRET_KEY must be changed in production")
             if not self.app_access_token:
                 raise ValueError("APP_ACCESS_TOKEN is required in production")
-            if self.bbb_demo_mode:
+            if self.bbb_demo_mode and classroom_enabled:
                 raise ValueError("BBB_DEMO_MODE must be false in production")
         if not self.bbb_demo_mode and (not self.bbb_base_url or not self.bbb_secret):
             raise ValueError("BBB_BASE_URL and BBB_SECRET are required when demo mode is off")
