@@ -24,6 +24,9 @@ BBB ссылки ведут в полноценную комнату с виде
 - большой редактор сводных заметок;
 - тёмный адаптивный интерфейс;
 - health checks, Docker Compose, Makefile, uv и CI.
+- модульный composition root и явный реестр функций;
+- заменяемые провайдеры конференций, материалов и фоновых заданий;
+- возможность включать только выбранные модули через `ENABLED_MODULES`.
 
 ## Быстрый старт в demo-режиме
 
@@ -149,16 +152,36 @@ curl http://localhost:8000/health/ready
 
 ```text
 src/tutor_assistant_web/
-├── app.py          # web-маршруты и пользовательские сценарии
-├── bbb.py          # checksum API BigBlueButton
-├── config.py       # типизированная конфигурация
-├── db.py           # SQLAlchemy и подключения
-├── models.py       # ученики, занятия, записи, jobs, материалы
-├── services.py     # доменные операции и evidence pipeline
-├── worker.py       # Celery
-├── static/         # минималистичный UI
-└── templates/      # server-rendered страницы
+├── app.py                 # минимальная точка запуска
+├── bootstrap/             # composition root, DI-контейнер, реестр модулей
+├── modules/
+│   ├── identity/          # доступ и сессии
+│   ├── students/          # CRM учеников
+│   ├── scheduling/        # расписание
+│   ├── classroom/         # занятие и записи
+│   ├── materials/         # evidence и артефакты
+│   └── dashboard/         # главная страница и health checks
+├── providers/             # BBB/demo, webhook/local, Celery/inline
+├── shared/                # контракты, ошибки, security, web helpers
+├── bbb.py                 # низкоуровневый checksum API
+├── models.py              # compatibility exports
+├── services.py            # compatibility facade
+├── worker.py              # Celery entrypoint
+├── static/                # минималистичный UI
+└── templates/             # server-rendered страницы
 ```
+
+Каждый модуль содержит собственные модели, application-сервисы и HTTP routes. Маршруты не
+обращаются к SQLAlchemy и BigBlueButton напрямую. Composition root выбирает реализации контрактов
+`ConferenceProvider`, `MaterialGenerator` и `JobDispatcher`.
+
+Для ограниченного запуска перечислите корневые модули:
+
+```dotenv
+ENABLED_MODULES=students,scheduling
+```
+
+Зависимости подключаются автоматически. Пустое значение включает весь встроенный набор.
 
 Архитектурные границы и модель доверия описаны в
 [docs/architecture.md](docs/architecture.md).
@@ -188,4 +211,3 @@ src/tutor_assistant_web/
 6. Проверка и публикация материалов в кабинете ученика.
 7. Повторяющееся расписание, уведомления и iCal.
 8. Наблюдаемость, аудит, backup/restore и политика retention.
-
