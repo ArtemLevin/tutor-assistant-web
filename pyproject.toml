@@ -1,6 +1,6 @@
 [project]
 name = "tutor-assistant-web"
-version = "0.5.0"
+version = "0.6.0"
 description = "Fast pilot of a tutor workspace powered by BigBlueButton"
 readme = "README.md"
 requires-python = ">=3.12"

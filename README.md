@@ -40,6 +40,11 @@ BBB ссылки ведут в полноценную комнату с виде
 - локальная транскрибация через `faster-whisper` либо заменяемый transcription webhook;
 - сегменты транскрипта, редактирование текста и включение расшифровки в evidence JSON;
 - наблюдаемые этапы post-lesson workflow и идемпотентное сохранение материалов.
+- `LessonEvidenceBundle v1` с JSON Schema и SHA-256 снимком входных данных;
+- заменяемые `DocumentEngine` и `ArtifactStorage`;
+- версионированные TEX, HTML и PDF с журналом сборки;
+- отдельные стадии проверки, согласования и публикации;
+- адаптер компиляции к реальному API `latex-for-everyone`.
 
 ## Быстрый старт в demo-режиме
 
@@ -76,6 +81,7 @@ make beat       # планировщик transactional outbox
 make outbox     # однократная отправка накопленных событий
 make sync-transcription # зависимости локального faster-whisper
 make check      # Ruff + pytest
+make schema-check # проверить контракт LessonEvidenceBundle v1
 make diagnose   # безопасная диагностика конфигурации
 make docker-up  # app + worker + PostgreSQL + Redis
 ```
@@ -147,12 +153,25 @@ Compose не включён и подключается как внешний с
 1. BBB подписанным callback сообщает о готовности записи;
 2. receipt, job и outbox event сохраняются одной транзакцией;
 3. worker синхронизирует прямой медиаисточник и транскрибирует его;
-4. транскрипт и заметки входят в версионированный evidence JSON;
-5. генератор создаёт материалы, а интерфейс показывает этапы, попытки и ошибки.
+4. транскрипт и заметки фиксируются как `LessonEvidenceBundle v1` с SHA-256;
+5. генератор создаёт содержимое, `DocumentEngine` собирает TEX/HTML/PDF;
+6. преподаватель проверяет комплект, согласует и отдельно публикует его.
 
 Если webhook не указан, создаются два локальных черновика: итог занятия и домашнее задание.
 Контракты описаны в [docs/materials-webhook.md](docs/materials-webhook.md) и
 [docs/post-lesson-automation.md](docs/post-lesson-automation.md).
+Версионирование, компиляция и review lifecycle описаны в
+[docs/materials-factory.md](docs/materials-factory.md).
+
+По умолчанию включён локальный детерминированный preview-движок. Для настоящей PDF-компиляции
+подключите отдельный экземпляр `latex-for-everyone`:
+
+```dotenv
+DOCUMENT_ENGINE_PROVIDER=latex-for-everyone
+DOCUMENT_ENGINE_URL=https://latex.example.com
+DOCUMENT_ENGINE_TOKEN=service-access-token
+ARTIFACT_STORAGE_ROOT=./data/artifacts
+```
 
 Запись BigBlueButton появляется после серверной постобработки, иногда через несколько минут после
 окончания встречи. Callback фиксируется сразу; отсутствие прямого audio/video URL переводит job в
@@ -209,7 +228,8 @@ src/tutor_assistant_web/
 
 Каждый модуль содержит собственные модели, application-сервисы и HTTP routes. Маршруты не
 обращаются к SQLAlchemy и BigBlueButton напрямую. Composition root выбирает реализации контрактов
-`ConferenceProvider`, `TranscriptionProvider`, `MaterialGenerator` и `JobDispatcher`.
+`ConferenceProvider`, `TranscriptionProvider`, `MaterialGenerator`, `DocumentEngine`,
+`ArtifactStorage` и `JobDispatcher`.
 
 ## Пользователи, роли и организации
 
@@ -259,7 +279,8 @@ ENABLED_MODULES=students,scheduling
 
 - доставка приглашений по email пока не подключена: администратор передаёт ссылку вручную;
 - нет повторяющихся событий и интеграции с внешними календарями;
-- нет платежей, кабинета родителя и публикации материалов ученику;
+- нет платежей и кабинета родителя; состояние публикации уже фиксируется, но доставка в кабинет
+  пока не подключена;
 - качество транскрипции зависит от выбранной Whisper-модели и качества записи;
 - diarization говорящих пока не подключён;
 - локальные AI-материалы являются шаблонными черновиками;
@@ -272,8 +293,8 @@ ENABLED_MODULES=students,scheduling
 
 ## Ближайший production backlog
 
-1. Интеграция `latex-for-everyone` для TEX/PDF/HTML и проверяемых сборок.
-2. Diarization говорящих и словарь терминов конкретного ученика.
-3. Проверка и публикация материалов в кабинетах ученика и родителя.
+1. Кабинеты ученика и родителя с доставкой опубликованных комплектов.
+2. S3/MinIO-адаптер `ArtifactStorage`, retention и антивирусная проверка.
+3. Diarization говорящих и словарь терминов конкретного ученика.
 4. Повторяющееся расписание, уведомления и iCal.
-5. Метрики Prometheus/OpenTelemetry, backup/restore и политика retention.
+5. Метрики Prometheus/OpenTelemetry, backup/restore и disaster recovery drill.

@@ -16,6 +16,8 @@ flowchart TB
     Registry --> Automation[Automation]
     Classroom --> Conference[ConferenceProvider]
     Materials --> Generator[MaterialGenerator]
+    Materials --> Documents[DocumentEngine]
+    Materials --> Storage[ArtifactStorage]
     Materials --> Jobs[JobDispatcher]
     Automation --> Speech[TranscriptionProvider]
     Automation --> Jobs
@@ -43,6 +45,8 @@ flowchart TB
 - `MaterialGenerator`: локальный шаблон или HTTP webhook;
 - `TranscriptionProvider`: demo, локальный faster-whisper или HTTP webhook;
 - `JobDispatcher`: inline для разработки или Celery для production.
+- `DocumentEngine`: локальный preview или HTTP API `latex-for-everyone`;
+- `ArtifactStorage`: локальный каталог/volume; контракт готов для S3/MinIO.
 
 Application-слой зависит от протоколов из `shared/contracts.py`. Конкретные SDK и HTTP-клиенты
 остаются в `providers/`. Замена BBB или генератора не требует правок бизнес-модулей.
@@ -61,8 +65,8 @@ sequenceDiagram
     A->>O: receipt + job + event (transaction)
     O->>W: enqueue job
     W->>BBB: getRecordings
-    W->>AI: transcribe + generate
-    W->>A: transcript + artifacts + status
+    W->>AI: transcribe + generate + compile
+    W->>A: transcript + versioned artifacts + review status
 ```
 
 ## Правила зависимостей
@@ -108,7 +112,8 @@ Payload ограничивается операционными метаданн
 
 Alembic является владельцем схемы. Ревизия `0001_pilot` описывает схему версии 0.2,
 `0002_identity_tenancy` добавляет identity и tenant-ключи, `0003_workspace_admin` — приглашения и
-аудит, `0004_post_lesson_automation` — webhook receipts, outbox, транскрипты и состояние workflow.
+аудит, `0004_post_lesson_automation` — webhook receipts, outbox, транскрипты и состояние workflow,
+`0005_materials_factory` — evidence bundles, generation runs, artifact versions и build logs.
 При первом запуске версии 0.3+ база,
 ранее созданная через `create_all`, автоматически получает stamp `0001_pilot`; все существующие
 строки переносятся в организацию по умолчанию. Новая база проходит обе ревизии с нуля.
@@ -125,6 +130,9 @@ flowchart TB
     Beat[Celery Beat] --> Redis
     Worker --> BBB
     Worker --> AI[Materials provider]
+    Worker --> Latex[latex-for-everyone]
+    Worker --> Files[(Artifact volume)]
+    App --> Files
     Worker --> Postgres
 ```
 
@@ -132,7 +140,7 @@ BigBlueButton работает отдельно. Shared secret остаётся 
 
 ## Следующие архитектурные задачи
 
-1. Версионированный `LessonEvidenceBundle` и schema registry.
-2. TEX/PDF/HTML build worker с безопасной песочницей.
+1. S3/MinIO adapter, retention и антивирусная проверка артефактов.
+2. Событие публикации и кабинеты ученика/родителя.
 3. OpenTelemetry traces и метрики очередей/workflow.
-4. Retention, удаление записей и экспорт audit events.
+4. Удаление записей и экспорт audit events.

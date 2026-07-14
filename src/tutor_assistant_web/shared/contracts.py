@@ -61,6 +61,50 @@ class MaterialGenerator(Protocol):
 
 
 @dataclass(frozen=True)
+class DocumentBuildRequest:
+    title: str
+    evidence: dict[str, Any]
+    materials: list[GeneratedArtifact]
+
+
+@dataclass(frozen=True)
+class DocumentOutput:
+    kind: str
+    filename: str
+    media_type: str
+    content: bytes
+
+
+@dataclass(frozen=True)
+class DocumentBuildResult:
+    outputs: list[DocumentOutput]
+    engine: str
+    log: str = ""
+
+
+class DocumentEngine(Protocol):
+    name: str
+
+    def build(self, request: DocumentBuildRequest) -> DocumentBuildResult: ...
+
+
+@dataclass(frozen=True)
+class StoredArtifact:
+    key: str
+    sha256: str
+    size: int
+    media_type: str
+
+
+class ArtifactStorage(Protocol):
+    name: str
+
+    def put(self, key: str, content: bytes, media_type: str) -> StoredArtifact: ...
+
+    def read(self, key: str) -> bytes: ...
+
+
+@dataclass(frozen=True)
 class TranscriptionSource:
     record_id: str
     media_url: str

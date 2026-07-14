@@ -13,6 +13,11 @@ from tutor_assistant_web.providers.conference import (
     BigBlueButtonConferenceProvider,
     DemoConferenceProvider,
 )
+from tutor_assistant_web.providers.documents import (
+    LatexedDocumentEngine,
+    LocalArtifactStorage,
+    LocalDocumentEngine,
+)
 from tutor_assistant_web.providers.materials import (
     LocalTemplateMaterialGenerator,
     WebhookMaterialGenerator,
@@ -25,7 +30,9 @@ from tutor_assistant_web.providers.transcription import (
     WebhookTranscriptionProvider,
 )
 from tutor_assistant_web.shared.contracts import (
+    ArtifactStorage,
     ConferenceProvider,
+    DocumentEngine,
     JobDispatcher,
     MaterialGenerator,
     TranscriptionProvider,
@@ -45,6 +52,8 @@ class AppContainer:
     materials: MaterialGenerator
     transcription: TranscriptionProvider
     jobs: JobDispatcher
+    document_engine: DocumentEngine
+    artifact_storage: ArtifactStorage
 
     def classroom_service(self, organization_id: str | None):
         from tutor_assistant_web.modules.classroom.application import ClassroomService
@@ -66,6 +75,8 @@ class AppContainer:
             self.classroom_service(organization_id),
             self.jobs,
             organization_id,
+            self.document_engine,
+            self.artifact_storage,
         )
 
     def audit_service(self, organization_id: str):
@@ -149,6 +160,21 @@ def build_transcription_provider(settings: Settings) -> TranscriptionProvider:
     return DisabledTranscriptionProvider()
 
 
+def build_document_engine(settings: Settings) -> DocumentEngine:
+    if settings.document_engine_provider.lower() == "latex-for-everyone":
+        return LatexedDocumentEngine(
+            settings.document_engine_url,
+            settings.document_engine_token,
+            settings.document_engine_timeout,
+            max_pdf_mb=settings.document_max_pdf_mb,
+        )
+    return LocalDocumentEngine()
+
+
+def build_artifact_storage(settings: Settings) -> ArtifactStorage:
+    return LocalArtifactStorage(settings.artifact_storage_root)
+
+
 def build_container(
     settings: Settings,
     database: Database,
@@ -158,10 +184,20 @@ def build_container(
     conference = build_conference_provider(settings)
     materials = build_material_generator(settings)
     transcription = build_transcription_provider(settings)
+    document_engine = build_document_engine(settings)
+    artifact_storage = build_artifact_storage(settings)
     identity = IdentityService(database)
     jobs: JobDispatcher
     if settings.task_eager:
-        jobs = InlineJobDispatcher(database, settings, conference, materials, transcription)
+        jobs = InlineJobDispatcher(
+            database,
+            settings,
+            conference,
+            materials,
+            transcription,
+            document_engine,
+            artifact_storage,
+        )
     else:
         jobs = CeleryJobDispatcher()
     return AppContainer(
@@ -175,4 +211,6 @@ def build_container(
         materials=materials,
         transcription=transcription,
         jobs=jobs,
+        document_engine=document_engine,
+        artifact_storage=artifact_storage,
     )

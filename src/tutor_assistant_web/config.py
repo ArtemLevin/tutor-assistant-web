@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     materials_webhook_token: str = ""
     materials_request_timeout: float = 60.0
 
+    document_engine_provider: str = "local"
+    document_engine_url: str = ""
+    document_engine_token: str = ""
+    document_engine_timeout: float = 120.0
+    document_max_pdf_mb: int = Field(default=50, ge=1, le=500)
+    artifact_storage_root: str = "./data/artifacts"
+
     seed_demo_data: bool = True
     session_cookie_secure: bool = False
     session_max_age: int = Field(default=60 * 60 * 12, ge=300)
@@ -96,6 +103,13 @@ class Settings(BaseSettings):
                 and not self.transcription_webhook_url
             ):
                 raise ValueError("Configure TRANSCRIPTION_PROVIDER for production automation")
+            materials_enabled = not enabled or bool(
+                enabled & {"materials", "automation", "dashboard"}
+            )
+            if materials_enabled and self.document_engine_provider.lower() == "local":
+                raise ValueError(
+                    "DOCUMENT_ENGINE_PROVIDER must use a production compiler for materials"
+                )
         if not self.bbb_demo_mode and (not self.bbb_base_url or not self.bbb_secret):
             raise ValueError("BBB_BASE_URL and BBB_SECRET are required when demo mode is off")
         provider = self.transcription_provider.lower()
@@ -103,6 +117,15 @@ class Settings(BaseSettings):
             raise ValueError("TRANSCRIPTION_PROVIDER is not supported")
         if provider == "webhook" and not self.transcription_webhook_url:
             raise ValueError("TRANSCRIPTION_WEBHOOK_URL is required for webhook transcription")
+        document_provider = self.document_engine_provider.lower()
+        if document_provider not in {"local", "latex-for-everyone"}:
+            raise ValueError("DOCUMENT_ENGINE_PROVIDER is not supported")
+        if document_provider == "latex-for-everyone" and (
+            not self.document_engine_url or not self.document_engine_token
+        ):
+            raise ValueError(
+                "DOCUMENT_ENGINE_URL and DOCUMENT_ENGINE_TOKEN are required for latex-for-everyone"
+            )
         return self
 
 
