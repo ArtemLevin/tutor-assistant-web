@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Demo classroom</title><link rel="stylesheet" href="/static/styles.css"><script src="/static/app.js" defer></script></head>
+<body class="room-page">
+  <header class="room-bar"><div><span class="live-dot"></span><strong>{{ lesson.topic or lesson.title }}</strong><small>Демонстрация интерфейса · подключите BBB для реальной связи</small></div><a class="button danger small" href="{{ '/lessons/' ~ lesson.id if role == 'tutor' else '/lesson-finished' }}">Выйти</a></header>
+  <main class="room-layout">
+    <section class="whiteboard"><div class="board-tools"><button data-tool="pen" class="active">Перо</button><button data-tool="eraser">Ластик</button><button data-clear-board>Очистить</button></div><canvas id="demo-board"></canvas><div class="board-hint">Demo-доска. В рабочем режиме используется многопользовательская доска BigBlueButton.</div></section>
+    <aside class="video-rail"><div class="video-tile tutor"><span>П</span><small>Преподаватель</small></div><div class="video-tile"><span>{{ lesson.student.full_name[:1] }}</span><small>{{ lesson.student.full_name }}</small></div><div class="room-note"><strong>Demo mode</strong><p>Видео, звук, запись и синхронизация включатся после настройки BBB_BASE_URL и BBB_SECRET.</p></div></aside>
+  </main>
+</body></html>
+

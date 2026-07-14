@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header lesson-header">
+  <div><a class="back" href="/schedule">← Расписание</a><p class="eyebrow">{{ lesson.starts_at|local_dt('%d %B · %H:%M') }}</p><h1>{{ lesson.student.full_name }}</h1><p class="subtitle">{{ lesson.topic or lesson.title }}</p></div>
+  <div class="actions"><span class="badge {{ lesson.status }}">{{ lesson.status }}</span><a class="button primary large-action" href="/lessons/{{ lesson.id }}/join/tutor">Начать занятие <span>↗</span></a></div>
+</header>
+<section class="lesson-layout">
+  <div class="lesson-content">
+    <article class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Доступ</p><h2>Ссылка ученику</h2></div><button class="button secondary small" data-copy="{{ student_url }}">Копировать</button></div>
+      <p class="share-url">{{ student_url }}</p>
+      <p class="caption">Ссылка подписана и открывает роль участника только для этого занятия.</p>
+    </article>
+    <article class="panel">
+      <div class="section-heading"><div><p class="eyebrow">После встречи</p><h2>Заметки преподавателя</h2></div></div>
+      <form method="post" action="/lessons/{{ lesson.id }}/notes" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Тема<input name="topic" value="{{ lesson.topic }}" placeholder="Тема занятия"></label>
+        <label>Сводный текст<textarea class="summary-editor" name="tutor_notes" rows="12" placeholder="Что прошли, где возникли сложности, что повторить...">{{ lesson.tutor_notes }}</textarea></label>
+        <div class="right"><button class="button secondary">Сохранить заметки</button></div>
+      </form>
+    </article>
+    <article class="panel">
+      <div class="section-heading"><div><p class="eyebrow">AI-конвейер</p><h2>Материалы</h2></div><form method="post" action="/lessons/{{ lesson.id }}/process"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button primary small">Сформировать</button></form></div>
+      {% if lesson.jobs %}
+        {% set job = lesson.jobs[0] %}<div class="job" data-job-id="{{ job.id }}"><div><strong data-job-message>{{ job.message }}</strong><span data-job-status>{{ job.status }}</span></div><progress max="100" value="{{ job.progress }}" data-job-progress></progress>{% if job.error %}<p class="alert">{{ job.error }}</p>{% endif %}</div>
+      {% endif %}
+      <div class="artifact-list">
+        {% for artifact in lesson.artifacts %}<details><summary><span class="document-icon">↗</span><div><strong>{{ artifact.title }}</strong><small>{{ artifact.kind }} · {{ artifact.created_at|local_dt }}</small></div></summary><pre>{{ artifact.content }}</pre><a href="/artifacts/{{ artifact.id }}.md">Скачать Markdown</a></details>{% else %}<p class="muted">Сохраните заметки и запустите обработку. В demo-режиме создаются проверяемые черновики.</p>{% endfor %}
+      </div>
+    </article>
+  </div>
+  <aside class="lesson-aside">
+    <article class="panel sticky-panel"><p class="eyebrow">Параметры</p><dl class="details compact-details"><div><dt>Время</dt><dd>{{ lesson.starts_at|local_dt('%H:%M') }}–{{ lesson.ends_at|local_dt('%H:%M') }}</dd></div><div><dt>Ставка</dt><dd>{{ lesson.price_snapshot|int }} ₽</dd></div><div><dt>Запись</dt><dd>{{ 'включена' if lesson.record_enabled else 'выключена' }}</dd></div><div><dt>BBB</dt><dd>{{ 'demo' if demo_mode else 'подключён' }}</dd></div></dl><form method="post" action="/lessons/{{ lesson.id }}/end"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button danger wide">Завершить занятие</button></form></article>
+  </aside>
+</section>
+{% endblock %}
+

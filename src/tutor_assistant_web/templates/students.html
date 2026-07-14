@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Ученики · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><p class="eyebrow">CRM</p><h1>Ученики</h1></div>
+  <button class="button primary" data-dialog-open="student-dialog">Новый ученик</button>
+</header>
+<form class="search" method="get">
+  <input type="search" name="q" value="{{ query }}" placeholder="Найти ученика" aria-label="Найти ученика">
+</form>
+<section class="student-grid">
+  {% for student in students %}
+    <a href="/students/{{ student.id }}" class="student-card">
+      <div class="avatar">{{ student.full_name[:1] }}</div>
+      <div><h2>{{ student.full_name }}</h2><p>{{ student.grade or 'Класс не указан' }} · {{ student.subject }}</p></div>
+      <span class="rate">{{ student.hourly_rate|int }} ₽</span>
+    </a>
+  {% else %}
+    <div class="empty"><h3>Добавьте первого ученика</h3><p>Контакты, цели и занятия будут собраны в одной карточке.</p></div>
+  {% endfor %}
+</section>
+{% endblock %}
+{% block dialogs %}
+<dialog id="student-dialog" class="dialog">
+  <form method="post" action="/students" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="dialog-header"><div><p class="eyebrow">Новая карточка</p><h2>Ученик</h2></div><button type="button" class="icon-button" data-dialog-close aria-label="Закрыть">×</button></div>
+    <label class="span-2">ФИО<input name="full_name" required maxlength="160"></label>
+    <label>Класс<input name="grade" placeholder="9 класс"></label>
+    <label>Предмет<input name="subject" value="Математика"></label>
+    <label class="span-2">Цель<textarea name="goal" rows="2"></textarea></label>
+    <label>Родитель<input name="guardian_name"></label>
+    <label>Телефон<input name="guardian_phone"></label>
+    <label>Email<input type="email" name="email"></label>
+    <label>Ставка, ₽<input type="number" min="0" step="50" name="hourly_rate" value="0"></label>
+    <label class="span-2">Ссылки<textarea name="social_links" rows="2" placeholder="Telegram, VK, другие контакты"></textarea></label>
+    <label class="span-2">Заметки<textarea name="notes" rows="3"></textarea></label>
+    <div class="dialog-actions span-2"><button type="button" class="button ghost" data-dialog-close>Отмена</button><button class="button primary" type="submit">Сохранить</button></div>
+  </form>
+</dialog>
+{% endblock %}
+

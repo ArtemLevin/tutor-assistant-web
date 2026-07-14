@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Расписание · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header schedule-header">
+  <div><p class="eyebrow">{{ timezone_name }}</p><h1>Расписание</h1></div>
+  <div class="actions"><a class="icon-button" href="/schedule?week={{ previous_week }}">←</a><span>{{ monday.strftime('%d.%m') }} — {{ week_end.strftime('%d.%m') }}</span><a class="icon-button" href="/schedule?week={{ next_week }}">→</a><button class="button primary" data-dialog-open="lesson-dialog">Новое занятие</button></div>
+</header>
+<section class="week-grid">
+  {% set day_names = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'] %}
+  {% for day in days %}
+    <article class="day-column">
+      <header><span>{{ day_names[loop.index0] }}</span><strong>{{ day.strftime('%d') }}</strong></header>
+      <div class="day-lessons">
+        {% for lesson in lessons_by_day[day] %}
+          <a href="/lessons/{{ lesson.id }}" class="calendar-event {{ lesson.status }}">
+            <time>{{ lesson.starts_at|local_dt('%H:%M') }}–{{ lesson.ends_at|local_dt('%H:%M') }}</time>
+            <strong>{{ lesson.student.full_name }}</strong>
+            <span>{{ lesson.topic or lesson.title }}</span>
+          </a>
+        {% else %}<button class="empty-day" data-dialog-open="lesson-dialog" data-date="{{ day }}">+</button>{% endfor %}
+      </div>
+    </article>
+  {% endfor %}
+</section>
+{% endblock %}
+{% block dialogs %}
+<dialog id="lesson-dialog" class="dialog compact">
+  <form method="post" action="/lessons" class="form-grid" data-lesson-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="dialog-header"><div><p class="eyebrow">Календарь</p><h2>Новое занятие</h2></div><button type="button" class="icon-button" data-dialog-close>×</button></div>
+    <label class="span-2">Ученик<select name="student_id" required><option value="">Выберите ученика</option>{% for student in students %}<option value="{{ student.id }}">{{ student.full_name }}</option>{% endfor %}</select></label>
+    <label class="span-2">Название<input name="title" value="Занятие"></label>
+    <label class="span-2">Тема<input name="topic" placeholder="Можно заполнить после занятия"></label>
+    <label>Начало<input type="datetime-local" name="starts_at" value="{{ default_start.strftime('%Y-%m-%dT%H:%M') }}" required></label>
+    <label>Окончание<input type="datetime-local" name="ends_at" value="{{ default_end.strftime('%Y-%m-%dT%H:%M') }}" required></label>
+    <label class="checkbox span-2"><input type="checkbox" name="record_enabled" checked><span>Разрешить запись после подтверждения участников</span></label>
+    <div class="dialog-actions span-2"><button type="button" class="button ghost" data-dialog-close>Отмена</button><button class="button primary">Запланировать</button></div>
+  </form>
+</dialog>
+{% endblock %}

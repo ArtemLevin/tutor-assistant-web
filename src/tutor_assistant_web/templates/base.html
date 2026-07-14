@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+  <script src="{{ url_for('static', path='/app.js') }}" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="На главную">
+        <span class="brand-mark">T</span>
+        <span>Tutor</span>
+      </a>
+      <nav class="nav" aria-label="Основная навигация">
+        <a href="/" class="nav-link">Сегодня</a>
+        <a href="/schedule" class="nav-link">Расписание</a>
+        <a href="/students" class="nav-link">Ученики</a>
+      </nav>
+      <div class="sidebar-footer">
+        {% if demo_mode %}<span class="status-pill" title="Подключение к BigBlueButton эмулируется">Demo BBB</span>{% endif %}
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="link-button" type="submit">Выйти</button>
+        </form>
+      </div>
+    </aside>
+    <main class="main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  {% block dialogs %}{% endblock %}
+</body>
+</html>
+

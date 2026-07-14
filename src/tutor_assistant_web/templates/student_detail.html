@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ student.full_name }} · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><a class="back" href="/students">← Ученики</a><h1>{{ student.full_name }}</h1><p class="subtitle">{{ student.grade or 'Класс не указан' }} · {{ student.subject }}</p></div>
+  <a class="button primary" href="/schedule">Запланировать занятие</a>
+</header>
+<div class="two-columns">
+  <section class="panel">
+    <div class="section-heading"><h2>Профиль</h2><button class="link-button" data-dialog-open="edit-student">Изменить</button></div>
+    <dl class="details">
+      <div><dt>Цель</dt><dd>{{ student.goal or '—' }}</dd></div>
+      <div><dt>Родитель</dt><dd>{{ student.guardian_name or '—' }}</dd></div>
+      <div><dt>Телефон</dt><dd>{{ student.guardian_phone or '—' }}</dd></div>
+      <div><dt>Email</dt><dd>{{ student.email or '—' }}</dd></div>
+      <div><dt>Ставка</dt><dd>{{ student.hourly_rate|int }} ₽ / час</dd></div>
+      <div><dt>Ссылки</dt><dd class="pre-wrap">{{ student.social_links or '—' }}</dd></div>
+      <div class="wide"><dt>Заметки</dt><dd class="pre-wrap">{{ student.notes or '—' }}</dd></div>
+    </dl>
+  </section>
+  <section class="panel">
+    <div class="section-heading"><h2>Занятия</h2><span class="count">{{ student.lessons|length }}</span></div>
+    <div class="compact-list">
+      {% for lesson in student.lessons[:10] %}
+        <a href="/lessons/{{ lesson.id }}"><time>{{ lesson.starts_at|local_dt }}</time><span>{{ lesson.topic or lesson.title }}</span><b>→</b></a>
+      {% else %}<p class="muted">Занятий пока нет.</p>{% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block dialogs %}
+<dialog id="edit-student" class="dialog">
+  <form method="post" action="/students/{{ student.id }}" class="form-grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="dialog-header"><h2>Профиль ученика</h2><button type="button" class="icon-button" data-dialog-close>×</button></div>
+    <label class="span-2">ФИО<input name="full_name" value="{{ student.full_name }}" required></label>
+    <label>Класс<input name="grade" value="{{ student.grade }}"></label>
+    <label>Предмет<input name="subject" value="{{ student.subject }}"></label>
+    <label class="span-2">Цель<textarea name="goal">{{ student.goal }}</textarea></label>
+    <label>Родитель<input name="guardian_name" value="{{ student.guardian_name }}"></label>
+    <label>Телефон<input name="guardian_phone" value="{{ student.guardian_phone }}"></label>
+    <label>Email<input type="email" name="email" value="{{ student.email }}"></label>
+    <label>Ставка, ₽<input type="number" min="0" step="50" name="hourly_rate" value="{{ student.hourly_rate }}"></label>
+    <label class="span-2">Ссылки<textarea name="social_links">{{ student.social_links }}</textarea></label>
+    <label class="span-2">Заметки<textarea name="notes" rows="4">{{ student.notes }}</textarea></label>
+    <div class="dialog-actions span-2"><button type="button" class="button ghost" data-dialog-close>Отмена</button><button class="button primary">Сохранить</button></div>
+  </form>
+</dialog>
+{% endblock %}
+
