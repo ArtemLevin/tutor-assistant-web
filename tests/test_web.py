@@ -13,6 +13,21 @@ def csrf_from(html: str) -> str:
     return match.group(1)
 
 
+def login(client: TestClient, email: str = "admin@localhost", password: str = "test-password"):
+    login_page = client.get("/login")
+    response = client.post(
+        "/login",
+        data={
+            "csrf_token": csrf_from(login_page.text),
+            "email": email,
+            "password": password,
+            "next": "/",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+
+
 def test_student_and_lesson_happy_path(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'test.db'}")
     settings = Settings(
@@ -22,10 +37,12 @@ def test_student_and_lesson_happy_path(tmp_path):
         bbb_demo_mode=True,
         seed_demo_data=False,
         task_eager=True,
+        bootstrap_admin_password="test-password",
     )
     app = create_app(settings, database)
 
     with TestClient(app, follow_redirects=False) as client:
+        login(client)
         students_page = client.get("/students")
         assert students_page.status_code == 200
         csrf = csrf_from(students_page.text)
@@ -80,6 +97,7 @@ def test_health_reports_demo_dependencies(tmp_path):
         app_secret_key="test-secret",
         database_url=f"sqlite:///{tmp_path / 'health.db'}",
         seed_demo_data=False,
+        bootstrap_admin_password="test-password",
     )
     with TestClient(create_app(settings, database)) as client:
         response = client.get("/health/ready")
@@ -96,10 +114,12 @@ def test_feature_modules_can_be_enabled_with_dependencies(tmp_path):
         database_url=f"sqlite:///{tmp_path / 'modules.db'}",
         seed_demo_data=False,
         enabled_modules="students",
+        bootstrap_admin_password="test-password",
     )
     app = create_app(settings, database)
 
     assert app.state.installed_modules == ["identity", "students"]
-    with TestClient(app) as client:
+    with TestClient(app, follow_redirects=False) as client:
+        login(client)
         assert client.get("/students").status_code == 200
         assert client.get("/schedule").status_code == 404

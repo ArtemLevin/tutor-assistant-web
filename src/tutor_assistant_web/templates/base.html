@@ -21,6 +21,7 @@
         <a href="/students" class="nav-link">Ученики</a>
       </nav>
       <div class="sidebar-footer">
+        {% if principal %}<span class="muted" title="{{ principal.email }} · {{ principal.role }}">{{ principal.full_name }}</span>{% endif %}
         {% if demo_mode %}<span class="status-pill" title="Подключение к BigBlueButton эмулируется">Demo BBB</span>{% endif %}
         <form method="post" action="/logout">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -35,4 +36,3 @@
   {% block dialogs %}{% endblock %}
 </body>
 </html>
-

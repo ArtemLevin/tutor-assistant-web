@@ -11,14 +11,15 @@
     <span class="brand-mark large">T</span>
     <p class="eyebrow">Tutor Assistant</p>
     <h1>Рабочее пространство репетитора</h1>
-    <p class="muted">Введите код доступа, указанный в APP_ACCESS_TOKEN.</p>
+    <p class="muted">Войдите в рабочее пространство своей организации.</p>
     {% if error %}<p class="alert">{{ error }}</p>{% endif %}
     <form method="post" action="/login" class="stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
       <input type="hidden" name="next" value="{{ next }}">
-      <label>Код доступа<input type="password" name="token" autocomplete="current-password" autofocus required></label>
+      <label>Email<input type="email" name="email" value="{{ email or '' }}" autocomplete="username" autofocus required></label>
+      <label>Пароль<input type="password" name="password" autocomplete="current-password" required></label>
       <button class="button primary wide" type="submit">Продолжить</button>
     </form>
   </main>
 </body>
 </html>
-

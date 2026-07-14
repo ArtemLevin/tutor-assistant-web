@@ -17,6 +17,9 @@ class RecordingAsset(Base):
     __tablename__ = "recording_assets"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), index=True)
     record_id: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     state: Mapped[str] = mapped_column(String(32), default="processing")

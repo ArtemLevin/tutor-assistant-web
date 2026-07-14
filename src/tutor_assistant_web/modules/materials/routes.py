@@ -6,8 +6,10 @@ from tutor_assistant_web.bootstrap.container import AppContainer
 
 def create_router(container: AppContainer) -> APIRouter:
     router = APIRouter(tags=["materials"])
-    service = container.materials_service()
     web = container.web
+
+    def service(request: Request):
+        return container.materials_service(web.organization_id(request))
 
     @router.post("/lessons/{lesson_id}/process")
     async def process_lesson(request: Request, lesson_id: str):
@@ -15,14 +17,14 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         await web.validated_form(request)
-        service.enqueue(lesson_id)
+        service(request).enqueue(lesson_id)
         return RedirectResponse(f"/lessons/{lesson_id}", status_code=303)
 
     @router.get("/api/jobs/{job_id}")
     def job_status(request: Request, job_id: str):
         if not web.is_authorized(request):
             raise HTTPException(401, "Требуется авторизация")
-        job = service.status(job_id)
+        job = service(request).status(job_id)
         return {
             "id": job.id,
             "status": job.status,
@@ -36,7 +38,7 @@ def create_router(container: AppContainer) -> APIRouter:
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
-        artifact = service.artifact(artifact_id)
+        artifact = service(request).artifact(artifact_id)
         return PlainTextResponse(
             artifact.content,
             headers={

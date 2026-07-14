@@ -4,6 +4,7 @@ New code imports models from their owning business module.
 """
 
 from tutor_assistant_web.modules.classroom.models import RecordingAsset
+from tutor_assistant_web.modules.identity.models import Membership, Organization, User
 from tutor_assistant_web.modules.materials.models import (
     JobStatus,
     MaterialArtifact,
@@ -18,9 +19,12 @@ __all__ = [
     "Lesson",
     "LessonStatus",
     "MaterialArtifact",
+    "Membership",
+    "Organization",
     "ProcessingJob",
     "RecordingAsset",
     "Student",
+    "User",
     "new_id",
     "utcnow",
 ]

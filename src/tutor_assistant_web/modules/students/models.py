@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Numeric, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
@@ -18,6 +18,9 @@ class Student(Base):
     __tablename__ = "students"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
     full_name: Mapped[str] = mapped_column(String(160), index=True)
     grade: Mapped[str] = mapped_column(String(32), default="")
     subject: Mapped[str] = mapped_column(String(120), default="Математика")

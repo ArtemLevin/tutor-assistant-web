@@ -1,10 +1,11 @@
 UV ?= uv
 
-.PHONY: help sync run worker test lint format check diagnose docker-up docker-down
+.PHONY: help sync migrate run worker test lint format check diagnose docker-up docker-down
 
 help:
 	@echo "sync        Install all dependencies with uv"
 	@echo "run         Start the web app"
+	@echo "migrate     Upgrade the database to the latest revision"
 	@echo "worker      Start the Celery worker"
 	@echo "check       Run lint and tests"
 	@echo "diagnose    Print runtime diagnostics"
@@ -15,6 +16,9 @@ sync:
 
 run:
 	$(UV) run tutor-assistant-web
+
+migrate:
+	$(UV) run alembic upgrade head
 
 worker:
 	$(UV) run celery -A tutor_assistant_web.worker.celery_app worker --loglevel=INFO
@@ -40,4 +44,3 @@ docker-up:
 
 docker-down:
 	docker compose down
-

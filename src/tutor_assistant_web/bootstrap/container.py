@@ -8,6 +8,7 @@ from fastapi.templating import Jinja2Templates
 from tutor_assistant_web.bbb import BigBlueButtonClient
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.providers.conference import (
     BigBlueButtonConferenceProvider,
     DemoConferenceProvider,
@@ -32,11 +33,12 @@ class AppContainer:
     timezone: ZoneInfo
     templates: Jinja2Templates
     web: WebSupport
+    identity: IdentityService
     conference: ConferenceProvider
     materials: MaterialGenerator
     jobs: JobDispatcher
 
-    def classroom_service(self):
+    def classroom_service(self, organization_id: str | None):
         from tutor_assistant_web.modules.classroom.application import ClassroomService
 
         return ClassroomService(
@@ -44,16 +46,18 @@ class AppContainer:
             self.conference,
             self.settings.public_base_url,
             self.settings.app_secret_key,
+            organization_id,
         )
 
-    def materials_service(self):
+    def materials_service(self, organization_id: str):
         from tutor_assistant_web.modules.materials.application import MaterialsService
 
         return MaterialsService(
             self.database,
             self.materials,
-            self.classroom_service(),
+            self.classroom_service(organization_id),
             self.jobs,
+            organization_id,
         )
 
 
@@ -97,6 +101,7 @@ def build_container(
         timezone=timezone,
         templates=templates,
         web=WebSupport(settings, templates, timezone),
+        identity=IdentityService(database),
         conference=conference,
         materials=materials,
         jobs=jobs,

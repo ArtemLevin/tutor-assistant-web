@@ -37,8 +37,10 @@ def _student_data(form, *, fallback=None) -> StudentData:
 
 def create_router(container: AppContainer) -> APIRouter:
     router = APIRouter(prefix="/students", tags=["students"])
-    service = StudentService(container.database)
     web = container.web
+
+    def service(request: Request) -> StudentService:
+        return StudentService(container.database, web.organization_id(request))
 
     @router.get("", response_class=HTMLResponse)
     def students_page(request: Request, q: str = ""):
@@ -48,7 +50,7 @@ def create_router(container: AppContainer) -> APIRouter:
         return container.templates.TemplateResponse(
             request=request,
             name="students.html",
-            context=web.context(request, students=service.list_active(q), query=q),
+            context=web.context(request, students=service(request).list_active(q), query=q),
         )
 
     @router.post("")
@@ -57,7 +59,7 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         form = await web.validated_form(request)
-        student = service.create(_student_data(form))
+        student = service(request).create(_student_data(form))
         return RedirectResponse(f"/students/{student.id}", status_code=303)
 
     @router.get("/{student_id}", response_class=HTMLResponse)
@@ -65,7 +67,7 @@ def create_router(container: AppContainer) -> APIRouter:
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
-        student = service.get(student_id, with_lessons=True)
+        student = service(request).get(student_id, with_lessons=True)
         return container.templates.TemplateResponse(
             request=request,
             name="student_detail.html",
@@ -78,8 +80,8 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         form = await web.validated_form(request)
-        current = service.get(student_id)
-        service.update(student_id, _student_data(form, fallback=current))
+        current = service(request).get(student_id)
+        service(request).update(student_id, _student_data(form, fallback=current))
         return RedirectResponse(f"/students/{student_id}", status_code=303)
 
     return router

@@ -32,9 +32,10 @@ class WeekSchedule:
 
 
 class SchedulingService:
-    def __init__(self, database: Database, timezone: ZoneInfo) -> None:
+    def __init__(self, database: Database, timezone: ZoneInfo, organization_id: str) -> None:
         self.database = database
         self.timezone = timezone
+        self.organization_id = organization_id
 
     def week(self, selected: date) -> WeekSchedule:
         monday = selected - timedelta(days=selected.weekday())
@@ -46,7 +47,11 @@ class SchedulingService:
                 session.scalars(
                     select(Lesson)
                     .options(selectinload(Lesson.student))
-                    .where(Lesson.starts_at >= start_utc, Lesson.starts_at < end_utc)
+                    .where(
+                        Lesson.organization_id == self.organization_id,
+                        Lesson.starts_at >= start_utc,
+                        Lesson.starts_at < end_utc,
+                    )
                     .order_by(Lesson.starts_at)
                 )
             )
@@ -61,12 +66,18 @@ class SchedulingService:
         if command.ends_at <= command.starts_at:
             raise ValidationError("Окончание должно быть позже начала")
         with self.database.sessions() as session:
-            student = session.get(Student, command.student_id)
+            student = session.scalar(
+                select(Student).where(
+                    Student.id == command.student_id,
+                    Student.organization_id == self.organization_id,
+                )
+            )
             if student is None or not student.active:
                 raise NotFoundError("Ученик не найден")
             overlap = session.scalar(
                 select(Lesson.id).where(
                     Lesson.status != LessonStatus.cancelled.value,
+                    Lesson.organization_id == self.organization_id,
                     Lesson.starts_at < command.ends_at,
                     Lesson.ends_at > command.starts_at,
                 )
@@ -75,6 +86,7 @@ class SchedulingService:
                 raise ConflictError("В это время уже запланировано занятие")
             meeting_id, attendee, moderator = make_meeting_credentials()
             lesson = Lesson(
+                organization_id=self.organization_id,
                 student_id=student.id,
                 title=command.title[:200] or "Занятие",
                 topic=command.topic[:300],

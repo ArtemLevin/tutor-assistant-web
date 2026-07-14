@@ -9,10 +9,13 @@ from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.shared.security import make_meeting_credentials
 
 
-def seed_data(session) -> None:
-    if session.scalar(select(Student.id).limit(1)):
+def seed_data(session, organization_id: str) -> None:
+    if session.scalar(
+        select(Student.id).where(Student.organization_id == organization_id).limit(1)
+    ):
         return
     student = Student(
+        organization_id=organization_id,
         full_name="Анна Смирнова",
         grade="9 класс",
         subject="Математика",
@@ -28,6 +31,7 @@ def seed_data(session) -> None:
     starts = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
     session.add(
         Lesson(
+            organization_id=organization_id,
             student_id=student.id,
             title="Геометрия: подобие треугольников",
             topic="Признаки подобия треугольников",

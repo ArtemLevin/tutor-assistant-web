@@ -17,6 +17,7 @@ from tutor_assistant_web.config import Settings, get_settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.classroom.module import MODULE as CLASSROOM_MODULE
 from tutor_assistant_web.modules.dashboard.module import MODULE as DASHBOARD_MODULE
+from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
 from tutor_assistant_web.modules.identity.module import MODULE as IDENTITY_MODULE
 from tutor_assistant_web.modules.materials.module import MODULE as MATERIALS_MODULE
 from tutor_assistant_web.modules.scheduling.module import MODULE as SCHEDULING_MODULE
@@ -47,13 +48,15 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        database.create_schema()
+        if settings.auto_migrate:
+            database.migrate()
+        container.identity.bootstrap(settings)
         if settings.seed_demo_data:
             with database.sessions() as session:
-                seed_data(session)
+                seed_data(session, DEFAULT_ORGANIZATION_ID)
         yield
 
-    app = FastAPI(title=settings.app_name, version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title=settings.app_name, version="0.3.0", lifespan=lifespan)
     app.state.container = container
     app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
     app.add_middleware(

@@ -17,11 +17,14 @@ class Settings(BaseSettings):
     app_name: str = "Tutor Assistant"
     app_env: str = "development"
     app_secret_key: str = "change-me-in-production"
+    # Deprecated compatibility value. When set, it is used as the development
+    # bootstrap password unless BOOTSTRAP_ADMIN_PASSWORD is configured.
     app_access_token: str = ""
     app_timezone: str = "Europe/Moscow"
     public_base_url: str = "http://localhost:8000"
 
     database_url: str = "sqlite:///./data/tutor-assistant.db"
+    auto_migrate: bool = True
     redis_url: str = "redis://localhost:6379/0"
     task_eager: bool = True
 
@@ -39,6 +42,16 @@ class Settings(BaseSettings):
     session_max_age: int = Field(default=60 * 60 * 12, ge=300)
     enabled_modules: str = ""
 
+    bootstrap_organization_name: str = "Tutor Workspace"
+    bootstrap_organization_slug: str = "default"
+    bootstrap_admin_email: str = "admin@localhost"
+    bootstrap_admin_name: str = "Администратор"
+    bootstrap_admin_password: str = ""
+
+    @property
+    def effective_bootstrap_password(self) -> str:
+        return self.bootstrap_admin_password or self.app_access_token or "admin"
+
     @model_validator(mode="after")
     def validate_production(self) -> Settings:
         enabled = {item.strip() for item in self.enabled_modules.split(",") if item.strip()}
@@ -46,8 +59,8 @@ class Settings(BaseSettings):
         if self.app_env.lower() == "production":
             if self.app_secret_key == "change-me-in-production":
                 raise ValueError("APP_SECRET_KEY must be changed in production")
-            if not self.app_access_token:
-                raise ValueError("APP_ACCESS_TOKEN is required in production")
+            if len(self.bootstrap_admin_password) < 12:
+                raise ValueError("BOOTSTRAP_ADMIN_PASSWORD must contain at least 12 characters")
             if self.bbb_demo_mode and classroom_enabled:
                 raise ValueError("BBB_DEMO_MODE must be false in production")
         if not self.bbb_demo_mode and (not self.bbb_base_url or not self.bbb_secret):

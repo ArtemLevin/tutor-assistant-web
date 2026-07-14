@@ -29,6 +29,9 @@ class Lesson(Base):
     __tablename__ = "lessons"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
     student_id: Mapped[str] = mapped_column(ForeignKey("students.id"), index=True)
     title: Mapped[str] = mapped_column(String(200), default="Занятие")
     starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
