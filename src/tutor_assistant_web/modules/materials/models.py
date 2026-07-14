@@ -25,6 +25,9 @@ class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), index=True)
     status: Mapped[str] = mapped_column(String(24), default=JobStatus.queued.value, index=True)
     progress: Mapped[int] = mapped_column(default=0)
@@ -41,6 +44,9 @@ class MaterialArtifact(Base):
     __tablename__ = "material_artifacts"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), index=True)
     kind: Mapped[str] = mapped_column(String(32), default="summary")
     title: Mapped[str] = mapped_column(String(200))

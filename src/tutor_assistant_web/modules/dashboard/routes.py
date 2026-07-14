@@ -7,7 +7,6 @@ from tutor_assistant_web.modules.dashboard.application import DashboardService
 
 def create_router(container: AppContainer) -> APIRouter:
     router = APIRouter(tags=["dashboard"])
-    service = DashboardService(container.database)
     web = container.web
 
     @router.get("/", response_class=HTMLResponse)
@@ -15,7 +14,7 @@ def create_router(container: AppContainer) -> APIRouter:
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
-        data = service.load()
+        data = DashboardService(container.database, web.organization_id(request)).load()
         return container.templates.TemplateResponse(
             request=request,
             name="dashboard.html",
@@ -31,7 +30,7 @@ def create_router(container: AppContainer) -> APIRouter:
 
     @router.get("/health/live")
     def health_live():
-        return {"status": "ok", "version": "0.2.0"}
+        return {"status": "ok", "version": "0.3.0"}
 
     @router.get("/health/ready")
     def health_ready():

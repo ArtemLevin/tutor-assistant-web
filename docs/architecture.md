@@ -21,7 +21,7 @@ flowchart TB
 
 | Модуль | Ответственность | Зависимости |
 |---|---|---|
-| `identity` | общий доступ, сессии, CSRF | — |
+| `identity` | организации, пользователи, роли, сессии, CSRF | — |
 | `students` | профиль и контакты ученика | identity |
 | `scheduling` | недельная сетка и конфликты | students |
 | `classroom` | комната, роли, записи, заметки | scheduling |
@@ -70,6 +70,33 @@ sequenceDiagram
 
 Эти правила проверяются в `tests/test_architecture.py`.
 
+## Граница организации
+
+После успешного входа подписанная сессия содержит `user_id`, `organization_id` и роль membership.
+Каждый HTTP route создаёт application-сервис в scope текущей организации. Запросы учеников,
+занятий, записей, фоновых заданий и материалов всегда содержат фильтр `organization_id`.
+
+```mermaid
+flowchart LR
+    Session[Signed session] --> Principal[Principal + organization_id]
+    Principal --> Route[HTTP route]
+    Route --> Service[Tenant-scoped service]
+    Service --> Data[(Rows with organization_id)]
+    Job[Celery job_id] --> Resolve[Resolve organization_id]
+    Resolve --> Service
+```
+
+Публичная ссылка ученика остаётся вне пользовательской сессии. HMAC привязывает её к конкретным
+`lesson_id` и `student_id`; поиск выполняется только для этой пары. Роли `admin` и `tutor` имеют
+доступ к административным маршрутам. Роли `student` и `parent` зарезервированы для кабинетов.
+
+## Миграции
+
+Alembic является владельцем схемы. Ревизия `0001_pilot` описывает схему версии 0.2,
+`0002_identity_tenancy` добавляет identity и tenant-ключи. При первом запуске версии 0.3 база,
+ранее созданная через `create_all`, автоматически получает stamp `0001_pilot`; все существующие
+строки переносятся в организацию по умолчанию. Новая база проходит обе ревизии с нуля.
+
 ## Контейнеры
 
 ```mermaid
@@ -88,9 +115,8 @@ BigBlueButton работает отдельно. Shared secret остаётся 
 
 ## Следующие архитектурные задачи
 
-1. Alembic и миграции, принадлежащие модулям.
-2. Identity с пользователями, ролями и tenant isolation.
-3. Transactional outbox и доменные события.
-4. Recording-ready webhook и идемпотентные workflow.
-5. Версионированный `LessonEvidenceBundle`.
-
+1. Управление пользователями, приглашения и переключение организации.
+2. Transactional outbox и доменные события.
+3. Recording-ready webhook и идемпотентные workflow.
+4. Версионированный `LessonEvidenceBundle`.
+5. Audit log и политика retention.

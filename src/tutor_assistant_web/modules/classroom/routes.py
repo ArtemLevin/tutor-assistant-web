@@ -6,22 +6,25 @@ from tutor_assistant_web.bootstrap.container import AppContainer
 
 def create_router(container: AppContainer) -> APIRouter:
     router = APIRouter(tags=["classroom"])
-    service = container.classroom_service()
     web = container.web
+
+    def service(request: Request):
+        return container.classroom_service(web.organization_id(request))
 
     @router.get("/lessons/{lesson_id}", response_class=HTMLResponse)
     def lesson_detail(request: Request, lesson_id: str):
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
-        lesson = service.detail(lesson_id)
+        classroom = service(request)
+        lesson = classroom.detail(lesson_id)
         return container.templates.TemplateResponse(
             request=request,
             name="lesson_detail.html",
             context=web.context(
                 request,
                 lesson=lesson,
-                student_url=service.student_link(lesson),
+                student_url=classroom.student_link(lesson),
             ),
         )
 
@@ -31,7 +34,7 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         form = await web.validated_form(request)
-        service.update_notes(
+        service(request).update_notes(
             lesson_id,
             str(form.get("topic", "")),
             str(form.get("tutor_notes", "")),
@@ -43,11 +46,13 @@ def create_router(container: AppContainer) -> APIRouter:
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
-        return RedirectResponse(service.join_tutor(lesson_id), status_code=303)
+        return RedirectResponse(service(request).join_tutor(lesson_id), status_code=303)
 
     @router.get("/join/{lesson_id}/{token}")
     def join_as_student(lesson_id: str, token: str):
-        return RedirectResponse(service.join_student(lesson_id, token), status_code=303)
+        return RedirectResponse(
+            container.classroom_service(None).join_student(lesson_id, token), status_code=303
+        )
 
     @router.post("/lessons/{lesson_id}/end")
     async def end_lesson(request: Request, lesson_id: str):
@@ -55,12 +60,15 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         await web.validated_form(request)
-        service.end(lesson_id)
+        service(request).end(lesson_id)
         return RedirectResponse(f"/lessons/{lesson_id}", status_code=303)
 
     @router.get("/demo-room/{lesson_id}", response_class=HTMLResponse)
     def demo_room(request: Request, lesson_id: str, role: str = "student"):
-        lesson = service.demo_room(lesson_id)
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        lesson = service(request).demo_room(lesson_id)
         return container.templates.TemplateResponse(
             request=request,
             name="demo_room.html",

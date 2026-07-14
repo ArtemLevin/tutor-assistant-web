@@ -26,18 +26,29 @@ class StudentData:
 
 
 class StudentService:
-    def __init__(self, database: Database) -> None:
+    def __init__(self, database: Database, organization_id: str) -> None:
         self.database = database
+        self.organization_id = organization_id
 
     def list_active(self, query: str = "") -> list[Student]:
-        statement = select(Student).where(Student.active.is_(True)).order_by(Student.full_name)
+        statement = (
+            select(Student)
+            .where(
+                Student.organization_id == self.organization_id,
+                Student.active.is_(True),
+            )
+            .order_by(Student.full_name)
+        )
         if query.strip():
             statement = statement.where(Student.full_name.ilike(f"%{query.strip()}%"))
         with self.database.sessions() as session:
             return list(session.scalars(statement))
 
     def get(self, student_id: str, *, with_lessons: bool = False) -> Student:
-        statement = select(Student).where(Student.id == student_id)
+        statement = select(Student).where(
+            Student.id == student_id,
+            Student.organization_id == self.organization_id,
+        )
         if with_lessons:
             statement = statement.options(selectinload(Student.lessons))
         with self.database.sessions() as session:
@@ -51,7 +62,7 @@ class StudentService:
     def create(self, data: StudentData) -> Student:
         if len(data.full_name.strip()) < 2:
             raise ValidationError("Укажите имя ученика")
-        student = Student(**self._values(data))
+        student = Student(organization_id=self.organization_id, **self._values(data))
         with self.database.sessions() as session:
             session.add(student)
             session.commit()
@@ -61,7 +72,12 @@ class StudentService:
         if len(data.full_name.strip()) < 2:
             raise ValidationError("Укажите имя ученика")
         with self.database.sessions() as session:
-            student = session.get(Student, student_id)
+            student = session.scalar(
+                select(Student).where(
+                    Student.id == student_id,
+                    Student.organization_id == self.organization_id,
+                )
+            )
             if student is None:
                 raise NotFoundError("Ученик не найден")
             for field, value in self._values(data).items():

@@ -23,9 +23,14 @@ def _parse_local(value: str, timezone) -> datetime:
 
 def create_router(container: AppContainer) -> APIRouter:
     router = APIRouter(tags=["scheduling"])
-    service = SchedulingService(container.database, container.timezone)
-    students = StudentService(container.database)
     web = container.web
+
+    def services(request: Request):
+        organization_id = web.organization_id(request)
+        return (
+            SchedulingService(container.database, container.timezone, organization_id),
+            StudentService(container.database, organization_id),
+        )
 
     @router.get("/schedule", response_class=HTMLResponse)
     def schedule(request: Request, week: str = ""):
@@ -36,7 +41,8 @@ def create_router(container: AppContainer) -> APIRouter:
             selected = date.fromisoformat(week) if week else datetime.now(container.timezone).date()
         except ValueError as exc:
             raise ValidationError("Некорректная дата недели") from exc
-        view = service.week(selected)
+        scheduling, students = services(request)
+        view = scheduling.week(selected)
         default_start = datetime.now(container.timezone).replace(
             minute=0, second=0, microsecond=0
         ) + timedelta(hours=1)
@@ -63,7 +69,8 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         form = await web.validated_form(request)
-        lesson = service.create(
+        scheduling, _ = services(request)
+        lesson = scheduling.create(
             CreateLesson(
                 student_id=str(form.get("student_id", "")),
                 title=str(form.get("title", "Занятие")),

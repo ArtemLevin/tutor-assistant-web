@@ -24,11 +24,18 @@ class ClassroomService:
         conference: ConferenceProvider,
         public_base_url: str,
         secret: str,
+        organization_id: str | None,
     ) -> None:
         self.database = database
         self.conference = conference
         self.public_base_url = public_base_url.rstrip("/")
         self.secret = secret
+        self.organization_id = organization_id
+
+    def _tenant_filter(self):
+        if self.organization_id is None:
+            raise NotFoundError("Занятие не найдено")
+        return Lesson.organization_id == self.organization_id
 
     def detail(self, lesson_id: str) -> Lesson:
         with self.database.sessions() as session:
@@ -40,7 +47,7 @@ class ClassroomService:
                     selectinload(Lesson.jobs),
                     selectinload(Lesson.artifacts),
                 )
-                .where(Lesson.id == lesson_id)
+                .where(Lesson.id == lesson_id, self._tenant_filter())
             )
             if lesson is None:
                 raise NotFoundError("Занятие не найдено")
@@ -54,7 +61,9 @@ class ClassroomService:
 
     def update_notes(self, lesson_id: str, topic: str, notes: str) -> None:
         with self.database.sessions() as session:
-            lesson = session.get(Lesson, lesson_id)
+            lesson = session.scalar(
+                select(Lesson).where(Lesson.id == lesson_id, self._tenant_filter())
+            )
             if lesson is None:
                 raise NotFoundError("Занятие не найдено")
             lesson.topic = topic[:300]
@@ -64,7 +73,9 @@ class ClassroomService:
     def join_tutor(self, lesson_id: str) -> str:
         with self.database.sessions() as session:
             lesson = session.scalar(
-                select(Lesson).options(selectinload(Lesson.student)).where(Lesson.id == lesson_id)
+                select(Lesson)
+                .options(selectinload(Lesson.student))
+                .where(Lesson.id == lesson_id, self._tenant_filter())
             )
             if lesson is None:
                 raise NotFoundError("Занятие не найдено")
@@ -109,7 +120,9 @@ class ClassroomService:
 
     def end(self, lesson_id: str) -> None:
         with self.database.sessions() as session:
-            lesson = session.get(Lesson, lesson_id)
+            lesson = session.scalar(
+                select(Lesson).where(Lesson.id == lesson_id, self._tenant_filter())
+            )
             if lesson is None:
                 raise NotFoundError("Занятие не найдено")
             self.conference.end_room(lesson.bbb_meeting_id)
@@ -121,7 +134,9 @@ class ClassroomService:
             raise NotFoundError("Demo-комната отключена")
         with self.database.sessions() as session:
             lesson = session.scalar(
-                select(Lesson).options(selectinload(Lesson.student)).where(Lesson.id == lesson_id)
+                select(Lesson)
+                .options(selectinload(Lesson.student))
+                .where(Lesson.id == lesson_id, self._tenant_filter())
             )
             if lesson is None:
                 raise NotFoundError("Занятие не найдено")
@@ -129,16 +144,25 @@ class ClassroomService:
 
     def sync_recordings(self, lesson_id: str) -> int:
         with self.database.sessions() as session:
-            lesson = session.get(Lesson, lesson_id)
+            lesson = session.scalar(
+                select(Lesson).where(Lesson.id == lesson_id, self._tenant_filter())
+            )
             if lesson is None:
                 raise NotFoundError("Занятие не найдено")
             found = self.conference.recordings(lesson.bbb_meeting_id)
             for item in found:
                 current = session.scalar(
-                    select(RecordingAsset).where(RecordingAsset.record_id == item.record_id)
+                    select(RecordingAsset).where(
+                        RecordingAsset.record_id == item.record_id,
+                        RecordingAsset.organization_id == self.organization_id,
+                    )
                 )
                 if current is None:
-                    current = RecordingAsset(lesson_id=lesson.id, record_id=item.record_id)
+                    current = RecordingAsset(
+                        organization_id=self.organization_id,
+                        lesson_id=lesson.id,
+                        record_id=item.record_id,
+                    )
                     session.add(current)
                 current.state = item.state
                 current.playback_url = item.playback_url

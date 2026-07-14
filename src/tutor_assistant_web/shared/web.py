@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from tutor_assistant_web.config import Settings
+from tutor_assistant_web.modules.identity.application import Principal
 
 
 class WebSupport:
@@ -41,15 +42,39 @@ class WebSupport:
             "csrf_token": self.csrf_token(request),
             "demo_mode": self.settings.bbb_demo_mode,
             "timezone_name": self.settings.app_timezone,
+            "principal": self.principal(request),
             **values,
         }
 
     def is_authorized(self, request: Request) -> bool:
-        return not self.settings.app_access_token or bool(request.session.get("authorized"))
+        return self.principal(request) is not None
+
+    def principal(self, request: Request) -> Principal | None:
+        session = request.session
+        required = ("user_id", "organization_id", "role", "email", "full_name")
+        if not all(session.get(key) for key in required):
+            return None
+        return Principal(
+            user_id=str(session["user_id"]),
+            organization_id=str(session["organization_id"]),
+            organization_name=str(session.get("organization_name", "")),
+            role=str(session["role"]),
+            email=str(session["email"]),
+            full_name=str(session["full_name"]),
+        )
+
+    def organization_id(self, request: Request) -> str:
+        principal = self.principal(request)
+        if principal is None:
+            raise HTTPException(401, "Требуется авторизация")
+        return principal.organization_id
 
     def require_tutor(self, request: Request) -> RedirectResponse | None:
-        if self.is_authorized(request):
+        principal = self.principal(request)
+        if principal and principal.role in {"admin", "tutor"}:
             return None
+        if principal:
+            raise HTTPException(403, "Для этого раздела требуется роль преподавателя")
         target = quote(request.url.path, safe="/")
         return RedirectResponse(f"/login?next={target}", status_code=303)
 

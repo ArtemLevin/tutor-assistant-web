@@ -11,6 +11,8 @@ from tutor_assistant_web.bootstrap.registry import ModuleDefinition, ModuleRegis
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.classroom.application import ClassroomService
+from tutor_assistant_web.modules.identity.application import IdentityService
+from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
 from tutor_assistant_web.modules.scheduling.application import CreateLesson, SchedulingService
 from tutor_assistant_web.modules.students.application import StudentData, StudentService
 from tutor_assistant_web.shared.contracts import ConferenceRecording
@@ -60,6 +62,7 @@ def test_crm_only_production_configuration_does_not_require_bbb():
         app_env="production",
         app_secret_key="production-secret",
         app_access_token="access-token",
+        bootstrap_admin_password="a-secure-production-password",
         enabled_modules="students",
         bbb_demo_mode=True,
     )
@@ -90,10 +93,13 @@ class FakeConference:
 
 def test_classroom_uses_replaceable_conference_provider(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'provider.db'}")
-    database.create_schema()
-    student = StudentService(database).create(StudentData(full_name="Иван Петров"))
+    database.migrate()
+    IdentityService(database).bootstrap(Settings(seed_demo_data=False))
+    student = StudentService(database, DEFAULT_ORGANIZATION_ID).create(
+        StudentData(full_name="Иван Петров")
+    )
     starts = datetime.now(UTC) + timedelta(hours=1)
-    lesson = SchedulingService(database, ZoneInfo("UTC")).create(
+    lesson = SchedulingService(database, ZoneInfo("UTC"), DEFAULT_ORGANIZATION_ID).create(
         CreateLesson(
             student_id=student.id,
             title="Алгебра",
@@ -104,7 +110,9 @@ def test_classroom_uses_replaceable_conference_provider(tmp_path):
         )
     )
     provider = FakeConference()
-    classroom = ClassroomService(database, provider, "https://app.test", "secret")
+    classroom = ClassroomService(
+        database, provider, "https://app.test", "secret", DEFAULT_ORGANIZATION_ID
+    )
 
     url = classroom.join_tutor(lesson.id)
     classroom.end(lesson.id)
