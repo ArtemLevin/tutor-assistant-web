@@ -123,3 +123,26 @@ def test_feature_modules_can_be_enabled_with_dependencies(tmp_path):
         login(client)
         assert client.get("/students").status_code == 200
         assert client.get("/schedule").status_code == 404
+
+
+def test_portal_module_enables_its_transitive_dependencies(tmp_path):
+    database = Database(f"sqlite:///{tmp_path / 'portal-modules.db'}")
+    settings = Settings(
+        app_secret_key="test-secret",
+        database_url=f"sqlite:///{tmp_path / 'portal-modules.db'}",
+        seed_demo_data=False,
+        enabled_modules="portal",
+        bootstrap_admin_password="test-password",
+    )
+    app = create_app(settings, database)
+
+    assert app.state.installed_modules == [
+        "audit",
+        "identity",
+        "students",
+        "scheduling",
+        "classroom",
+        "materials",
+        "automation",
+        "portal",
+    ]

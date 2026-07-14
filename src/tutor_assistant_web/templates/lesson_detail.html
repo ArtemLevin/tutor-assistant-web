@@ -61,6 +61,10 @@
             <form method="post" action="/generation-runs/{{ run.id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button secondary small">Согласовать</button></form>
             {% elif run.status == 'approved' %}
             <form method="post" action="/generation-runs/{{ run.id }}/publish"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button primary small">Опубликовать</button></form>
+            {% elif run.status == 'published' %}
+            <form method="post" action="/generation-runs/{{ run.id }}/revoke"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button danger small">Отозвать публикацию</button></form>
+            {% elif run.status == 'revoked' %}
+            <span class="caption">Комплект отозван. Создайте исправленную версию.</span>
             {% endif %}
             <details class="build-log"><summary>Журнал сборки</summary>{% for log in run.logs %}<p><strong>{{ log.stage }} · {{ log.status }}</strong><br>{{ log.message }}</p>{% endfor %}</details>
           </div>

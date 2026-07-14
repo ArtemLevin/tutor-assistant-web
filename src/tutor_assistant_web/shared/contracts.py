@@ -137,3 +137,9 @@ class JobDispatcher(Protocol):
     name: str
 
     def enqueue_lesson_processing(self, job_id: str) -> None: ...
+
+
+class OutboxEventHandler(Protocol):
+    def handles(self, topic: str) -> bool: ...
+
+    def handle(self, topic: str, organization_id: str, payload: dict[str, Any]) -> None: ...

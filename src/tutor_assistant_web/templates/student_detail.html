@@ -27,6 +27,27 @@
     </div>
   </section>
 </div>
+{% if access_invitation_url %}
+<section class="panel invitation-result student-access-result">
+  <div><p class="eyebrow">Доступ создан</p><h2>Передайте одноразовую ссылку</h2></div>
+  <p class="share-url">{{ access_invitation_url }}</p><button class="button secondary small" type="button" data-copy="{{ access_invitation_url }}">Копировать</button>
+</section>
+{% endif %}
+<section class="section panel">
+  <div class="section-heading"><div><p class="eyebrow">Личный кабинет</p><h2>Доступ ученика и родителей</h2></div><button class="button secondary small" type="button" data-dialog-open="invite-recipient">Пригласить</button></div>
+  <div class="data-table">
+    {% for access in accesses %}
+    <div class="data-row access-row">
+      <div><strong>{{ access.user.full_name }}</strong><small>{{ access.user.email }}</small></div><span class="badge {{ 'completed' if access.active else '' }}">{{ access.role }}</span><span>{{ 'Активен' if access.active else 'Отозван' }}</span>
+      {% if access.active %}<form method="post" action="/students/{{ student.id }}/access/{{ access.id }}/revoke"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button ghost small">Отозвать</button></form>{% endif %}
+    </div>
+    {% endfor %}
+    {% for invitation in access_invitations %}
+    <div class="data-row access-row pending"><div><strong>{{ invitation.email }}</strong><small>Приглашение до {{ invitation.expires_at|local_dt('%d.%m.%Y %H:%M') }}</small></div><span class="badge live">{{ invitation.role }}</span><span>Ожидает</span><form method="post" action="/students/{{ student.id }}/access/invitations/{{ invitation.id }}/revoke"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button ghost small">Отозвать</button></form></div>
+    {% endfor %}
+    {% if not accesses and not access_invitations %}<p class="muted">Доступ ещё никому не предоставлен.</p>{% endif %}
+  </div>
+</section>
 {% endblock %}
 {% block dialogs %}
 <dialog id="edit-student" class="dialog">
@@ -46,5 +67,14 @@
     <div class="dialog-actions span-2"><button type="button" class="button ghost" data-dialog-close>Отмена</button><button class="button primary">Сохранить</button></div>
   </form>
 </dialog>
+<dialog id="invite-recipient" class="dialog compact">
+  <form method="post" action="/students/{{ student.id }}/access/invitations" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="dialog-header"><div><p class="eyebrow">Личный кабинет</p><h2>Пригласить получателя</h2></div><button type="button" class="icon-button" data-dialog-close>×</button></div>
+    <label>Email<input type="email" name="email" required autocomplete="email"></label>
+    <label>Роль<select name="role"><option value="parent">Родитель</option><option value="student">Ученик</option></select></label>
+    <p class="caption">Ссылка действует {{ settings_invitation_ttl }} часа. После принятия пользователь увидит только опубликованные материалы {{ student.full_name }}.</p>
+    <div class="dialog-actions"><button type="button" class="button ghost" data-dialog-close>Отмена</button><button class="button primary">Создать ссылку</button></div>
+  </form>
+</dialog>
 {% endblock %}
-

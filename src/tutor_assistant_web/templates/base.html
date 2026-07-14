@@ -16,12 +16,16 @@
         <span>Tutor</span>
       </a>
       <nav class="nav" aria-label="Основная навигация">
+        {% if principal and principal.role in ['student', 'parent'] %}
+        <a href="/portal" class="nav-link">Материалы</a>
+        {% else %}
         <a href="/" class="nav-link">Сегодня</a>
         <a href="/schedule" class="nav-link">Расписание</a>
         <a href="/students" class="nav-link">Ученики</a>
         {% if principal and principal.role == 'admin' %}
         <a href="/settings/team" class="nav-link">Команда</a>
         <a href="/settings/audit" class="nav-link">Аудит</a>
+        {% endif %}
         {% endif %}
       </nav>
       <div class="sidebar-footer">

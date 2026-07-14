@@ -17,8 +17,10 @@ from tutor_assistant_web.modules.identity.models import (
     Membership,
     MembershipRole,
     Organization,
+    StudentAccess,
     User,
 )
+from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.shared.errors import ConflictError, NotFoundError, ValidationError
 
 
@@ -159,7 +161,10 @@ class IdentityService:
             invitations = list(
                 session.scalars(
                     select(Invitation)
-                    .options(selectinload(Invitation.invited_by))
+                    .options(
+                        selectinload(Invitation.invited_by),
+                        selectinload(Invitation.student),
+                    )
                     .where(Invitation.organization_id == organization_id)
                     .order_by(Invitation.created_at.desc())
                     .limit(100)
@@ -174,28 +179,64 @@ class IdentityService:
         email: str,
         role: str,
         ttl_hours: int,
+        student_id: str | None = None,
     ) -> CreatedInvitation:
         normalized_email = email.strip().lower()
         self._validate_email(normalized_email)
         self._validate_role(role)
+        recipient_role = role in {MembershipRole.student.value, MembershipRole.parent.value}
+        if recipient_role != bool(student_id):
+            raise ValidationError("Для ученика или родителя необходимо выбрать карточку ученика")
         token = secrets.token_urlsafe(32)
         token_hash = self._token_hash(token)
         now = datetime.now(UTC)
         with self.database.sessions() as session:
+            if (
+                student_id
+                and session.scalar(
+                    select(Student.id).where(
+                        Student.id == student_id,
+                        Student.organization_id == organization_id,
+                    )
+                )
+                is None
+            ):
+                raise NotFoundError("Ученик не найден")
             existing_user = session.scalar(select(User).where(User.email == normalized_email))
-            if existing_user and session.scalar(
-                select(Membership.id).where(
-                    Membership.organization_id == organization_id,
-                    Membership.user_id == existing_user.id,
-                    Membership.active.is_(True),
+            existing_membership = (
+                session.scalar(
+                    select(Membership).where(
+                        Membership.organization_id == organization_id,
+                        Membership.user_id == existing_user.id,
+                        Membership.active.is_(True),
+                    )
+                )
+                if existing_user
+                else None
+            )
+            if existing_membership and not recipient_role:
+                raise ConflictError("Пользователь уже состоит в этой организации")
+            if existing_membership and existing_membership.role != role:
+                raise ConflictError("Пользователь уже имеет другую роль в этой организации")
+            if (
+                existing_user
+                and student_id
+                and session.scalar(
+                    select(StudentAccess.id).where(
+                        StudentAccess.organization_id == organization_id,
+                        StudentAccess.student_id == student_id,
+                        StudentAccess.user_id == existing_user.id,
+                        StudentAccess.active.is_(True),
+                    )
                 )
             ):
-                raise ConflictError("Пользователь уже состоит в этой организации")
+                raise ConflictError("Пользователь уже имеет доступ к этому ученику")
             pending = list(
                 session.scalars(
                     select(Invitation).where(
                         Invitation.organization_id == organization_id,
                         Invitation.email == normalized_email,
+                        Invitation.student_id == student_id,
                         Invitation.accepted_at.is_(None),
                         Invitation.revoked_at.is_(None),
                     )
@@ -209,6 +250,7 @@ class IdentityService:
                 role=role,
                 token_hash=token_hash,
                 invited_by_user_id=actor_user_id,
+                student_id=student_id,
                 expires_at=now + timedelta(hours=ttl_hours),
             )
             session.add(invitation)
@@ -219,7 +261,10 @@ class IdentityService:
         with self.database.sessions() as session:
             invitation = session.scalar(
                 select(Invitation)
-                .options(selectinload(Invitation.organization))
+                .options(
+                    selectinload(Invitation.organization),
+                    selectinload(Invitation.student),
+                )
                 .where(Invitation.token_hash == self._token_hash(token))
                 .with_for_update()
             )
@@ -273,10 +318,108 @@ class IdentityService:
                 session.add(membership)
             else:
                 membership.active = True
-                membership.role = invitation.role
+                if membership.role != invitation.role:
+                    raise ConflictError("Учётная запись уже имеет другую роль")
+            if invitation.student_id is not None:
+                access = session.scalar(
+                    select(StudentAccess).where(
+                        StudentAccess.organization_id == invitation.organization_id,
+                        StudentAccess.student_id == invitation.student_id,
+                        StudentAccess.user_id == user.id,
+                    )
+                )
+                if access is None:
+                    access = StudentAccess(
+                        organization_id=invitation.organization_id,
+                        student_id=invitation.student_id,
+                        user_id=user.id,
+                        role=invitation.role,
+                    )
+                    session.add(access)
+                else:
+                    access.role = invitation.role
+                    access.active = True
+                    access.revoked_at = None
             invitation.accepted_at = now
             session.commit()
             return self._principal(user, membership, invitation.organization)
+
+    def student_accesses(
+        self, organization_id: str, student_id: str
+    ) -> tuple[list[StudentAccess], list[Invitation]]:
+        with self.database.sessions() as session:
+            student = session.scalar(
+                select(Student.id).where(
+                    Student.id == student_id,
+                    Student.organization_id == organization_id,
+                )
+            )
+            if student is None:
+                raise NotFoundError("Ученик не найден")
+            accesses = list(
+                session.scalars(
+                    select(StudentAccess)
+                    .options(selectinload(StudentAccess.user))
+                    .where(
+                        StudentAccess.organization_id == organization_id,
+                        StudentAccess.student_id == student_id,
+                    )
+                    .order_by(StudentAccess.active.desc(), StudentAccess.created_at)
+                )
+            )
+            invitations = list(
+                session.scalars(
+                    select(Invitation)
+                    .where(
+                        Invitation.organization_id == organization_id,
+                        Invitation.student_id == student_id,
+                        Invitation.accepted_at.is_(None),
+                        Invitation.revoked_at.is_(None),
+                    )
+                    .order_by(Invitation.created_at.desc())
+                )
+            )
+            return accesses, invitations
+
+    def revoke_student_access(
+        self, organization_id: str, student_id: str, access_id: str
+    ) -> StudentAccess:
+        with self.database.sessions() as session:
+            access = session.scalar(
+                select(StudentAccess)
+                .where(
+                    StudentAccess.id == access_id,
+                    StudentAccess.organization_id == organization_id,
+                    StudentAccess.student_id == student_id,
+                )
+                .with_for_update()
+            )
+            if access is None:
+                raise NotFoundError("Доступ не найден")
+            access.active = False
+            access.revoked_at = datetime.now(UTC)
+            session.commit()
+            return access
+
+    def revoke_student_invitation(
+        self, organization_id: str, student_id: str, invitation_id: str
+    ) -> Invitation:
+        with self.database.sessions() as session:
+            invitation = session.scalar(
+                select(Invitation)
+                .where(
+                    Invitation.id == invitation_id,
+                    Invitation.organization_id == organization_id,
+                    Invitation.student_id == student_id,
+                )
+                .with_for_update()
+            )
+            if invitation is None:
+                raise NotFoundError("Приглашение не найдено")
+            if invitation.accepted_at is None:
+                invitation.revoked_at = datetime.now(UTC)
+            session.commit()
+            return invitation
 
     def update_membership(
         self,

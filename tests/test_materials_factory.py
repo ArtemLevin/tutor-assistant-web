@@ -20,6 +20,7 @@ from tutor_assistant_web.modules.materials.models import (
     GenerationStatus,
     ProcessingJob,
 )
+from tutor_assistant_web.modules.portal.application import PublicationService
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.documents import (
@@ -111,7 +112,7 @@ def test_factory_builds_versions_and_is_idempotent(tmp_path):
         assert all((tmp_path / "artifacts" / item.storage_key).is_file() for item in versions)
 
     materials.approve(run.id, "tutor-user")
-    materials.publish(run.id)
+    PublicationService(database, ORG_ID).publish(run.id, "tutor-user")
     with database.sessions() as session:
         published = session.get(GenerationRun, run.id)
         statuses = set(session.scalars(select(ArtifactVersion.status)))

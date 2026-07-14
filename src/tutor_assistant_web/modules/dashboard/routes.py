@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from tutor_assistant_web.bootstrap.container import AppContainer
 from tutor_assistant_web.modules.dashboard.application import DashboardService
@@ -11,6 +11,9 @@ def create_router(container: AppContainer) -> APIRouter:
 
     @router.get("/", response_class=HTMLResponse)
     def dashboard(request: Request):
+        principal = web.principal(request)
+        if principal and principal.role in {"student", "parent"}:
+            return RedirectResponse("/portal", status_code=303)
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
@@ -30,7 +33,7 @@ def create_router(container: AppContainer) -> APIRouter:
 
     @router.get("/health/live")
     def health_live():
-        return {"status": "ok", "version": "0.6.0"}
+        return {"status": "ok", "version": "0.7.0"}
 
     @router.get("/health/ready")
     def health_ready():

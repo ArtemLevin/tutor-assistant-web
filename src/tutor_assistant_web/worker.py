@@ -21,6 +21,7 @@ from tutor_assistant_web.modules.automation.application import (
 from tutor_assistant_web.modules.classroom.application import ClassroomService
 from tutor_assistant_web.modules.materials.application import MaterialsService
 from tutor_assistant_web.modules.materials.models import ProcessingJob
+from tutor_assistant_web.modules.portal.application import PortalEventHandler
 from tutor_assistant_web.providers.tasks import CeleryJobDispatcher
 from tutor_assistant_web.providers.transcription import TranscriptionProviderError
 from tutor_assistant_web.shared.models import utcnow
@@ -114,6 +115,7 @@ def dispatch_outbox_task() -> dict[str, int]:
         CeleryJobDispatcher(),
         max_attempts=settings.outbox_max_attempts,
         retry_base_seconds=settings.workflow_retry_base_seconds,
+        event_handlers=(PortalEventHandler(database),),
     ).dispatch_pending(settings.outbox_batch_size)
 
 

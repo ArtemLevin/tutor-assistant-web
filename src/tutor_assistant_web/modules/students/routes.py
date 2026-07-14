@@ -70,17 +70,101 @@ def create_router(container: AppContainer) -> APIRouter:
         )
         return RedirectResponse(f"/students/{student.id}", status_code=303)
 
+    def detail_context(request: Request, student_id: str, invitation_url: str = ""):
+        student = service(request).get(student_id, with_lessons=True)
+        principal = web.principal_required(request)
+        accesses, invitations = container.identity.student_accesses(
+            principal.organization_id, student_id
+        )
+        return web.context(
+            request,
+            student=student,
+            accesses=accesses,
+            access_invitations=invitations,
+            access_invitation_url=invitation_url,
+            settings_invitation_ttl=container.settings.invitation_ttl_hours,
+        )
+
     @router.get("/{student_id}", response_class=HTMLResponse)
     def student_detail(request: Request, student_id: str):
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
-        student = service(request).get(student_id, with_lessons=True)
         return container.templates.TemplateResponse(
             request=request,
             name="student_detail.html",
-            context=web.context(request, student=student),
+            context=detail_context(request, student_id),
         )
+
+    @router.post("/{student_id}/access/invitations", response_class=HTMLResponse)
+    async def invite_recipient(request: Request, student_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        principal = web.principal_required(request)
+        form = await web.validated_form(request)
+        created = container.identity.create_invitation(
+            principal.organization_id,
+            principal.user_id,
+            str(form.get("email", "")),
+            str(form.get("role", "parent")),
+            container.settings.invitation_ttl_hours,
+            student_id=student_id,
+        )
+        invitation_url = (
+            f"{container.settings.public_base_url.rstrip('/')}/accept-invitation/{created.token}"
+        )
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "student_access.invited",
+            "invitation",
+            created.invitation.id,
+            {"student_id": student_id, "role": created.invitation.role},
+        )
+        return container.templates.TemplateResponse(
+            request=request,
+            name="student_detail.html",
+            context=detail_context(request, student_id, invitation_url),
+            status_code=201,
+        )
+
+    @router.post("/{student_id}/access/{access_id}/revoke")
+    async def revoke_recipient_access(request: Request, student_id: str, access_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        await web.validated_form(request)
+        principal = web.principal_required(request)
+        access = container.identity.revoke_student_access(
+            principal.organization_id, student_id, access_id
+        )
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "student_access.revoked",
+            "student_access",
+            access.id,
+            {"student_id": student_id, "user_id": access.user_id},
+        )
+        return RedirectResponse(f"/students/{student_id}", status_code=303)
+
+    @router.post("/{student_id}/access/invitations/{invitation_id}/revoke")
+    async def revoke_recipient_invitation(request: Request, student_id: str, invitation_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        await web.validated_form(request)
+        principal = web.principal_required(request)
+        invitation = container.identity.revoke_student_invitation(
+            principal.organization_id, student_id, invitation_id
+        )
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "student_access.invitation_revoked",
+            "invitation",
+            invitation.id,
+            {"student_id": student_id},
+        )
+        return RedirectResponse(f"/students/{student_id}", status_code=303)
 
     @router.post("/{student_id}")
     async def update_student(request: Request, student_id: str):

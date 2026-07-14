@@ -80,9 +80,9 @@ class Settings(BaseSettings):
     def validate_production(self) -> Settings:
         enabled = {item.strip() for item in self.enabled_modules.split(",") if item.strip()}
         classroom_enabled = not enabled or bool(
-            enabled & {"classroom", "materials", "automation", "dashboard"}
+            enabled & {"classroom", "materials", "automation", "portal", "dashboard"}
         )
-        automation_enabled = not enabled or "automation" in enabled
+        automation_enabled = not enabled or bool(enabled & {"automation", "portal"})
         if self.app_env.lower() == "production":
             if self.app_secret_key == "change-me-in-production":
                 raise ValueError("APP_SECRET_KEY must be changed in production")
@@ -104,7 +104,7 @@ class Settings(BaseSettings):
             ):
                 raise ValueError("Configure TRANSCRIPTION_PROVIDER for production automation")
             materials_enabled = not enabled or bool(
-                enabled & {"materials", "automation", "dashboard"}
+                enabled & {"materials", "automation", "portal", "dashboard"}
             )
             if materials_enabled and self.document_engine_provider.lower() == "local":
                 raise ValueError(
