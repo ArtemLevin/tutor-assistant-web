@@ -60,6 +60,11 @@ class AppContainer:
             organization_id,
         )
 
+    def audit_service(self, organization_id: str):
+        from tutor_assistant_web.modules.audit.application import AuditService
+
+        return AuditService(self.database, organization_id)
+
 
 def build_conference_provider(settings: Settings) -> ConferenceProvider:
     if settings.bbb_demo_mode:
@@ -90,6 +95,7 @@ def build_container(
 ) -> AppContainer:
     conference = build_conference_provider(settings)
     materials = build_material_generator(settings)
+    identity = IdentityService(database)
     jobs: JobDispatcher
     if settings.task_eager:
         jobs = InlineJobDispatcher(database, settings, conference, materials)
@@ -100,8 +106,8 @@ def build_container(
         database=database,
         timezone=timezone,
         templates=templates,
-        web=WebSupport(settings, templates, timezone),
-        identity=IdentityService(database),
+        web=WebSupport(settings, templates, timezone, identity),
+        identity=identity,
         conference=conference,
         materials=materials,
         jobs=jobs,

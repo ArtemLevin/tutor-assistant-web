@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     bootstrap_admin_email: str = "admin@localhost"
     bootstrap_admin_name: str = "Администратор"
     bootstrap_admin_password: str = ""
+    invitation_ttl_hours: int = Field(default=72, ge=1, le=24 * 30)
 
     @property
     def effective_bootstrap_password(self) -> str:

@@ -118,7 +118,7 @@ def test_feature_modules_can_be_enabled_with_dependencies(tmp_path):
     )
     app = create_app(settings, database)
 
-    assert app.state.installed_modules == ["identity", "students"]
+    assert app.state.installed_modules == ["audit", "identity", "students"]
     with TestClient(app, follow_redirects=False) as client:
         login(client)
         assert client.get("/students").status_code == 200

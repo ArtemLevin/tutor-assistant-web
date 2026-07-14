@@ -60,6 +60,14 @@ def create_router(container: AppContainer) -> APIRouter:
             return blocked
         form = await web.validated_form(request)
         student = service(request).create(_student_data(form))
+        principal = web.principal_required(request)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "student.created",
+            "student",
+            student.id,
+            {"full_name": student.full_name},
+        )
         return RedirectResponse(f"/students/{student.id}", status_code=303)
 
     @router.get("/{student_id}", response_class=HTMLResponse)
@@ -82,6 +90,13 @@ def create_router(container: AppContainer) -> APIRouter:
         form = await web.validated_form(request)
         current = service(request).get(student_id)
         service(request).update(student_id, _student_data(form, fallback=current))
+        principal = web.principal_required(request)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "student.updated",
+            "student",
+            student_id,
+        )
         return RedirectResponse(f"/students/{student_id}", status_code=303)
 
     return router

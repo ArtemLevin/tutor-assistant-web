@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Команда · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><p class="eyebrow">Настройки организации</p><h1>Команда</h1><p class="subtitle">Участники, роли и приглашения.</p></div>
+  <button class="button primary" type="button" data-dialog-open="invite-dialog">Пригласить</button>
+</header>
+
+{% if invitation_url %}
+<section class="panel invitation-result">
+  <div><p class="eyebrow">Одноразовая ссылка готова</p><h2>Передайте её приглашённому пользователю</h2></div>
+  <p class="share-url" id="invitation-url">{{ invitation_url }}</p>
+  <button class="button secondary small" type="button" data-copy="{{ invitation_url }}">Копировать</button>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="section-heading"><div><p class="eyebrow">Доступ</p><h2>Участники</h2></div><span class="count">{{ memberships|length }}</span></div>
+  <div class="data-table">
+    {% for membership in memberships %}
+    <form class="data-row member-row" method="post" action="/settings/team/members/{{ membership.id }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div><strong>{{ membership.user.full_name }}</strong><small>{{ membership.user.email }}</small></div>
+      <select name="role" aria-label="Роль {{ membership.user.full_name }}">
+        {% for role in roles %}<option value="{{ role }}" {% if membership.role == role %}selected{% endif %}>{{ role }}</option>{% endfor %}
+      </select>
+      <label class="toggle"><input type="checkbox" name="active" {% if membership.active %}checked{% endif %}><span>Активен</span></label>
+      <button class="button secondary small" type="submit">Сохранить</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-heading"><div><p class="eyebrow">Онбординг</p><h2>Приглашения</h2></div></div>
+  <div class="data-table">
+    {% for invitation in invitations %}
+    <div class="data-row invitation-row">
+      <div><strong>{{ invitation.email }}</strong><small>{{ invitation.role }} · до {{ invitation.expires_at|local_dt('%d.%m.%Y %H:%M') }}</small></div>
+      {% if invitation.accepted_at %}<span class="badge completed">Принято</span>
+      {% elif invitation.revoked_at %}<span class="badge">Отозвано</span>
+      {% else %}<span class="badge live">Ожидает</span>{% endif %}
+      {% if not invitation.accepted_at and not invitation.revoked_at %}
+      <form method="post" action="/settings/team/invitations/{{ invitation.id }}/revoke">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button ghost small" type="submit">Отозвать</button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}<div class="empty">Приглашений пока нет.</div>{% endfor %}
+  </div>
+</section>
+{% endblock %}
+{% block dialogs %}
+<dialog id="invite-dialog" class="dialog compact">
+  <form method="post" action="/settings/team/invitations" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="dialog-header"><div><p class="eyebrow">Новый участник</p><h2>Создать приглашение</h2></div><button class="icon-button" type="button" data-dialog-close>×</button></div>
+    <label>Email<input type="email" name="email" autocomplete="email" required></label>
+    <label>Роль<select name="role"><option value="tutor">tutor</option><option value="admin">admin</option><option value="student">student</option><option value="parent">parent</option></select></label>
+    <p class="caption">Ссылка действует {{ settings_invitation_ttl }} часа и показывается один раз.</p>
+    <div class="dialog-actions"><button class="button ghost" type="button" data-dialog-close>Отмена</button><button class="button primary" type="submit">Создать ссылку</button></div>
+  </form>
+</dialog>
+{% endblock %}

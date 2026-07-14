@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Аудит · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header"><div><p class="eyebrow">Безопасность</p><h1>Журнал аудита</h1><p class="subtitle">Последние административные и бизнес-операции.</p></div></header>
+<div class="data-table audit-table">
+  {% for event in events %}
+  <article class="data-row audit-row">
+    <time>{{ event.created_at|local_dt('%d.%m.%Y %H:%M') }}</time>
+    <div><strong>{{ event.action }}</strong><small>{{ event.entity_type }}{% if event.entity_id %} · {{ event.entity_id }}{% endif %}</small></div>
+    <span>{{ event.actor.full_name if event.actor else 'Система' }}</span>
+    {% if event.details %}<code>{{ event.details }}</code>{% endif %}
+  </article>
+  {% else %}<div class="empty">Событий пока нет.</div>{% endfor %}
+</div>
+{% endblock %}

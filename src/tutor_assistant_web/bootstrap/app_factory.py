@@ -15,6 +15,7 @@ from tutor_assistant_web.bootstrap.registry import ModuleRegistry
 from tutor_assistant_web.bootstrap.seed import seed_data
 from tutor_assistant_web.config import Settings, get_settings
 from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.audit.module import MODULE as AUDIT_MODULE
 from tutor_assistant_web.modules.classroom.module import MODULE as CLASSROOM_MODULE
 from tutor_assistant_web.modules.dashboard.module import MODULE as DASHBOARD_MODULE
 from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
@@ -27,6 +28,7 @@ from tutor_assistant_web.shared.errors import ApplicationError
 PACKAGE_DIR = Path(__file__).parent.parent
 ALL_MODULES = (
     IDENTITY_MODULE,
+    AUDIT_MODULE,
     STUDENTS_MODULE,
     SCHEDULING_MODULE,
     CLASSROOM_MODULE,
@@ -56,7 +58,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
                 seed_data(session, DEFAULT_ORGANIZATION_ID)
         yield
 
-    app = FastAPI(title=settings.app_name, version="0.3.0", lifespan=lifespan)
+    app = FastAPI(title=settings.app_name, version="0.4.0", lifespan=lifespan)
     app.state.container = container
     app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
     app.add_middleware(

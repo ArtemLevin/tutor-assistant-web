@@ -17,7 +17,16 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         await web.validated_form(request)
-        service(request).enqueue(lesson_id)
+        job = service(request).enqueue(lesson_id)
+        if job is not None:
+            principal = web.principal_required(request)
+            container.audit_service(principal.organization_id).record(
+                principal.user_id,
+                "materials.enqueued",
+                "processing_job",
+                job.id,
+                {"lesson_id": lesson_id},
+            )
         return RedirectResponse(f"/lessons/{lesson_id}", status_code=303)
 
     @router.get("/api/jobs/{job_id}")
