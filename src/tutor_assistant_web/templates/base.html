@@ -19,9 +19,29 @@
         <a href="/" class="nav-link">Сегодня</a>
         <a href="/schedule" class="nav-link">Расписание</a>
         <a href="/students" class="nav-link">Ученики</a>
+        {% if principal and principal.role == 'admin' %}
+        <a href="/settings/team" class="nav-link">Команда</a>
+        <a href="/settings/audit" class="nav-link">Аудит</a>
+        {% endif %}
       </nav>
       <div class="sidebar-footer">
-        {% if principal %}<span class="muted" title="{{ principal.email }} · {{ principal.role }}">{{ principal.full_name }}</span>{% endif %}
+        {% if principal %}
+        <div class="account-block">
+          {% if workspaces|length > 1 %}
+          <form method="post" action="/workspace/switch">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="organization_id" aria-label="Рабочее пространство" onchange="this.form.submit()">
+              {% for membership in workspaces %}
+              <option value="{{ membership.organization_id }}" {% if membership.organization_id == principal.organization_id %}selected{% endif %}>{{ membership.organization.name }}</option>
+              {% endfor %}
+            </select>
+          </form>
+          {% else %}
+          <span class="workspace-name">{{ principal.organization_name }}</span>
+          {% endif %}
+          <span class="muted" title="{{ principal.email }} · {{ principal.role }}">{{ principal.full_name }}</span>
+        </div>
+        {% endif %}
         {% if demo_mode %}<span class="status-pill" title="Подключение к BigBlueButton эмулируется">Demo BBB</span>{% endif %}
         <form method="post" action="/logout">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

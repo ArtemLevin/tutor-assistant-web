@@ -30,7 +30,7 @@ def create_router(container: AppContainer) -> APIRouter:
 
     @router.get("/health/live")
     def health_live():
-        return {"status": "ok", "version": "0.3.0"}
+        return {"status": "ok", "version": "0.4.0"}
 
     @router.get("/health/ready")
     def health_ready():

@@ -26,7 +26,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .nav { display: grid; gap: 4px; }
 .nav-link { color: var(--muted); padding: 10px 12px; border-radius: 10px; transition: .15s ease; }
 .nav-link:hover { background: var(--surface-2); color: var(--text); }
-.sidebar-footer { margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding: 12px 8px 0; }
+.sidebar-footer { margin-top: auto; display: grid; gap: 10px; padding: 12px 8px 0; }
+.account-block { display: grid; gap: 5px; min-width: 0; }
+.account-block select { padding: 7px 8px; font-size: .72rem; }
+.account-block .muted, .workspace-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; }
+.workspace-name { color: var(--text); }
 .status-pill { color: var(--accent); border: 1px solid #45511f; background: #171d0f; padding: 5px 8px; font-size: .72rem; border-radius: 99px; }
 .main { padding: 52px clamp(24px, 5vw, 74px); max-width: 1480px; width: 100%; margin: 0 auto; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 34px; }
@@ -173,6 +177,19 @@ textarea { resize: vertical; line-height: 1.5; }
 .room-note { align-self: end; padding: 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .room-note strong { color: var(--accent); }
 .room-note p { margin: 6px 0 0; }
+.data-table { display: grid; }
+.data-row { border-top: 1px solid var(--line); padding: 14px 4px; align-items: center; gap: 14px; }
+.data-row strong, .data-row small { display: block; }
+.data-row small { color: var(--muted); margin-top: 5px; }
+.member-row { display: grid; grid-template-columns: minmax(220px, 1fr) 130px 100px auto; }
+.invitation-row { display: grid; grid-template-columns: minmax(240px, 1fr) auto auto; }
+.audit-row { display: grid; grid-template-columns: 140px minmax(220px, 1fr) 160px minmax(180px, .8fr); }
+.audit-row time, .audit-row span { color: var(--muted); font-size: .8rem; }
+.audit-row code { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: .72rem; }
+.invitation-result { display: grid; grid-template-columns: 1fr auto; gap: 15px; align-items: end; margin-bottom: 34px; }
+.invitation-result .share-url { grid-column: 1; }
+.toggle { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: .78rem; }
+.toggle input { width: auto; }
 
 @media (max-width: 1000px) {
   .metrics { grid-template-columns: repeat(2, 1fr); }
@@ -198,10 +215,10 @@ textarea { resize: vertical; line-height: 1.5; }
   .lesson-row .badge { display: none; }
   .student-grid { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
+  .member-row, .invitation-row, .audit-row, .invitation-result { grid-template-columns: 1fr; }
   .span-2 { grid-column: auto; }
   .dialog-header, .dialog-actions { grid-column: auto; }
   .room-layout { grid-template-columns: 1fr; }
   .video-rail { display: none; }
   .board-hint { max-width: 90%; white-space: normal; text-align: center; }
 }
-

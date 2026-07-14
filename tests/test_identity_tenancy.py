@@ -16,7 +16,7 @@ from tutor_assistant_web.modules.identity.models import (
 )
 from tutor_assistant_web.modules.students.application import StudentData, StudentService
 from tutor_assistant_web.modules.students.models import Student
-from tutor_assistant_web.shared.errors import NotFoundError
+from tutor_assistant_web.shared.errors import NotFoundError, ValidationError
 
 
 def test_password_authentication_and_tenant_scope(tmp_path):
@@ -83,3 +83,43 @@ def test_legacy_pilot_database_is_upgraded_without_data_loss(tmp_path):
         student = session.scalar(select(Student).where(Student.id == "legacy"))
         assert student is not None
         assert student.organization_id == DEFAULT_ORGANIZATION_ID
+
+
+def test_invitation_acceptance_and_last_admin_guard(tmp_path):
+    database = Database(f"sqlite:///{tmp_path / 'invitations.db'}")
+    database.migrate()
+    settings = Settings(seed_demo_data=False, bootstrap_admin_password="admin-password")
+    identity = IdentityService(database)
+    identity.bootstrap(settings)
+    admin = identity.authenticate("admin@localhost", "admin-password")
+    assert admin is not None
+
+    created = identity.create_invitation(
+        admin.organization_id,
+        admin.user_id,
+        "tutor@example.test",
+        MembershipRole.tutor.value,
+        24,
+    )
+    assert created.invitation.token_hash != created.token
+    invited = identity.accept_invitation(created.token, "Новый преподаватель", "strong-password")
+    assert invited.role == MembershipRole.tutor.value
+    assert invited.organization_id == admin.organization_id
+
+    admin_membership = next(
+        item
+        for item in identity.workspaces(admin.user_id)
+        if item.organization_id == admin.organization_id
+    )
+    try:
+        identity.update_membership(
+            admin.organization_id,
+            admin.user_id,
+            admin_membership.id,
+            MembershipRole.tutor.value,
+            True,
+        )
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError("the last administrator must remain active")

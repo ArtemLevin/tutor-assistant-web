@@ -9,6 +9,7 @@
 flowchart TB
     App[Composition root] --> Registry[Module registry]
     Registry --> Students[Students]
+    Registry --> Audit[Audit]
     Registry --> Schedule[Scheduling]
     Registry --> Classroom[Classroom]
     Registry --> Materials[Materials]
@@ -21,7 +22,8 @@ flowchart TB
 
 | Модуль | Ответственность | Зависимости |
 |---|---|---|
-| `identity` | организации, пользователи, роли, сессии, CSRF | — |
+| `audit` | неизменяемый журнал действий организации | — |
+| `identity` | организации, пользователи, роли, сессии, CSRF | audit |
 | `students` | профиль и контакты ученика | identity |
 | `scheduling` | недельная сетка и конфликты | students |
 | `classroom` | комната, роли, записи, заметки | scheduling |
@@ -90,10 +92,19 @@ flowchart LR
 `lesson_id` и `student_id`; поиск выполняется только для этой пары. Роли `admin` и `tutor` имеют
 доступ к административным маршрутам. Роли `student` и `parent` зарезервированы для кабинетов.
 
+При переключении workspace backend ищет активный membership по паре `user_id + organization_id`.
+Значение из формы становится частью сессии только после этой проверки. Приглашения используют
+случайный token; база хранит SHA-256, срок действия и состояния accepted/revoked.
+
+Audit events всегда содержат `organization_id`, автора, действие, тип и идентификатор сущности.
+Payload ограничивается операционными метаданными; пароли, токены и содержимое заметок в него не
+попадают.
+
 ## Миграции
 
 Alembic является владельцем схемы. Ревизия `0001_pilot` описывает схему версии 0.2,
-`0002_identity_tenancy` добавляет identity и tenant-ключи. При первом запуске версии 0.3 база,
+`0002_identity_tenancy` добавляет identity и tenant-ключи, `0003_workspace_admin` — приглашения и
+аудит. При первом запуске версии 0.3+ база,
 ранее созданная через `create_all`, автоматически получает stamp `0001_pilot`; все существующие
 строки переносятся в организацию по умолчанию. Новая база проходит обе ревизии с нуля.
 
@@ -115,8 +126,7 @@ BigBlueButton работает отдельно. Shared secret остаётся 
 
 ## Следующие архитектурные задачи
 
-1. Управление пользователями, приглашения и переключение организации.
-2. Transactional outbox и доменные события.
-3. Recording-ready webhook и идемпотентные workflow.
-4. Версионированный `LessonEvidenceBundle`.
-5. Audit log и политика retention.
+1. Transactional outbox и доменные события.
+2. Recording-ready webhook и идемпотентные workflow.
+3. Версионированный `LessonEvidenceBundle`.
+4. Retention и экспорт audit events.

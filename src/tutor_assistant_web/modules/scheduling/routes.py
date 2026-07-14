@@ -80,6 +80,14 @@ def create_router(container: AppContainer) -> APIRouter:
                 record_enabled=str(form.get("record_enabled", "")) == "on",
             )
         )
+        principal = web.principal_required(request)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "lesson.created",
+            "lesson",
+            lesson.id,
+            {"student_id": lesson.student_id, "starts_at": lesson.starts_at.isoformat()},
+        )
         return RedirectResponse(f"/lessons/{lesson.id}", status_code=303)
 
     return router
