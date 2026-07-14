@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Сегодня · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Рабочий день</p>
+    <h1>Сегодня</h1>
+  </div>
+  <a class="button secondary" href="/schedule">Добавить занятие</a>
+</header>
+
+<section class="metrics" aria-label="Сводка">
+  <article class="metric"><strong>{{ students_count }}</strong><span>активных учеников</span></article>
+  <article class="metric"><strong>{{ upcoming|length }}</strong><span>ближайших занятий</span></article>
+  <article class="metric"><strong>{{ pending_jobs }}</strong><span>задач в фоне</span></article>
+  <article class="metric"><strong>{{ artifacts_count }}</strong><span>готовых материалов</span></article>
+</section>
+
+<section class="section">
+  <div class="section-heading">
+    <div><p class="eyebrow">Следующие</p><h2>Занятия</h2></div>
+  </div>
+  {% if upcoming %}
+    <div class="lesson-list">
+      {% for lesson in upcoming %}
+        <a href="/lessons/{{ lesson.id }}" class="lesson-row">
+          <time>{{ lesson.starts_at|local_dt('%d %b') }}<b>{{ lesson.starts_at|local_dt('%H:%M') }}</b></time>
+          <div class="lesson-main"><strong>{{ lesson.student.full_name }}</strong><span>{{ lesson.topic or lesson.title }}</span></div>
+          <span class="badge {{ lesson.status }}">{{ 'идёт' if lesson.status == 'live' else 'запланировано' }}</span>
+          <span class="arrow">→</span>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty"><h3>Расписание свободно</h3><p>Добавьте первое занятие на недельной сетке.</p><a href="/schedule">Открыть расписание</a></div>
+  {% endif %}
+</section>
+{% endblock %}
+
