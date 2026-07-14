@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: help sync sync-transcription migrate run worker beat outbox test lint format check schema-check diagnose docker-up docker-down
+.PHONY: help sync sync-transcription migrate run worker beat outbox test test-postgres lint format check schema-check diagnose docker-up docker-down
 
 help:
 	@echo "sync        Install all dependencies with uv"
@@ -10,6 +10,7 @@ help:
 	@echo "beat        Start the transactional outbox scheduler"
 	@echo "outbox      Dispatch pending outbox events once"
 	@echo "check       Run lint and tests"
+	@echo "test-postgres Run PostgreSQL integration tests"
 	@echo "schema-check Validate the committed evidence schema contract"
 	@echo "diagnose    Print runtime diagnostics"
 	@echo "docker-up   Start app, worker, PostgreSQL and Redis"
@@ -37,6 +38,9 @@ outbox:
 
 test:
 	$(UV) run pytest
+
+test-postgres:
+	$(UV) run pytest tests/test_postgres_integration.py
 
 lint:
 	$(UV) run ruff check .

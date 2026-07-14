@@ -100,7 +100,8 @@ flowchart LR
 
 Публичная ссылка ученика остаётся вне пользовательской сессии. HMAC привязывает её к конкретным
 `lesson_id` и `student_id`; поиск выполняется только для этой пары. Роли `admin` и `tutor` имеют
-доступ к административным маршрутам. Роли `student` и `parent` зарезервированы для кабинетов.
+доступ к административным маршрутам. Роли `student` и `parent` получают доступ к кабинетам
+только через активный `StudentAccess`.
 
 При переключении workspace backend ищет активный membership по паре `user_id + organization_id`.
 Значение из формы становится частью сессии только после этой проверки. Приглашения используют
@@ -116,7 +117,8 @@ Alembic является владельцем схемы. Ревизия `0001_p
 `0002_identity_tenancy` добавляет identity и tenant-ключи, `0003_workspace_admin` — приглашения и
 аудит, `0004_post_lesson_automation` — webhook receipts, outbox, транскрипты и состояние workflow,
 `0005_materials_factory` — evidence bundles, generation runs, artifact versions и build logs,
-`0006_portal_delivery` — recipient access, deliveries и notifications.
+`0006_portal_delivery` — recipient access, deliveries и notifications,
+`0007_production_postgres` — tenant foreign keys, status constraints и составные индексы.
 При первом запуске версии 0.3+ база,
 ранее созданная через `create_all`, автоматически получает stamp `0001_pilot`; все существующие
 строки переносятся в организацию по умолчанию. Новая база проходит обе ревизии с нуля.
@@ -140,6 +142,9 @@ flowchart TB
 ```
 
 BigBlueButton работает отдельно. Shared secret остаётся на backend.
+
+В production Alembic запускается отдельным migration job. Web и workers используют PostgreSQL
+через настраиваемый connection pool. SQLite сохраняется как локальный development-профиль.
 
 ## Следующие архитектурные задачи
 

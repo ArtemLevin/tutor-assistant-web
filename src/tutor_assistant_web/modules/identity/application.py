@@ -283,6 +283,7 @@ class IdentityService:
                 select(Invitation)
                 .options(selectinload(Invitation.organization))
                 .where(Invitation.token_hash == self._token_hash(token))
+                .with_for_update()
             )
             self._ensure_invitation_active(invitation)
             assert invitation is not None

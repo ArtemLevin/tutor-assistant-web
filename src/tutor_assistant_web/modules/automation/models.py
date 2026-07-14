@@ -4,7 +4,16 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
@@ -45,6 +54,14 @@ class WebhookReceipt(Base):
 
 class OutboxEvent(Base):
     __tablename__ = "outbox_events"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'dispatching', 'completed', 'dead')",
+            name="ck_outbox_events_status",
+        ),
+        Index("ix_outbox_claim", "status", "available_at", "created_at"),
+        Index("ix_outbox_stale", "status", "updated_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(
