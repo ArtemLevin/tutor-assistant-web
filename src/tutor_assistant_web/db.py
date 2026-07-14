@@ -13,6 +13,11 @@ if TYPE_CHECKING:
     from tutor_assistant_web.config import Settings
 
 
+def _alembic_config_value(value: str) -> str:
+    """Escape percent signs consumed by ConfigParser interpolation."""
+    return value.replace("%", "%%")
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -103,7 +108,8 @@ class Database:
         config = Config()
         migrations = Path(__file__).with_name("migrations")
         config.set_main_option("script_location", str(migrations))
-        config.set_main_option("sqlalchemy.url", self.engine.url.render_as_string(False))
+        database_url = self.engine.url.render_as_string(False)
+        config.set_main_option("sqlalchemy.url", _alembic_config_value(database_url))
         tables = set(inspect(self.engine).get_table_names())
         # Releases <= 0.2 created tables with metadata.create_all. Mark that
         # known layout as the pilot revision before applying tenant migration.

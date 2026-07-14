@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import pytest
+from alembic.config import Config
 from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
-from tutor_assistant_web.db import Database
+from tutor_assistant_web.db import Database, _alembic_config_value
 from tutor_assistant_web.modules.identity.models import (
     DEFAULT_ORGANIZATION_ID,
     Organization,
@@ -52,6 +53,15 @@ def test_database_keeps_sqlite_lightweight(tmp_path):
     assert database.dialect_name == "sqlite"
     database.healthcheck()
     database.dispose()
+
+
+def test_alembic_database_url_escapes_encoded_query_parameters():
+    url = "postgresql+psycopg://user:secret@db/app?options=-csearch_path%3Dtenant"
+    config = Config()
+
+    config.set_main_option("sqlalchemy.url", _alembic_config_value(url))
+
+    assert config.get_main_option("sqlalchemy.url") == url
 
 
 def test_model_metadata_contains_production_constraints(tmp_path):
