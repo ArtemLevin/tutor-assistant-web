@@ -105,6 +105,7 @@ class EvidenceBundle(Base):
 
 class GenerationRun(Base):
     __tablename__ = "generation_runs"
+    __table_args__ = (UniqueConstraint("organization_id", "id", name="uq_generation_runs_org_id"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(

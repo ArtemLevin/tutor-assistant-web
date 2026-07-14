@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.classroom.application import ClassroomService
+from tutor_assistant_web.modules.identity.models import User
 from tutor_assistant_web.modules.materials.application import MaterialsService
 from tutor_assistant_web.modules.materials.evidence import LessonEvidenceBundleV1
 from tutor_assistant_web.modules.materials.models import (
@@ -94,6 +95,16 @@ def service(database: Database, storage_root: Path) -> MaterialsService:
 def test_factory_builds_versions_and_is_idempotent(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'factory.db'}")
     database.migrate()
+    with database.sessions() as session:
+        session.add(
+            User(
+                id="tutor-user",
+                email="tutor@example.test",
+                full_name="Tutor",
+                password_hash="test-only-hash",
+            )
+        )
+        session.commit()
     _, job = add_lesson_and_job(database)
     materials = service(database, tmp_path / "artifacts")
 

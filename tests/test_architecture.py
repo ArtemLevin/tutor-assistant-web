@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
 from fastapi import APIRouter
 
 from tutor_assistant_web.bootstrap.registry import ModuleDefinition, ModuleRegistry
@@ -18,6 +19,7 @@ from tutor_assistant_web.modules.students.application import StudentData, Studen
 from tutor_assistant_web.shared.contracts import ConferenceRecording
 
 SOURCE_ROOT = Path(__file__).parents[1] / "src" / "tutor_assistant_web"
+PRODUCTION_DATABASE_URL = "postgresql+psycopg://tutor:secret@db:5432/tutor"
 
 
 def _router(_):
@@ -63,6 +65,8 @@ def test_crm_only_production_configuration_does_not_require_bbb():
         app_secret_key="production-secret",
         app_access_token="access-token",
         bootstrap_admin_password="a-secure-production-password",
+        database_url=PRODUCTION_DATABASE_URL,
+        auto_migrate=False,
         enabled_modules="students",
         bbb_demo_mode=True,
     )
@@ -76,6 +80,8 @@ def test_automation_production_configuration_requires_real_bbb():
             app_env="production",
             app_secret_key="production-secret",
             bootstrap_admin_password="a-secure-production-password",
+            database_url=PRODUCTION_DATABASE_URL,
+            auto_migrate=False,
             enabled_modules="automation",
             bbb_demo_mode=True,
         )
@@ -91,6 +97,8 @@ def test_materials_production_configuration_requires_real_document_engine():
             app_env="production",
             app_secret_key="production-secret",
             bootstrap_admin_password="a-secure-production-password",
+            database_url=PRODUCTION_DATABASE_URL,
+            auto_migrate=False,
             enabled_modules="materials",
             bbb_demo_mode=False,
             bbb_base_url="https://bbb.example.test",
@@ -101,6 +109,19 @@ def test_materials_production_configuration_requires_real_document_engine():
         assert "DOCUMENT_ENGINE_PROVIDER" in str(exc)
     else:
         raise AssertionError("materials must require a real document engine in production")
+
+
+def test_production_configuration_requires_postgresql_and_migration_job():
+    common = {
+        "app_env": "production",
+        "app_secret_key": "production-secret",
+        "bootstrap_admin_password": "a-secure-production-password",
+        "enabled_modules": "students",
+    }
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        Settings(**common, database_url="sqlite:///production.db", auto_migrate=False)
+    with pytest.raises(ValueError, match="AUTO_MIGRATE"):
+        Settings(**common, database_url=PRODUCTION_DATABASE_URL, auto_migrate=True)
 
 
 class FakeConference:

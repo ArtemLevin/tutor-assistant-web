@@ -51,7 +51,7 @@ celery_app.conf.update(
     max_retries=settings.workflow_max_retries,
 )
 def process_lesson_task(self, job_id: str) -> None:
-    database = Database(settings.database_url)
+    database = Database.from_settings(settings)
     if settings.auto_migrate:
         database.migrate()
     with database.sessions() as session:
@@ -107,7 +107,7 @@ def process_lesson_task(self, job_id: str) -> None:
 
 @celery_app.task(name="tutor.dispatch_outbox")
 def dispatch_outbox_task() -> dict[str, int]:
-    database = Database(settings.database_url)
+    database = Database.from_settings(settings)
     if settings.auto_migrate:
         database.migrate()
     return OutboxService(

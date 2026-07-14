@@ -72,6 +72,9 @@ Content Security Policy.
 - `material_deliveries`;
 - `user_notifications`.
 
+Ревизия `0007_production_postgres` усиливает эти таблицы составными tenant foreign keys и
+индексами запросов кабинета. Подробности находятся в [production-database.md](production-database.md).
+
 Миграция обратима и не удаляет generation runs или артефакты. Перед production-обновлением нужны
 backup БД и хранилища файлов.
 

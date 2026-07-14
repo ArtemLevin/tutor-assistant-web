@@ -1,4 +1,15 @@
 services:
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   app:
     build: .
     env_file: .env
@@ -6,12 +17,15 @@ services:
       DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
+      AUTO_MIGRATE: "false"
       ARTIFACT_STORAGE_ROOT: /data/artifacts
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     volumes:
@@ -29,12 +43,15 @@ services:
       DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
+      AUTO_MIGRATE: "false"
       ARTIFACT_STORAGE_ROOT: /data/artifacts
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - artifact-data:/data/artifacts
     restart: unless-stopped
@@ -47,11 +64,14 @@ services:
       DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
+      AUTO_MIGRATE: "false"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
   postgres:

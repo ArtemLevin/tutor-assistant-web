@@ -4,7 +4,17 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
@@ -37,6 +47,30 @@ class MaterialDelivery(Base):
             "student_id",
             name="uq_delivery_org_run_student",
         ),
+        UniqueConstraint("organization_id", "id", name="uq_material_deliveries_org_id"),
+        ForeignKeyConstraint(
+            ["organization_id", "student_id"],
+            ["students.organization_id", "students.id"],
+            name="fk_material_deliveries_org_student",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "generation_run_id"],
+            ["generation_runs.organization_id", "generation_runs.id"],
+            name="fk_material_deliveries_org_run",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'available', 'revoked')",
+            name="ck_material_deliveries_status",
+        ),
+        Index(
+            "ix_deliveries_portal",
+            "organization_id",
+            "student_id",
+            "status",
+            "published_at",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -60,13 +94,40 @@ class MaterialDelivery(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    generation_run: Mapped[GenerationRun] = relationship("GenerationRun")
-    student: Mapped[Student] = relationship("Student")
+    generation_run: Mapped[GenerationRun] = relationship(
+        "GenerationRun", foreign_keys=[generation_run_id]
+    )
+    student: Mapped[Student] = relationship("Student", foreign_keys=[student_id])
     created_by: Mapped[User | None] = relationship("User")
 
 
 class UserNotification(Base):
     __tablename__ = "user_notifications"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "student_id"],
+            ["students.organization_id", "students.id"],
+            name="fk_user_notifications_org_student",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "delivery_id"],
+            ["material_deliveries.organization_id", "material_deliveries.id"],
+            name="fk_user_notifications_org_delivery",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "kind IN ('material_available', 'material_replaced', 'material_revoked')",
+            name="ck_user_notifications_kind",
+        ),
+        Index(
+            "ix_notifications_inbox",
+            "organization_id",
+            "user_id",
+            "read_at",
+            "created_at",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(
@@ -88,4 +149,6 @@ class UserNotification(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
 
-    delivery: Mapped[MaterialDelivery | None] = relationship("MaterialDelivery")
+    delivery: Mapped[MaterialDelivery | None] = relationship(
+        "MaterialDelivery", foreign_keys=[delivery_id]
+    )

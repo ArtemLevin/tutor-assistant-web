@@ -189,31 +189,9 @@ class OutboxService:
     def dispatch_pending(self, limit: int = 20) -> dict[str, int]:
         now = utcnow()
         stale = now - timedelta(minutes=5)
-        with self.database.sessions() as session:
-            ids = list(
-                session.scalars(
-                    select(OutboxEvent.id)
-                    .where(
-                        or_(
-                            (
-                                (OutboxEvent.status == OutboxStatus.pending.value)
-                                & (OutboxEvent.available_at <= now)
-                            ),
-                            (
-                                (OutboxEvent.status == OutboxStatus.dispatching.value)
-                                & (OutboxEvent.updated_at <= stale)
-                            ),
-                        )
-                    )
-                    .order_by(OutboxEvent.created_at)
-                    .limit(limit)
-                )
-            )
+        events = self._claim_batch(limit, now, stale)
         result = {"dispatched": 0, "retried": 0, "dead": 0}
-        for event_id in ids:
-            event = self._claim(event_id, now, stale)
-            if event is None:
-                continue
+        for event in events:
             try:
                 if event.topic == "post_lesson.requested":
                     job_id = event.payload.get("job_id")
@@ -228,36 +206,42 @@ class OutboxService:
                         raise ValueError(f"unsupported outbox topic: {event.topic}")
                     handler.handle(event.topic, event.organization_id, event.payload)
             except Exception as exc:
-                logger.warning("Outbox dispatch failed event_id=%s: %s", event_id, exc)
-                outcome = self._release_failed(event_id, exc)
+                logger.warning("Outbox dispatch failed event_id=%s: %s", event.id, exc)
+                outcome = self._release_failed(event.id, exc)
                 result[outcome] += 1
             else:
-                self._complete(event_id)
-                logger.info("Outbox event dispatched event_id=%s", event_id)
+                self._complete(event.id)
+                logger.info("Outbox event dispatched event_id=%s", event.id)
                 result["dispatched"] += 1
         return result
 
-    def _claim(self, event_id: str, now: datetime, stale: datetime) -> OutboxEvent | None:
+    def _claim_batch(self, limit: int, now: datetime, stale: datetime) -> list[OutboxEvent]:
         with self.database.sessions() as session:
-            event = session.scalar(
-                select(OutboxEvent).where(OutboxEvent.id == event_id).with_for_update()
+            events = list(
+                session.scalars(
+                    select(OutboxEvent)
+                    .where(
+                        or_(
+                            (
+                                (OutboxEvent.status == OutboxStatus.pending.value)
+                                & (OutboxEvent.available_at <= now)
+                            ),
+                            (
+                                (OutboxEvent.status == OutboxStatus.dispatching.value)
+                                & (OutboxEvent.updated_at <= stale)
+                            ),
+                        )
+                    )
+                    .order_by(OutboxEvent.created_at)
+                    .limit(limit)
+                    .with_for_update(skip_locked=True)
+                )
             )
-            if event is None or event.status in {
-                OutboxStatus.completed.value,
-                OutboxStatus.dead.value,
-            }:
-                return None
-            if event.status == OutboxStatus.pending.value and self._utc(event.available_at) > now:
-                return None
-            if (
-                event.status == OutboxStatus.dispatching.value
-                and self._utc(event.updated_at) > stale
-            ):
-                return None
-            event.status = OutboxStatus.dispatching.value
-            event.updated_at = now
+            for event in events:
+                event.status = OutboxStatus.dispatching.value
+                event.updated_at = now
             session.commit()
-            return event
+            return events
 
     def _complete(self, event_id: str) -> None:
         with self.database.sessions() as session:

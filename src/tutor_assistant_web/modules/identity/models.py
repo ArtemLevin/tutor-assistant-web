@@ -4,7 +4,16 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
@@ -77,6 +86,26 @@ class Membership(Base):
 
 class Invitation(Base):
     __tablename__ = "invitations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "student_id"],
+            ["students.organization_id", "students.id"],
+            name="fk_invitations_org_student",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "role IN ('admin', 'tutor', 'student', 'parent')",
+            name="ck_invitations_role",
+        ),
+        Index(
+            "ix_invitations_pending_lookup",
+            "organization_id",
+            "email",
+            "student_id",
+            "accepted_at",
+            "revoked_at",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(
@@ -98,7 +127,7 @@ class Invitation(Base):
 
     organization: Mapped[Organization] = relationship("Organization")
     invited_by: Mapped[User | None] = relationship("User")
-    student: Mapped[Student | None] = relationship("Student")
+    student: Mapped[Student | None] = relationship("Student", foreign_keys=[student_id])
 
 
 class StudentAccess(Base):
@@ -107,6 +136,13 @@ class StudentAccess(Base):
         UniqueConstraint(
             "organization_id", "student_id", "user_id", name="uq_student_access_org_student_user"
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "student_id"],
+            ["students.organization_id", "students.id"],
+            name="fk_student_access_org_student",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("role IN ('student', 'parent')", name="ck_student_access_role"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -123,4 +159,4 @@ class StudentAccess(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship("User", back_populates="student_accesses")
-    student: Mapped[Student] = relationship("Student")
+    student: Mapped[Student] = relationship("Student", foreign_keys=[student_id])

@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 
 class Settings(BaseSettings):
@@ -25,6 +26,12 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/tutor-assistant.db"
     auto_migrate: bool = True
+    database_pool_size: int = Field(default=10, ge=1, le=100)
+    database_max_overflow: int = Field(default=20, ge=0, le=200)
+    database_pool_timeout: int = Field(default=30, ge=1, le=300)
+    database_pool_recycle: int = Field(default=1800, ge=60, le=86400)
+    database_statement_timeout_ms: int = Field(default=30_000, ge=1000, le=600_000)
+    database_lock_timeout_ms: int = Field(default=5000, ge=100, le=120_000)
     redis_url: str = "redis://localhost:6379/0"
     task_eager: bool = True
 
@@ -84,6 +91,13 @@ class Settings(BaseSettings):
         )
         automation_enabled = not enabled or bool(enabled & {"automation", "portal"})
         if self.app_env.lower() == "production":
+            database = make_url(self.database_url)
+            if database.get_backend_name() != "postgresql":
+                raise ValueError("DATABASE_URL must use PostgreSQL in production")
+            if database.get_driver_name() != "psycopg":
+                raise ValueError("DATABASE_URL must use the postgresql+psycopg driver")
+            if self.auto_migrate:
+                raise ValueError("AUTO_MIGRATE must be false in production; use a migration job")
             if self.app_secret_key == "change-me-in-production":
                 raise ValueError("APP_SECRET_KEY must be changed in production")
             if len(self.bootstrap_admin_password) < 12:

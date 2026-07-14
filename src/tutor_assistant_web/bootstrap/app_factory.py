@@ -43,7 +43,7 @@ ALL_MODULES = (
 
 def create_app(settings: Settings | None = None, database: Database | None = None) -> FastAPI:
     settings = settings or get_settings()
-    database = database or Database(settings.database_url)
+    database = database or Database.from_settings(settings)
     timezone = ZoneInfo(settings.app_timezone)
     templates = Jinja2Templates(directory=str(PACKAGE_DIR / "templates"))
     container = build_container(settings, database, templates, timezone)
@@ -62,7 +62,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
                 seed_data(session, DEFAULT_ORGANIZATION_ID)
         yield
 
-    app = FastAPI(title=settings.app_name, version="0.7.0", lifespan=lifespan)
+    app = FastAPI(title=settings.app_name, version="0.8.0", lifespan=lifespan)
     app.state.container = container
     app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
     app.add_middleware(
