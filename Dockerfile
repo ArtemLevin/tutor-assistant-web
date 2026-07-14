@@ -6,11 +6,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+ARG INSTALL_TRANSCRIPTION=false
+
 RUN addgroup --system tutor && adduser --system --ingroup tutor tutor
 
 COPY pyproject.toml README.md alembic.ini ./
 COPY src ./src
-RUN pip install --upgrade pip && pip install .
+RUN pip install --upgrade pip && \
+    if [ "$INSTALL_TRANSCRIPTION" = "true" ]; then pip install ".[transcription]"; else pip install .; fi
 
 RUN mkdir -p /app/data && chown -R tutor:tutor /app
 USER tutor

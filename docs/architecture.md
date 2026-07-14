@@ -13,9 +13,12 @@ flowchart TB
     Registry --> Schedule[Scheduling]
     Registry --> Classroom[Classroom]
     Registry --> Materials[Materials]
+    Registry --> Automation[Automation]
     Classroom --> Conference[ConferenceProvider]
     Materials --> Generator[MaterialGenerator]
     Materials --> Jobs[JobDispatcher]
+    Automation --> Speech[TranscriptionProvider]
+    Automation --> Jobs
 ```
 
 ## Модули
@@ -28,6 +31,7 @@ flowchart TB
 | `scheduling` | недельная сетка и конфликты | students |
 | `classroom` | комната, роли, записи, заметки | scheduling |
 | `materials` | evidence, jobs и артефакты | classroom |
+| `automation` | BBB callback, outbox, транскрипт, post-lesson workflow | materials |
 | `dashboard` | сводка и диагностика | materials |
 
 `ModuleRegistry` проверяет уникальность имён, отсутствующие зависимости и циклы. Выбор корневых
@@ -37,6 +41,7 @@ flowchart TB
 
 - `ConferenceProvider`: `demo` или `bigbluebutton`;
 - `MaterialGenerator`: локальный шаблон или HTTP webhook;
+- `TranscriptionProvider`: demo, локальный faster-whisper или HTTP webhook;
 - `JobDispatcher`: inline для разработки или Celery для production.
 
 Application-слой зависит от протоколов из `shared/contracts.py`. Конкретные SDK и HTTP-клиенты
@@ -46,19 +51,18 @@ Application-слой зависит от протоколов из `shared/contr
 
 ```mermaid
 sequenceDiagram
-    participant UI as Web UI
-    participant C as Classroom
-    participant P as ConferenceProvider
-    participant M as Materials
-    participant W as JobDispatcher
+    participant BBB as BigBlueButton
+    participant A as Automation
+    participant O as Outbox
+    participant W as Worker
+    participant AI as Providers
 
-    UI->>C: начать занятие
-    C->>P: create_room + join_url
-    UI->>C: завершить
-    C->>P: end_room
-    UI->>M: сформировать материалы
-    M->>W: enqueue(job_id)
-    W->>M: process(job_id)
+    BBB->>A: signed recording-ready JWT
+    A->>O: receipt + job + event (transaction)
+    O->>W: enqueue job
+    W->>BBB: getRecordings
+    W->>AI: transcribe + generate
+    W->>A: transcript + artifacts + status
 ```
 
 ## Правила зависимостей
@@ -104,7 +108,8 @@ Payload ограничивается операционными метаданн
 
 Alembic является владельцем схемы. Ревизия `0001_pilot` описывает схему версии 0.2,
 `0002_identity_tenancy` добавляет identity и tenant-ключи, `0003_workspace_admin` — приглашения и
-аудит. При первом запуске версии 0.3+ база,
+аудит, `0004_post_lesson_automation` — webhook receipts, outbox, транскрипты и состояние workflow.
+При первом запуске версии 0.3+ база,
 ранее созданная через `create_all`, автоматически получает stamp `0001_pilot`; все существующие
 строки переносятся в организацию по умолчанию. Новая база проходит обе ревизии с нуля.
 
@@ -117,6 +122,7 @@ flowchart TB
     App --> Postgres[(PostgreSQL)]
     App --> Redis[(Redis)]
     Redis --> Worker[Celery worker]
+    Beat[Celery Beat] --> Redis
     Worker --> BBB
     Worker --> AI[Materials provider]
     Worker --> Postgres
@@ -126,7 +132,7 @@ BigBlueButton работает отдельно. Shared secret остаётся 
 
 ## Следующие архитектурные задачи
 
-1. Transactional outbox и доменные события.
-2. Recording-ready webhook и идемпотентные workflow.
-3. Версионированный `LessonEvidenceBundle`.
-4. Retention и экспорт audit events.
+1. Версионированный `LessonEvidenceBundle` и schema registry.
+2. TEX/PDF/HTML build worker с безопасной песочницей.
+3. OpenTelemetry traces и метрики очередей/workflow.
+4. Retention, удаление записей и экспорт audit events.

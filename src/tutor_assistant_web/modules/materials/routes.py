@@ -37,7 +37,10 @@ def create_router(container: AppContainer) -> APIRouter:
         return {
             "id": job.id,
             "status": job.status,
+            "stage": job.stage,
             "progress": job.progress,
+            "attempt_count": job.attempt_count,
+            "next_retry_at": job.next_retry_at.isoformat() if job.next_retry_at else None,
             "message": job.message,
             "error": job.error,
         }

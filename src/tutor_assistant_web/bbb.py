@@ -58,6 +58,7 @@ class BigBlueButtonClient:
         attendee_password: str,
         moderator_password: str,
         record: bool,
+        recording_ready_url: str = "",
     ) -> None:
         self._call(
             "create",
@@ -73,6 +74,7 @@ class BigBlueButtonClient:
                 "multiUserWhiteboardEnabled": "true",
                 "meetingExpireIfNoUserJoinedInMinutes": 30,
                 "meetingExpireWhenLastUserLeftInMinutes": 10,
+                "meta_bbb-recording-ready-url": recording_ready_url or None,
             },
         )
 
@@ -111,13 +113,23 @@ class BigBlueButtonClient:
         root = self._call("getRecordings", {"meetingID": meeting_id})
         recordings: list[Recording] = []
         for node in root.findall("./recordings/recording"):
-            playback = node.findtext("./playback/format/url", "")
+            formats: list[dict[str, Any]] = []
+            for format_node in node.findall("./playback/format"):
+                formats.append(
+                    {
+                        "type": format_node.findtext("type", ""),
+                        "url": format_node.findtext("url", ""),
+                        "length": format_node.findtext("length", ""),
+                    }
+                )
+            playback = next((item["url"] for item in formats if item["url"]), "")
             metadata = {
                 "name": node.findtext("name", ""),
                 "start_time": node.findtext("startTime", ""),
                 "end_time": node.findtext("endTime", ""),
                 "participants": node.findtext("participants", "0"),
                 "published": node.findtext("published", "false"),
+                "formats": formats,
             }
             recordings.append(
                 Recording(

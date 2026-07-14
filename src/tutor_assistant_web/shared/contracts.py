@@ -11,6 +11,7 @@ class CreateConference:
     attendee_password: str
     moderator_password: str
     record: bool
+    recording_ready_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,35 @@ class MaterialGenerator(Protocol):
     name: str
 
     def generate(self, evidence: dict[str, Any]) -> list[GeneratedArtifact]: ...
+
+
+@dataclass(frozen=True)
+class TranscriptionSource:
+    record_id: str
+    media_url: str
+    metadata: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class TranscriptionSegment:
+    start: float
+    end: float
+    text: str
+
+
+@dataclass(frozen=True)
+class TranscriptionResult:
+    text: str
+    language: str
+    segments: list[TranscriptionSegment]
+    provider: str
+    model: str
+
+
+class TranscriptionProvider(Protocol):
+    name: str
+
+    def transcribe(self, source: TranscriptionSource) -> TranscriptionResult: ...
 
 
 class JobDispatcher(Protocol):

@@ -1,18 +1,23 @@
 UV ?= uv
 
-.PHONY: help sync migrate run worker test lint format check diagnose docker-up docker-down
+.PHONY: help sync sync-transcription migrate run worker beat outbox test lint format check diagnose docker-up docker-down
 
 help:
 	@echo "sync        Install all dependencies with uv"
 	@echo "run         Start the web app"
 	@echo "migrate     Upgrade the database to the latest revision"
 	@echo "worker      Start the Celery worker"
+	@echo "beat        Start the transactional outbox scheduler"
+	@echo "outbox      Dispatch pending outbox events once"
 	@echo "check       Run lint and tests"
 	@echo "diagnose    Print runtime diagnostics"
 	@echo "docker-up   Start app, worker, PostgreSQL and Redis"
 
 sync:
 	$(UV) sync --extra dev
+
+sync-transcription:
+	$(UV) sync --extra dev --extra transcription
 
 run:
 	$(UV) run tutor-assistant-web
@@ -22,6 +27,12 @@ migrate:
 
 worker:
 	$(UV) run celery -A tutor_assistant_web.worker.celery_app worker --loglevel=INFO
+
+beat:
+	$(UV) run celery -A tutor_assistant_web.worker.celery_app beat --loglevel=INFO
+
+outbox:
+	$(UV) run python -c "from tutor_assistant_web.worker import dispatch_outbox_task; print(dispatch_outbox_task())"
 
 test:
 	$(UV) run pytest
