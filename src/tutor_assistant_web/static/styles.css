@@ -224,3 +224,14 @@ textarea { resize: vertical; line-height: 1.5; }
   .video-rail { display: none; }
   .board-hint { max-width: 90%; white-space: normal; text-align: center; }
 }
+
+.factory-runs { display: grid; gap: 12px; margin: 18px 0; }
+.factory-run { border: 1px solid var(--line); border-radius: 18px; padding: 16px; background: color-mix(in srgb, var(--surface) 94%, var(--accent)); }
+.factory-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 9px; }
+.factory-file { display: flex; align-items: center; gap: 10px; padding: 11px; border: 1px solid var(--line); border-radius: 13px; color: inherit; text-decoration: none; background: var(--surface); }
+.factory-file:hover { border-color: var(--accent); transform: translateY(-1px); }
+.factory-file span:last-child { display: grid; min-width: 0; }
+.factory-file small { color: var(--muted); }
+.factory-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.build-log { margin-left: auto; font-size: .86rem; color: var(--muted); }
+.build-log[open] { flex-basis: 100%; }

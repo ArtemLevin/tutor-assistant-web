@@ -60,7 +60,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
                 seed_data(session, DEFAULT_ORGANIZATION_ID)
         yield
 
-    app = FastAPI(title=settings.app_name, version="0.5.0", lifespan=lifespan)
+    app = FastAPI(title=settings.app_name, version="0.6.0", lifespan=lifespan)
     app.state.container = container
     app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
     app.add_middleware(

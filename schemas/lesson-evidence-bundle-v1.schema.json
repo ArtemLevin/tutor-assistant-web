@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tutor-assistant.local/schemas/lesson-evidence-bundle-v1.schema.json",
+  "title": "LessonEvidenceBundleV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "organization_id",
+    "lesson",
+    "student",
+    "recordings",
+    "transcript",
+    "requested_artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "organization_id": {"type": "string", "minLength": 1},
+    "lesson": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "topic", "started_at", "ended_at", "tutor_notes"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "topic": {"type": "string"},
+        "started_at": {"type": "string"},
+        "ended_at": {"type": "string"},
+        "tutor_notes": {"type": "string"}
+      }
+    },
+    "student": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "full_name", "grade", "subject", "goal"],
+      "properties": {
+        "id": {"type": "string"},
+        "full_name": {"type": "string"},
+        "grade": {"type": "string"},
+        "subject": {"type": "string"},
+        "goal": {"type": "string"}
+      }
+    },
+    "recordings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["record_id", "state", "playback_url", "metadata"],
+        "properties": {
+          "record_id": {"type": "string"},
+          "state": {"type": "string"},
+          "playback_url": {"type": "string"},
+          "metadata": {"type": "object"}
+        }
+      }
+    },
+    "transcript": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "language", "text", "segments"],
+          "properties": {
+            "status": {"type": "string"},
+            "language": {"type": "string"},
+            "text": {"type": "string"},
+            "segments": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      ]
+    },
+    "requested_artifacts": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+  }
+}

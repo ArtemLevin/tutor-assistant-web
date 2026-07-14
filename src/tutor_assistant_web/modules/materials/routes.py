@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import PlainTextResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse, Response
 
 from tutor_assistant_web.bootstrap.container import AppContainer
 
@@ -57,5 +57,57 @@ def create_router(container: AppContainer) -> APIRouter:
                 "Content-Disposition": (f'attachment; filename="{artifact.kind}-{artifact.id}.md"')
             },
         )
+
+    @router.get("/artifact-versions/{artifact_id}/download")
+    def artifact_version_download(request: Request, artifact_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        artifact, content = service(request).read_artifact_version(artifact_id)
+        return Response(
+            content,
+            media_type=artifact.media_type,
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{artifact.kind}-v{artifact.version}.{artifact.kind}"'
+                ),
+                "X-Content-SHA256": artifact.sha256,
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @router.post("/generation-runs/{run_id}/approve")
+    async def approve_run(request: Request, run_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        await web.validated_form(request)
+        principal = web.principal_required(request)
+        run = service(request).approve(run_id, principal.user_id)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "materials.approved",
+            "generation_run",
+            run.id,
+            {"lesson_id": run.lesson_id},
+        )
+        return RedirectResponse(f"/lessons/{run.lesson_id}", status_code=303)
+
+    @router.post("/generation-runs/{run_id}/publish")
+    async def publish_run(request: Request, run_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        await web.validated_form(request)
+        principal = web.principal_required(request)
+        run = service(request).publish(run_id)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "materials.published",
+            "generation_run",
+            run.id,
+            {"lesson_id": run.lesson_id},
+        )
+        return RedirectResponse(f"/lessons/{run.lesson_id}", status_code=303)
 
     return router

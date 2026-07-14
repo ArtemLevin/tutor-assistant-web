@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: help sync sync-transcription migrate run worker beat outbox test lint format check diagnose docker-up docker-down
+.PHONY: help sync sync-transcription migrate run worker beat outbox test lint format check schema-check diagnose docker-up docker-down
 
 help:
 	@echo "sync        Install all dependencies with uv"
@@ -10,6 +10,7 @@ help:
 	@echo "beat        Start the transactional outbox scheduler"
 	@echo "outbox      Dispatch pending outbox events once"
 	@echo "check       Run lint and tests"
+	@echo "schema-check Validate the committed evidence schema contract"
 	@echo "diagnose    Print runtime diagnostics"
 	@echo "docker-up   Start app, worker, PostgreSQL and Redis"
 
@@ -45,10 +46,13 @@ format:
 
 check: lint test
 
+schema-check:
+	$(UV) run pytest tests/test_materials_factory.py -k schema
+
 diagnose:
 	@$(UV) --version
 	@$(UV) run python --version
-	@$(UV) run python -c "from tutor_assistant_web.config import get_settings; s=get_settings(); print({'env':s.app_env,'database':s.database_url.split(':',1)[0],'bbb_demo':s.bbb_demo_mode,'bbb_configured':bool(s.bbb_base_url and s.bbb_secret),'task_eager':s.task_eager})"
+	@$(UV) run python -c "from tutor_assistant_web.config import get_settings; s=get_settings(); print({'env':s.app_env,'database':s.database_url.split(':',1)[0],'bbb_demo':s.bbb_demo_mode,'bbb_configured':bool(s.bbb_base_url and s.bbb_secret),'task_eager':s.task_eager,'document_engine':s.document_engine_provider,'artifact_storage_root':s.artifact_storage_root})"
 
 docker-up:
 	docker compose up --build

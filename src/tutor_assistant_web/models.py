@@ -12,6 +12,12 @@ from tutor_assistant_web.modules.automation.models import (
 from tutor_assistant_web.modules.classroom.models import RecordingAsset
 from tutor_assistant_web.modules.identity.models import Invitation, Membership, Organization, User
 from tutor_assistant_web.modules.materials.models import (
+    ArtifactStatus,
+    ArtifactVersion,
+    BuildLog,
+    EvidenceBundle,
+    GenerationRun,
+    GenerationStatus,
     JobStatus,
     MaterialArtifact,
     ProcessingJob,
@@ -22,6 +28,12 @@ from tutor_assistant_web.shared.models import new_id, utcnow
 
 __all__ = [
     "JobStatus",
+    "ArtifactStatus",
+    "ArtifactVersion",
+    "BuildLog",
+    "EvidenceBundle",
+    "GenerationRun",
+    "GenerationStatus",
     "Lesson",
     "LessonStatus",
     "MaterialArtifact",

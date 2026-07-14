@@ -40,6 +40,35 @@
       {% if lesson.jobs %}
         {% set job = lesson.jobs[0] %}<div class="job" data-job-id="{{ job.id }}"><div><strong data-job-message>{{ job.message }}</strong><span data-job-status>{{ job.status }}</span></div><progress max="100" value="{{ job.progress }}" data-job-progress></progress><div class="job-meta"><span>Этап: {{ job.stage }}</span><span>Попытка: {{ job.attempt_count }}</span></div>{% if job.error %}<p class="alert">{{ job.error }}</p>{% endif %}</div>
       {% endif %}
+      {% if lesson.generation_runs %}
+      <div class="factory-runs">
+        {% for run in lesson.generation_runs %}
+        <article class="factory-run">
+          <div class="section-heading">
+            <div><strong>Комплект {{ run.created_at|local_dt }}</strong><p class="caption">{{ run.generator }} → {{ run.engine }} · {{ run.prompt_version }}</p></div>
+            <span class="badge {{ run.status }}">{{ run.status }}</span>
+          </div>
+          <div class="factory-files">
+            {% for version in run.versions %}
+            <a class="factory-file" href="/artifact-versions/{{ version.id }}/download" title="SHA-256: {{ version.sha256 }}">
+              <span class="document-icon">{{ version.kind|upper }}</span>
+              <span><strong>{{ version.filename }}</strong><small>v{{ version.version }} · {{ (version.size / 1024)|round(1) }} КБ · {{ version.status }}</small></span>
+            </a>
+            {% else %}<p class="muted">Файлы ещё не собраны.</p>{% endfor %}
+          </div>
+          <div class="factory-actions">
+            {% if run.status == 'review_required' %}
+            <form method="post" action="/generation-runs/{{ run.id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button secondary small">Согласовать</button></form>
+            {% elif run.status == 'approved' %}
+            <form method="post" action="/generation-runs/{{ run.id }}/publish"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button primary small">Опубликовать</button></form>
+            {% endif %}
+            <details class="build-log"><summary>Журнал сборки</summary>{% for log in run.logs %}<p><strong>{{ log.stage }} · {{ log.status }}</strong><br>{{ log.message }}</p>{% endfor %}</details>
+          </div>
+          {% if run.error %}<p class="alert">{{ run.error }}</p>{% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      {% endif %}
       <div class="artifact-list">
         {% for artifact in lesson.artifacts %}<details><summary><span class="document-icon">↗</span><div><strong>{{ artifact.title }}</strong><small>{{ artifact.kind }} · {{ artifact.created_at|local_dt }}</small></div></summary><pre>{{ artifact.content }}</pre><a href="/artifacts/{{ artifact.id }}.md">Скачать Markdown</a></details>{% else %}<p class="muted">Сохраните заметки и запустите обработку. В demo-режиме создаются проверяемые черновики.</p>{% endfor %}
       </div>

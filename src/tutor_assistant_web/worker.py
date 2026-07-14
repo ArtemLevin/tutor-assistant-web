@@ -6,7 +6,9 @@ from celery import Celery
 from sqlalchemy import select
 
 from tutor_assistant_web.bootstrap.container import (
+    build_artifact_storage,
     build_conference_provider,
+    build_document_engine,
     build_material_generator,
     build_transcription_provider,
 )
@@ -73,6 +75,8 @@ def process_lesson_task(self, job_id: str) -> None:
         build_material_generator(settings),
         classroom,
         organization_id=organization_id,
+        document_engine=build_document_engine(settings),
+        artifact_storage=build_artifact_storage(settings),
     )
     try:
         if kind == "post_lesson":

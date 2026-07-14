@@ -6,6 +6,7 @@ services:
       DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
+      ARTIFACT_STORAGE_ROOT: /data/artifacts
     ports:
       - "8000:8000"
     depends_on:
@@ -13,6 +14,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - artifact-data:/data/artifacts
     restart: unless-stopped
 
   worker:
@@ -26,11 +29,14 @@ services:
       DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
+      ARTIFACT_STORAGE_ROOT: /data/artifacts
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - artifact-data:/data/artifacts
     restart: unless-stopped
 
   beat:
@@ -76,3 +82,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  artifact-data:

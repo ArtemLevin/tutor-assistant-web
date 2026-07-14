@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.classroom.models import RecordingAsset
+from tutor_assistant_web.modules.materials.models import GenerationRun
 from tutor_assistant_web.modules.scheduling.models import Lesson, LessonStatus
 from tutor_assistant_web.shared.contracts import (
     ConferenceProvider,
@@ -47,6 +48,8 @@ class ClassroomService:
                     selectinload(Lesson.jobs),
                     selectinload(Lesson.artifacts),
                     selectinload(Lesson.transcript),
+                    selectinload(Lesson.generation_runs).selectinload(GenerationRun.versions),
+                    selectinload(Lesson.generation_runs).selectinload(GenerationRun.logs),
                 )
                 .where(Lesson.id == lesson_id, self._tenant_filter())
             )
@@ -54,6 +57,10 @@ class ClassroomService:
                 raise NotFoundError("Занятие не найдено")
             lesson.jobs.sort(key=lambda item: item.created_at, reverse=True)
             lesson.artifacts.sort(key=lambda item: item.created_at, reverse=True)
+            lesson.generation_runs.sort(key=lambda item: item.created_at, reverse=True)
+            for run in lesson.generation_runs:
+                run.versions.sort(key=lambda item: item.kind)
+                run.logs.sort(key=lambda item: item.created_at)
             return lesson
 
     def student_link(self, lesson: Lesson) -> str:

@@ -85,6 +85,24 @@ def test_automation_production_configuration_requires_real_bbb():
         raise AssertionError("automation must require real BBB in production")
 
 
+def test_materials_production_configuration_requires_real_document_engine():
+    try:
+        Settings(
+            app_env="production",
+            app_secret_key="production-secret",
+            bootstrap_admin_password="a-secure-production-password",
+            enabled_modules="materials",
+            bbb_demo_mode=False,
+            bbb_base_url="https://bbb.example.test",
+            bbb_secret="bbb-secret",
+            public_base_url="https://tutor.example.test",
+        )
+    except ValueError as exc:
+        assert "DOCUMENT_ENGINE_PROVIDER" in str(exc)
+    else:
+        raise AssertionError("materials must require a real document engine in production")
+
+
 class FakeConference:
     name = "fake"
     is_demo = False

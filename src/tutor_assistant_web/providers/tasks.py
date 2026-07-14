@@ -6,7 +6,9 @@ if TYPE_CHECKING:
     from tutor_assistant_web.config import Settings
     from tutor_assistant_web.db import Database
     from tutor_assistant_web.shared.contracts import (
+        ArtifactStorage,
         ConferenceProvider,
+        DocumentEngine,
         MaterialGenerator,
         TranscriptionProvider,
     )
@@ -22,12 +24,16 @@ class InlineJobDispatcher:
         conference: ConferenceProvider,
         materials: MaterialGenerator,
         transcription: TranscriptionProvider,
+        document_engine: DocumentEngine,
+        artifact_storage: ArtifactStorage,
     ) -> None:
         self.database = database
         self.settings = settings
         self.conference = conference
         self.materials = materials
         self.transcription = transcription
+        self.document_engine = document_engine
+        self.artifact_storage = artifact_storage
 
     def enqueue_lesson_processing(self, job_id: str) -> None:
         from sqlalchemy import select
@@ -55,7 +61,12 @@ class InlineJobDispatcher:
             organization_id,
         )
         materials_service = MaterialsService(
-            self.database, self.materials, classroom, organization_id=organization_id
+            self.database,
+            self.materials,
+            classroom,
+            organization_id=organization_id,
+            document_engine=self.document_engine,
+            artifact_storage=self.artifact_storage,
         )
         if kind == "post_lesson":
             PostLessonWorkflowService(

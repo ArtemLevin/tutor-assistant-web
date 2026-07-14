@@ -30,7 +30,7 @@ def create_router(container: AppContainer) -> APIRouter:
 
     @router.get("/health/live")
     def health_live():
-        return {"status": "ok", "version": "0.5.0"}
+        return {"status": "ok", "version": "0.6.0"}
 
     @router.get("/health/ready")
     def health_ready():
@@ -42,6 +42,8 @@ def create_router(container: AppContainer) -> APIRouter:
             return JSONResponse({"status": "error", "checks": checks}, status_code=503)
         checks["bigbluebutton"] = container.conference.name
         checks["materials"] = container.materials.name
+        checks["document_engine"] = container.document_engine.name
+        checks["artifact_storage"] = container.artifact_storage.name
         checks["transcription"] = container.transcription.name
         checks["queue"] = container.jobs.name
         return {"status": "ok", "checks": checks}
