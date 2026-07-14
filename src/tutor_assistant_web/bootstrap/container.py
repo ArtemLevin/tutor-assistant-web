@@ -18,10 +18,17 @@ from tutor_assistant_web.providers.materials import (
     WebhookMaterialGenerator,
 )
 from tutor_assistant_web.providers.tasks import CeleryJobDispatcher, InlineJobDispatcher
+from tutor_assistant_web.providers.transcription import (
+    DemoTranscriptionProvider,
+    DisabledTranscriptionProvider,
+    FasterWhisperTranscriptionProvider,
+    WebhookTranscriptionProvider,
+)
 from tutor_assistant_web.shared.contracts import (
     ConferenceProvider,
     JobDispatcher,
     MaterialGenerator,
+    TranscriptionProvider,
 )
 from tutor_assistant_web.shared.web import WebSupport
 
@@ -36,6 +43,7 @@ class AppContainer:
     identity: IdentityService
     conference: ConferenceProvider
     materials: MaterialGenerator
+    transcription: TranscriptionProvider
     jobs: JobDispatcher
 
     def classroom_service(self, organization_id: str | None):
@@ -65,6 +73,33 @@ class AppContainer:
 
         return AuditService(self.database, organization_id)
 
+    def recording_ready_service(self):
+        from tutor_assistant_web.modules.automation.application import RecordingReadyService
+
+        return RecordingReadyService(self.database)
+
+    def outbox_service(self):
+        from tutor_assistant_web.modules.automation.application import OutboxService
+
+        return OutboxService(
+            self.database,
+            self.jobs,
+            max_attempts=self.settings.outbox_max_attempts,
+            retry_base_seconds=self.settings.workflow_retry_base_seconds,
+        )
+
+    def workflow_service(self, organization_id: str):
+        from tutor_assistant_web.modules.automation.application import PostLessonWorkflowService
+
+        classroom = self.classroom_service(organization_id)
+        return PostLessonWorkflowService(
+            self.database,
+            classroom,
+            self.materials_service(organization_id),
+            self.transcription,
+            organization_id,
+        )
+
 
 def build_conference_provider(settings: Settings) -> ConferenceProvider:
     if settings.bbb_demo_mode:
@@ -87,6 +122,33 @@ def build_material_generator(settings: Settings) -> MaterialGenerator:
     )
 
 
+def build_transcription_provider(settings: Settings) -> TranscriptionProvider:
+    provider = settings.transcription_provider.lower()
+    if provider == "auto":
+        if settings.bbb_demo_mode:
+            provider = "demo"
+        else:
+            provider = "webhook" if settings.transcription_webhook_url else "disabled"
+    if provider == "demo":
+        return DemoTranscriptionProvider()
+    if provider == "webhook":
+        return WebhookTranscriptionProvider(
+            settings.transcription_webhook_url,
+            settings.transcription_webhook_token,
+            settings.transcription_request_timeout,
+        )
+    if provider == "faster-whisper":
+        return FasterWhisperTranscriptionProvider(
+            model=settings.transcription_model,
+            language=settings.transcription_language,
+            device=settings.transcription_device,
+            compute_type=settings.transcription_compute_type,
+            timeout=settings.transcription_request_timeout,
+            max_download_mb=settings.transcription_max_download_mb,
+        )
+    return DisabledTranscriptionProvider()
+
+
 def build_container(
     settings: Settings,
     database: Database,
@@ -95,10 +157,11 @@ def build_container(
 ) -> AppContainer:
     conference = build_conference_provider(settings)
     materials = build_material_generator(settings)
+    transcription = build_transcription_provider(settings)
     identity = IdentityService(database)
     jobs: JobDispatcher
     if settings.task_eager:
-        jobs = InlineJobDispatcher(database, settings, conference, materials)
+        jobs = InlineJobDispatcher(database, settings, conference, materials, transcription)
     else:
         jobs = CeleryJobDispatcher()
     return AppContainer(
@@ -110,5 +173,6 @@ def build_container(
         identity=identity,
         conference=conference,
         materials=materials,
+        transcription=transcription,
         jobs=jobs,
     )

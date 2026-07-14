@@ -35,6 +35,11 @@ BBB ссылки ведут в полноценную комнату с виде
 - одноразовые приглашения с ограниченным сроком действия;
 - переключение между доступными рабочими пространствами;
 - tenant-scoped журнал аудита административных и бизнес-операций.
+- подписанный `recording-ready` callback BigBlueButton с защитой от повторной доставки;
+- transactional outbox, Celery Beat и экспоненциальные повторные попытки;
+- локальная транскрибация через `faster-whisper` либо заменяемый transcription webhook;
+- сегменты транскрипта, редактирование текста и включение расшифровки в evidence JSON;
+- наблюдаемые этапы post-lesson workflow и идемпотентное сохранение материалов.
 
 ## Быстрый старт в demo-режиме
 
@@ -67,6 +72,9 @@ make sync       # зависимости
 make migrate    # применить миграции базы
 make run        # web-приложение
 make worker     # Celery worker
+make beat       # планировщик transactional outbox
+make outbox     # однократная отправка накопленных событий
+make sync-transcription # зависимости локального faster-whisper
 make check      # Ruff + pytest
 make diagnose   # безопасная диагностика конфигурации
 make docker-up  # app + worker + PostgreSQL + Redis
@@ -99,6 +107,7 @@ sudo bbb-conf --secret
 BBB_DEMO_MODE=false
 BBB_BASE_URL=https://class.example.com
 BBB_SECRET=long-shared-secret
+TRANSCRIPTION_PROVIDER=faster-whisper
 PUBLIC_BASE_URL=https://tutor.example.com
 APP_ENV=production
 APP_SECRET_KEY=another-long-random-secret
@@ -125,28 +134,42 @@ Shared secret остаётся только на backend. В браузер пе
 docker compose up --build
 ```
 
-Compose запускает приложение, Celery worker, PostgreSQL и Redis. Сам BigBlueButton в Compose не
-включён и подключается как внешний сервис.
+Compose запускает приложение, Celery worker, Celery Beat, PostgreSQL и Redis. Сам BigBlueButton в
+Compose не включён и подключается как внешний сервис.
 
 Для локального запуска без Redis оставьте `TASK_EAGER=true`: обработка выполнится в процессе web.
 Для Compose и production используется `TASK_EAGER=false`.
 
 ## Материалы после занятия
 
-Кнопка «Сформировать» создаёт `ProcessingJob`. Worker:
+Кнопка «Сформировать» по-прежнему доступна для ручного перезапуска. Основной автоматический путь:
 
-1. запрашивает готовые записи BBB;
-2. формирует версионированный evidence JSON;
-3. отправляет его в `MATERIALS_WEBHOOK_URL`;
-4. сохраняет возвращённые артефакты;
-5. показывает прогресс и ошибки в карточке занятия.
+1. BBB подписанным callback сообщает о готовности записи;
+2. receipt, job и outbox event сохраняются одной транзакцией;
+3. worker синхронизирует прямой медиаисточник и транскрибирует его;
+4. транскрипт и заметки входят в версионированный evidence JSON;
+5. генератор создаёт материалы, а интерфейс показывает этапы, попытки и ошибки.
 
 Если webhook не указан, создаются два локальных черновика: итог занятия и домашнее задание.
-Полный контракт описан в [docs/materials-webhook.md](docs/materials-webhook.md).
+Контракты описаны в [docs/materials-webhook.md](docs/materials-webhook.md) и
+[docs/post-lesson-automation.md](docs/post-lesson-automation.md).
 
 Запись BigBlueButton появляется после серверной постобработки, иногда через несколько минут после
-окончания встречи. Для production следующей задачей является подключение recording-ready webhook,
-который автоматически запустит pipeline в нужный момент.
+окончания встречи. Callback фиксируется сразу; отсутствие прямого audio/video URL переводит job в
+управляемый retry.
+
+Для локальной транскрибации:
+
+```bash
+uv sync --extra transcription
+```
+
+```dotenv
+TRANSCRIPTION_PROVIDER=faster-whisper
+TRANSCRIPTION_MODEL=small
+TRANSCRIPTION_DEVICE=cpu
+TRANSCRIPTION_COMPUTE_TYPE=int8
+```
 
 ## Диагностика
 
@@ -171,6 +194,7 @@ src/tutor_assistant_web/
 │   ├── students/          # CRM учеников
 │   ├── scheduling/        # расписание
 │   ├── classroom/         # занятие и записи
+│   ├── automation/        # callback, outbox, транскрипт и workflow
 │   ├── materials/         # evidence и артефакты
 │   └── dashboard/         # главная страница и health checks
 ├── providers/             # BBB/demo, webhook/local, Celery/inline
@@ -185,7 +209,7 @@ src/tutor_assistant_web/
 
 Каждый модуль содержит собственные модели, application-сервисы и HTTP routes. Маршруты не
 обращаются к SQLAlchemy и BigBlueButton напрямую. Composition root выбирает реализации контрактов
-`ConferenceProvider`, `MaterialGenerator` и `JobDispatcher`.
+`ConferenceProvider`, `TranscriptionProvider`, `MaterialGenerator` и `JobDispatcher`.
 
 ## Пользователи, роли и организации
 
@@ -236,7 +260,8 @@ ENABLED_MODULES=students,scheduling
 - доставка приглашений по email пока не подключена: администратор передаёт ссылку вручную;
 - нет повторяющихся событий и интеграции с внешними календарями;
 - нет платежей, кабинета родителя и публикации материалов ученику;
-- транскрипция ожидается от BBB captions или будущего отдельного worker;
+- качество транскрипции зависит от выбранной Whisper-модели и качества записи;
+- diarization говорящих пока не подключён;
 - локальные AI-материалы являются шаблонными черновиками;
 - demo-доска служит только для знакомства с интерфейсом и не синхронизируется;
 - журнал аудита и политика удаления персональных данных относятся к production-этапу.
@@ -247,9 +272,8 @@ ENABLED_MODULES=students,scheduling
 
 ## Ближайший production backlog
 
-1. Recording-ready webhook, transactional outbox и автоматический retry.
-2. Отдельная транскрибация `faster-whisper` с сегментами и говорящими.
-3. Интеграция `latex-for-everyone` для TEX/PDF/HTML.
-4. Проверка и публикация материалов в кабинетах ученика и родителя.
-5. Повторяющееся расписание, уведомления и iCal.
-6. Email-уведомления, наблюдаемость, backup/restore и политика retention.
+1. Интеграция `latex-for-everyone` для TEX/PDF/HTML и проверяемых сборок.
+2. Diarization говорящих и словарь терминов конкретного ученика.
+3. Проверка и публикация материалов в кабинетах ученика и родителя.
+4. Повторяющееся расписание, уведомления и iCal.
+5. Метрики Prometheus/OpenTelemetry, backup/restore и политика retention.

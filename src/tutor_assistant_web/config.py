@@ -33,6 +33,22 @@ class Settings(BaseSettings):
     bbb_demo_mode: bool = True
     bbb_request_timeout: float = 15.0
 
+    transcription_provider: str = "auto"
+    transcription_webhook_url: str = ""
+    transcription_webhook_token: str = ""
+    transcription_model: str = "small"
+    transcription_language: str = "ru"
+    transcription_device: str = "cpu"
+    transcription_compute_type: str = "int8"
+    transcription_request_timeout: float = 300.0
+    transcription_max_download_mb: int = Field(default=500, ge=1, le=4096)
+
+    workflow_max_retries: int = Field(default=5, ge=0, le=20)
+    workflow_retry_base_seconds: int = Field(default=30, ge=1, le=3600)
+    outbox_batch_size: int = Field(default=20, ge=1, le=500)
+    outbox_poll_seconds: int = Field(default=10, ge=1, le=300)
+    outbox_max_attempts: int = Field(default=12, ge=1, le=100)
+
     materials_webhook_url: str = ""
     materials_webhook_token: str = ""
     materials_request_timeout: float = 60.0
@@ -56,7 +72,10 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_production(self) -> Settings:
         enabled = {item.strip() for item in self.enabled_modules.split(",") if item.strip()}
-        classroom_enabled = not enabled or bool(enabled & {"classroom", "materials", "dashboard"})
+        classroom_enabled = not enabled or bool(
+            enabled & {"classroom", "materials", "automation", "dashboard"}
+        )
+        automation_enabled = not enabled or "automation" in enabled
         if self.app_env.lower() == "production":
             if self.app_secret_key == "change-me-in-production":
                 raise ValueError("APP_SECRET_KEY must be changed in production")
@@ -64,8 +83,26 @@ class Settings(BaseSettings):
                 raise ValueError("BOOTSTRAP_ADMIN_PASSWORD must contain at least 12 characters")
             if self.bbb_demo_mode and classroom_enabled:
                 raise ValueError("BBB_DEMO_MODE must be false in production")
+            if classroom_enabled and not self.public_base_url.startswith("https://"):
+                raise ValueError("PUBLIC_BASE_URL must use https in production")
+            if automation_enabled and self.transcription_provider.lower() in {
+                "disabled",
+                "demo",
+            }:
+                raise ValueError("A production transcription provider is required for automation")
+            if (
+                automation_enabled
+                and self.transcription_provider.lower() == "auto"
+                and not self.transcription_webhook_url
+            ):
+                raise ValueError("Configure TRANSCRIPTION_PROVIDER for production automation")
         if not self.bbb_demo_mode and (not self.bbb_base_url or not self.bbb_secret):
             raise ValueError("BBB_BASE_URL and BBB_SECRET are required when demo mode is off")
+        provider = self.transcription_provider.lower()
+        if provider not in {"auto", "disabled", "demo", "webhook", "faster-whisper"}:
+            raise ValueError("TRANSCRIPTION_PROVIDER is not supported")
+        if provider == "webhook" and not self.transcription_webhook_url:
+            raise ValueError("TRANSCRIPTION_WEBHOOK_URL is required for webhook transcription")
         return self
 
 

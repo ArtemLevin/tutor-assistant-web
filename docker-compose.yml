@@ -16,8 +16,26 @@ services:
     restart: unless-stopped
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        INSTALL_TRANSCRIPTION: ${INSTALL_TRANSCRIPTION:-false}
     command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "worker", "--loglevel=INFO"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
+      REDIS_URL: redis://redis:6379/0
+      TASK_EAGER: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  beat:
+    build: .
+    command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "beat", "--loglevel=INFO"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
@@ -58,4 +76,3 @@ services:
 volumes:
   postgres-data:
   redis-data:
-

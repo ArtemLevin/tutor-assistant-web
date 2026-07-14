@@ -121,6 +121,8 @@ h3 { letter-spacing: -.02em; }
 .sticky-panel { position: sticky; top: 24px; }
 .share-url { padding: 12px; background: var(--bg); border-radius: 10px; color: var(--muted); word-break: break-all; font-family: ui-monospace, monospace; font-size: .76rem; margin: 0; }
 .summary-editor { min-height: 260px; resize: vertical; }
+.transcript-editor { min-height: 360px; resize: vertical; font: .9rem/1.65 ui-monospace, monospace; }
+.transcript-meta, .job-meta { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .74rem; }
 .job { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; }
 .job > div { display: flex; justify-content: space-between; gap: 20px; }
 .job span { color: var(--muted); font-size: .74rem; }

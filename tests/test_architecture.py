@@ -70,6 +70,21 @@ def test_crm_only_production_configuration_does_not_require_bbb():
     assert settings.enabled_modules == "students"
 
 
+def test_automation_production_configuration_requires_real_bbb():
+    try:
+        Settings(
+            app_env="production",
+            app_secret_key="production-secret",
+            bootstrap_admin_password="a-secure-production-password",
+            enabled_modules="automation",
+            bbb_demo_mode=True,
+        )
+    except ValueError as exc:
+        assert "BBB_DEMO_MODE" in str(exc)
+    else:
+        raise AssertionError("automation must require real BBB in production")
+
+
 class FakeConference:
     name = "fake"
     is_demo = False
@@ -119,4 +134,7 @@ def test_classroom_uses_replaceable_conference_provider(tmp_path):
 
     assert url.endswith("/MODERATOR")
     assert provider.created[0].meeting_id == lesson.bbb_meeting_id
+    assert provider.created[0].recording_ready_url == (
+        "https://app.test/webhooks/bigbluebutton/recording-ready"
+    )
     assert provider.ended == [lesson.bbb_meeting_id]

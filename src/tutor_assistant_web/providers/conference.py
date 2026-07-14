@@ -39,6 +39,7 @@ class BigBlueButtonConferenceProvider:
             attendee_password=command.attendee_password,
             moderator_password=command.moderator_password,
             record=command.record,
+            recording_ready_url=command.recording_ready_url,
         )
 
     def join_url(self, command: JoinConference) -> str:

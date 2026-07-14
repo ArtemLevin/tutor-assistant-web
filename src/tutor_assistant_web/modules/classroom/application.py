@@ -46,6 +46,7 @@ class ClassroomService:
                     selectinload(Lesson.recordings),
                     selectinload(Lesson.jobs),
                     selectinload(Lesson.artifacts),
+                    selectinload(Lesson.transcript),
                 )
                 .where(Lesson.id == lesson_id, self._tenant_filter())
             )
@@ -179,5 +180,10 @@ class ClassroomService:
                 attendee_password=lesson.attendee_password,
                 moderator_password=lesson.moderator_password,
                 record=lesson.record_enabled,
+                recording_ready_url=(
+                    f"{self.public_base_url}/webhooks/bigbluebutton/recording-ready"
+                    if lesson.record_enabled and not self.conference.is_demo
+                    else ""
+                ),
             )
         )

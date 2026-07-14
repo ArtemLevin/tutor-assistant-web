@@ -58,7 +58,15 @@ class DashboardService:
             pending_jobs = session.scalar(
                 select(func.count())
                 .select_from(ProcessingJob)
-                .where(ProcessingJob.status.in_([JobStatus.queued.value, JobStatus.running.value]))
+                .where(
+                    ProcessingJob.status.in_(
+                        [
+                            JobStatus.queued.value,
+                            JobStatus.running.value,
+                            JobStatus.retrying.value,
+                        ]
+                    )
+                )
                 .where(ProcessingJob.organization_id == self.organization_id)
             )
             artifacts_count = session.scalar(

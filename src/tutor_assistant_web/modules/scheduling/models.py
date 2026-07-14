@@ -12,6 +12,7 @@ from tutor_assistant_web.db import Base
 from tutor_assistant_web.shared.models import new_id, utcnow
 
 if TYPE_CHECKING:
+    from tutor_assistant_web.modules.automation.models import LessonTranscript
     from tutor_assistant_web.modules.classroom.models import RecordingAsset
     from tutor_assistant_web.modules.materials.models import MaterialArtifact, ProcessingJob
     from tutor_assistant_web.modules.students.models import Student
@@ -60,4 +61,7 @@ class Lesson(Base):
     )
     artifacts: Mapped[list[MaterialArtifact]] = relationship(
         "MaterialArtifact", back_populates="lesson", cascade="all, delete-orphan"
+    )
+    transcript: Mapped[LessonTranscript | None] = relationship(
+        "LessonTranscript", back_populates="lesson", cascade="all, delete-orphan", uselist=False
     )

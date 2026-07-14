@@ -13,6 +13,20 @@
       <p class="caption">Ссылка подписана и открывает роль участника только для этого занятия.</p>
     </article>
     <article class="panel">
+      <div class="section-heading"><div><p class="eyebrow">Речь занятия</p><h2>Транскрипт</h2></div>{% if lesson.transcript %}<span class="badge {{ lesson.transcript.status }}">{{ lesson.transcript.status }}</span>{% endif %}</div>
+      {% if lesson.transcript %}
+        <form method="post" action="/lessons/{{ lesson.id }}/transcript" class="stack">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>Распознанный текст<textarea class="transcript-editor" name="text" rows="16" placeholder="Текст появится после обработки записи">{{ lesson.transcript.text }}</textarea></label>
+          <div class="transcript-meta"><span>{{ lesson.transcript.provider }} · {{ lesson.transcript.model }}</span><span>{{ lesson.transcript.language or 'язык не определён' }} · {{ lesson.transcript.segments|length }} сегм.</span></div>
+          {% if lesson.transcript.error %}<p class="alert">{{ lesson.transcript.error }}</p>{% endif %}
+          <div class="right"><button class="button secondary">Сохранить правки</button></div>
+        </form>
+      {% else %}
+        <p class="muted">После публикации записи BigBlueButton транскрипт появится здесь автоматически.</p>
+      {% endif %}
+    </article>
+    <article class="panel">
       <div class="section-heading"><div><p class="eyebrow">После встречи</p><h2>Заметки преподавателя</h2></div></div>
       <form method="post" action="/lessons/{{ lesson.id }}/notes" class="stack">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -24,7 +38,7 @@
     <article class="panel">
       <div class="section-heading"><div><p class="eyebrow">AI-конвейер</p><h2>Материалы</h2></div><form method="post" action="/lessons/{{ lesson.id }}/process"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button primary small">Сформировать</button></form></div>
       {% if lesson.jobs %}
-        {% set job = lesson.jobs[0] %}<div class="job" data-job-id="{{ job.id }}"><div><strong data-job-message>{{ job.message }}</strong><span data-job-status>{{ job.status }}</span></div><progress max="100" value="{{ job.progress }}" data-job-progress></progress>{% if job.error %}<p class="alert">{{ job.error }}</p>{% endif %}</div>
+        {% set job = lesson.jobs[0] %}<div class="job" data-job-id="{{ job.id }}"><div><strong data-job-message>{{ job.message }}</strong><span data-job-status>{{ job.status }}</span></div><progress max="100" value="{{ job.progress }}" data-job-progress></progress><div class="job-meta"><span>Этап: {{ job.stage }}</span><span>Попытка: {{ job.attempt_count }}</span></div>{% if job.error %}<p class="alert">{{ job.error }}</p>{% endif %}</div>
       {% endif %}
       <div class="artifact-list">
         {% for artifact in lesson.artifacts %}<details><summary><span class="document-icon">↗</span><div><strong>{{ artifact.title }}</strong><small>{{ artifact.kind }} · {{ artifact.created_at|local_dt }}</small></div></summary><pre>{{ artifact.content }}</pre><a href="/artifacts/{{ artifact.id }}.md">Скачать Markdown</a></details>{% else %}<p class="muted">Сохраните заметки и запустите обработку. В demo-режиме создаются проверяемые черновики.</p>{% endfor %}
@@ -36,4 +50,3 @@
   </aside>
 </section>
 {% endblock %}
-

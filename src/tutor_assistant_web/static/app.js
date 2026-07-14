@@ -35,7 +35,7 @@ document.querySelectorAll('[data-copy]').forEach((button) => {
 
 document.querySelectorAll('[data-job-id]').forEach((element) => {
   const status = element.querySelector('[data-job-status]');
-  if (!status || !['queued', 'running'].includes(status.textContent.trim())) return;
+  if (!status || !['queued', 'running', 'retrying'].includes(status.textContent.trim())) return;
   const poll = async () => {
     try {
       const response = await fetch(`/api/jobs/${element.dataset.jobId}`);
@@ -44,7 +44,7 @@ document.querySelectorAll('[data-job-id]').forEach((element) => {
       element.querySelector('[data-job-progress]').value = job.progress;
       element.querySelector('[data-job-message]').textContent = job.message;
       status.textContent = job.status;
-      if (['queued', 'running'].includes(job.status)) setTimeout(poll, 1800);
+      if (['queued', 'running', 'retrying'].includes(job.status)) setTimeout(poll, job.status === 'retrying' ? 5000 : 1800);
       else window.setTimeout(() => window.location.reload(), 600);
     } catch (_) { setTimeout(poll, 3000); }
   };
@@ -87,4 +87,3 @@ if (canvas) {
   }));
   document.querySelector('[data-clear-board]')?.addEventListener('click', () => context.clearRect(0, 0, canvas.width, canvas.height));
 }
-
