@@ -28,6 +28,7 @@ from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.providers.transcription import resolve_media_url, segment_payload
 from tutor_assistant_web.shared.contracts import (
     JobDispatcher,
+    OutboxEventHandler,
     TranscriptionProvider,
     TranscriptionResult,
     TranscriptionSource,
@@ -177,11 +178,13 @@ class OutboxService:
         *,
         max_attempts: int,
         retry_base_seconds: int,
+        event_handlers: tuple[OutboxEventHandler, ...] = (),
     ) -> None:
         self.database = database
         self.dispatcher = dispatcher
         self.max_attempts = max_attempts
         self.retry_base_seconds = retry_base_seconds
+        self.event_handlers = event_handlers
 
     def dispatch_pending(self, limit: int = 20) -> dict[str, int]:
         now = utcnow()
@@ -212,12 +215,18 @@ class OutboxService:
             if event is None:
                 continue
             try:
-                if event.topic != "post_lesson.requested":
-                    raise ValueError(f"unsupported outbox topic: {event.topic}")
-                job_id = event.payload.get("job_id")
-                if not isinstance(job_id, str) or not job_id:
-                    raise ValueError("outbox event has no job_id")
-                self.dispatcher.enqueue_lesson_processing(job_id)
+                if event.topic == "post_lesson.requested":
+                    job_id = event.payload.get("job_id")
+                    if not isinstance(job_id, str) or not job_id:
+                        raise ValueError("outbox event has no job_id")
+                    self.dispatcher.enqueue_lesson_processing(job_id)
+                else:
+                    handler = next(
+                        (item for item in self.event_handlers if item.handles(event.topic)), None
+                    )
+                    if handler is None:
+                        raise ValueError(f"unsupported outbox topic: {event.topic}")
+                    handler.handle(event.topic, event.organization_id, event.payload)
             except Exception as exc:
                 logger.warning("Outbox dispatch failed event_id=%s: %s", event_id, exc)
                 outcome = self._release_failed(event_id, exc)

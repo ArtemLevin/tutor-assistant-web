@@ -45,6 +45,10 @@ BBB ссылки ведут в полноценную комнату с виде
 - версионированные TEX, HTML и PDF с журналом сборки;
 - отдельные стадии проверки, согласования и публикации;
 - адаптер компиляции к реальному API `latex-for-everyone`.
+- ролевые приглашения ученика и родителя из карточки ученика;
+- личный кабинет с опубликованными PDF/HTML/TEX;
+- атомарная публикация и отзыв через transactional outbox;
+- tenant-scoped доставки и внутренние уведомления.
 
 ## Быстрый старт в demo-режиме
 
@@ -162,6 +166,8 @@ Compose не включён и подключается как внешний с
 [docs/post-lesson-automation.md](docs/post-lesson-automation.md).
 Версионирование, компиляция и review lifecycle описаны в
 [docs/materials-factory.md](docs/materials-factory.md).
+Кабинеты, модель доступа и безопасная доставка описаны в
+[docs/portal-delivery.md](docs/portal-delivery.md).
 
 По умолчанию включён локальный детерминированный preview-движок. Для настоящей PDF-компиляции
 подключите отдельный экземпляр `latex-for-everyone`:
@@ -215,6 +221,7 @@ src/tutor_assistant_web/
 │   ├── classroom/         # занятие и записи
 │   ├── automation/        # callback, outbox, транскрипт и workflow
 │   ├── materials/         # evidence и артефакты
+│   ├── portal/            # кабинеты, доставки и уведомления
 │   └── dashboard/         # главная страница и health checks
 ├── providers/             # BBB/demo, webhook/local, Celery/inline
 ├── shared/                # контракты, ошибки, security, web helpers
@@ -279,8 +286,7 @@ ENABLED_MODULES=students,scheduling
 
 - доставка приглашений по email пока не подключена: администратор передаёт ссылку вручную;
 - нет повторяющихся событий и интеграции с внешними календарями;
-- нет платежей и кабинета родителя; состояние публикации уже фиксируется, но доставка в кабинет
-  пока не подключена;
+- нет платежей и внешних email/Telegram-уведомлений;
 - качество транскрипции зависит от выбранной Whisper-модели и качества записи;
 - diarization говорящих пока не подключён;
 - локальные AI-материалы являются шаблонными черновиками;
@@ -293,8 +299,8 @@ ENABLED_MODULES=students,scheduling
 
 ## Ближайший production backlog
 
-1. Кабинеты ученика и родителя с доставкой опубликованных комплектов.
-2. S3/MinIO-адаптер `ArtifactStorage`, retention и антивирусная проверка.
+1. S3/MinIO-адаптер `ArtifactStorage`, retention и антивирусная проверка.
+2. Email/Telegram-уведомления и настройки предпочтений получателя.
 3. Diarization говорящих и словарь терминов конкретного ученика.
 4. Повторяющееся расписание, уведомления и iCal.
 5. Метрики Prometheus/OpenTelemetry, backup/restore и disaster recovery drill.

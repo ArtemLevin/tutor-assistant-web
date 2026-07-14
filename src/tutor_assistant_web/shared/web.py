@@ -101,6 +101,15 @@ class WebSupport:
         target = quote(request.url.path, safe="/")
         return RedirectResponse(f"/login?next={target}", status_code=303)
 
+    def require_recipient(self, request: Request) -> RedirectResponse | None:
+        principal = self.principal(request)
+        if principal and principal.role in {"student", "parent"}:
+            return None
+        if principal:
+            raise HTTPException(403, "Раздел доступен ученикам и родителям")
+        target = quote(request.url.path, safe="/")
+        return RedirectResponse(f"/login?next={target}", status_code=303)
+
     def set_principal(self, request: Request, principal: Principal) -> None:
         request.session.update(
             {

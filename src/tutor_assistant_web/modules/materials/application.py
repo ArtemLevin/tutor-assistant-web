@@ -165,32 +165,6 @@ class MaterialsService:
             session.commit()
             return run
 
-    def publish(self, run_id: str) -> GenerationRun:
-        with self.database.sessions() as session:
-            run = self._run_for_update(session, run_id)
-            if run.status not in {
-                GenerationStatus.approved.value,
-                GenerationStatus.published.value,
-            }:
-                raise ConflictError("Сначала согласуйте комплект")
-            now = datetime.now(UTC)
-            run.status = GenerationStatus.published.value
-            run.published_at = now
-            for version in run.versions:
-                version.status = ArtifactStatus.published.value
-                version.published_at = now
-            session.add(
-                BuildLog(
-                    organization_id=self.organization_id,
-                    generation_run_id=run.id,
-                    stage="publish",
-                    status="published",
-                    message="Комплект опубликован",
-                )
-            )
-            session.commit()
-            return run
-
     def process(self, job_id: str, *, start: bool = True, sync_recordings: bool = True) -> None:
         if start:
             self.start(job_id)
@@ -208,6 +182,7 @@ class MaterialsService:
                 GenerationStatus.review_required.value,
                 GenerationStatus.approved.value,
                 GenerationStatus.published.value,
+                GenerationStatus.revoked.value,
             } and self._run_has_versions(run.id):
                 self._complete_job(job_id)
                 return

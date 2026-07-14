@@ -20,7 +20,7 @@ def create_router(container: AppContainer) -> APIRouter:
             memberships=memberships,
             invitations=invitations,
             invitation_url=invitation_url,
-            roles=("admin", "tutor", "student", "parent"),
+            roles=("admin", "tutor"),
             settings_invitation_ttl=container.settings.invitation_ttl_hours,
         )
 
@@ -58,6 +58,8 @@ def create_router(container: AppContainer) -> APIRouter:
         web.csrf_token(request)
         if not target.startswith("/") or target.startswith("//"):
             target = "/"
+        if target == "/" and principal.role in {"student", "parent"}:
+            target = "/portal"
         return RedirectResponse(target, status_code=303)
 
     @router.post("/logout")
@@ -82,7 +84,8 @@ def create_router(container: AppContainer) -> APIRouter:
             "organization",
             selected.organization_id,
         )
-        return RedirectResponse("/", status_code=303)
+        target = "/portal" if principal.role in {"student", "parent"} else "/"
+        return RedirectResponse(target, status_code=303)
 
     @router.get("/settings/team", response_class=HTMLResponse)
     def team_page(request: Request):
@@ -205,7 +208,11 @@ def create_router(container: AppContainer) -> APIRouter:
             "invitation.accepted",
             "membership",
             principal.user_id,
-            {"email": principal.email, "role": principal.role},
+            {
+                "email": principal.email,
+                "role": principal.role,
+                "student_id": invitation.student_id,
+            },
         )
         return RedirectResponse("/", status_code=303)
 

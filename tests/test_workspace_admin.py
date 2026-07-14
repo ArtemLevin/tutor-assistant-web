@@ -107,7 +107,8 @@ def test_admin_invites_tutor_and_audit_is_visible(tmp_path):
             assert "invitation.created" in audit.text
             assert "membership.updated" in audit.text
 
-        assert client.get("/").status_code == 403
+        assert client.get("/").status_code == 303
+        assert client.get("/portal").status_code == 200
 
     with database.sessions() as session:
         assert session.scalar(select(func.count()).select_from(AuditEvent)) == 3

@@ -27,6 +27,7 @@ class GenerationStatus(StrEnum):
     review_required = "review_required"
     approved = "approved"
     published = "published"
+    revoked = "revoked"
     failed = "failed"
 
 
@@ -34,6 +35,7 @@ class ArtifactStatus(StrEnum):
     review_required = "review_required"
     approved = "approved"
     published = "published"
+    revoked = "revoked"
 
 
 class ProcessingJob(Base):

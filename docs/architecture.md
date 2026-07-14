@@ -14,6 +14,7 @@ flowchart TB
     Registry --> Classroom[Classroom]
     Registry --> Materials[Materials]
     Registry --> Automation[Automation]
+    Registry --> Portal[Portal]
     Classroom --> Conference[ConferenceProvider]
     Materials --> Generator[MaterialGenerator]
     Materials --> Documents[DocumentEngine]
@@ -34,6 +35,7 @@ flowchart TB
 | `classroom` | комната, роли, записи, заметки | scheduling |
 | `materials` | evidence, jobs и артефакты | classroom |
 | `automation` | BBB callback, outbox, транскрипт, post-lesson workflow | materials |
+| `portal` | связи получателей, доставки, уведомления и кабинеты | automation |
 | `dashboard` | сводка и диагностика | materials |
 
 `ModuleRegistry` проверяет уникальность имён, отсутствующие зависимости и циклы. Выбор корневых
@@ -113,7 +115,8 @@ Payload ограничивается операционными метаданн
 Alembic является владельцем схемы. Ревизия `0001_pilot` описывает схему версии 0.2,
 `0002_identity_tenancy` добавляет identity и tenant-ключи, `0003_workspace_admin` — приглашения и
 аудит, `0004_post_lesson_automation` — webhook receipts, outbox, транскрипты и состояние workflow,
-`0005_materials_factory` — evidence bundles, generation runs, artifact versions и build logs.
+`0005_materials_factory` — evidence bundles, generation runs, artifact versions и build logs,
+`0006_portal_delivery` — recipient access, deliveries и notifications.
 При первом запуске версии 0.3+ база,
 ранее созданная через `create_all`, автоматически получает stamp `0001_pilot`; все существующие
 строки переносятся в организацию по умолчанию. Новая база проходит обе ревизии с нуля.
@@ -141,6 +144,6 @@ BigBlueButton работает отдельно. Shared secret остаётся 
 ## Следующие архитектурные задачи
 
 1. S3/MinIO adapter, retention и антивирусная проверка артефактов.
-2. Событие публикации и кабинеты ученика/родителя.
+2. Внешние каналы уведомлений и пользовательские предпочтения.
 3. OpenTelemetry traces и метрики очередей/workflow.
 4. Удаление записей и экспорт audit events.

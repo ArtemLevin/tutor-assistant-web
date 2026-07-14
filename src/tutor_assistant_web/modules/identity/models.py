@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
 from tutor_assistant_web.shared.models import new_id, utcnow
+
+if TYPE_CHECKING:
+    from tutor_assistant_web.modules.students.models import Student
 
 DEFAULT_ORGANIZATION_ID = "00000000-0000-0000-0000-000000000001"
 
@@ -47,6 +51,9 @@ class User(Base):
     memberships: Mapped[list[Membership]] = relationship(
         "Membership", back_populates="user", cascade="all, delete-orphan"
     )
+    student_accesses: Mapped[list[StudentAccess]] = relationship(
+        "StudentAccess", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Membership(Base):
@@ -81,6 +88,9 @@ class Invitation(Base):
     invited_by_user_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    student_id: Mapped[str | None] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -88,3 +98,29 @@ class Invitation(Base):
 
     organization: Mapped[Organization] = relationship("Organization")
     invited_by: Mapped[User | None] = relationship("User")
+    student: Mapped[Student | None] = relationship("Student")
+
+
+class StudentAccess(Base):
+    __tablename__ = "student_access"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "student_id", "user_id", name="uq_student_access_org_student_user"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    student_id: Mapped[str] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(24), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship("User", back_populates="student_accesses")
+    student: Mapped[Student] = relationship("Student")

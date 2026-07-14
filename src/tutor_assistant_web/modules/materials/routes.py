@@ -93,21 +93,4 @@ def create_router(container: AppContainer) -> APIRouter:
         )
         return RedirectResponse(f"/lessons/{run.lesson_id}", status_code=303)
 
-    @router.post("/generation-runs/{run_id}/publish")
-    async def publish_run(request: Request, run_id: str):
-        blocked = web.require_tutor(request)
-        if blocked:
-            return blocked
-        await web.validated_form(request)
-        principal = web.principal_required(request)
-        run = service(request).publish(run_id)
-        container.audit_service(principal.organization_id).record(
-            principal.user_id,
-            "materials.published",
-            "generation_run",
-            run.id,
-            {"lesson_id": run.lesson_id},
-        )
-        return RedirectResponse(f"/lessons/{run.lesson_id}", status_code=303)
-
     return router

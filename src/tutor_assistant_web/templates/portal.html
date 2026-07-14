@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Мои материалы · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header portal-header">
+  <div><p class="eyebrow">Личный кабинет</p><h1>Материалы занятий</h1><p class="subtitle">Опубликованные преподавателем конспекты и задания.</p></div>
+  {% if home.unread_count %}<span class="notification-count">{{ home.unread_count }} новых</span>{% endif %}
+</header>
+
+<section class="portal-students">
+  {% for access in home.accesses %}
+  <article class="portal-student"><span class="student-avatar">{{ access.student.full_name[:1] }}</span><div><strong>{{ access.student.full_name }}</strong><small>{{ access.role }} · {{ access.student.grade or access.student.subject }}</small></div></article>
+  {% else %}<article class="panel empty">К учётной записи пока не привязан ученик. Обратитесь к преподавателю.</article>{% endfor %}
+</section>
+
+<section class="section">
+  <div class="section-heading"><div><p class="eyebrow">Библиотека</p><h2>Доступные комплекты</h2></div><span class="count">{{ home.deliveries|length }}</span></div>
+  <div class="delivery-grid">
+    {% for delivery in home.deliveries %}
+    <a class="delivery-card" href="/portal/deliveries/{{ delivery.id }}">
+      <div><span class="badge published">v{{ delivery.publication_version }}</span><time>{{ delivery.published_at|local_dt('%d.%m.%Y') }}</time></div>
+      <h3>{{ delivery.generation_run.lesson.topic or delivery.generation_run.lesson.title }}</h3>
+      <p>{{ delivery.student.full_name }}</p><span class="delivery-arrow">→</span>
+    </a>
+    {% else %}<article class="panel empty">Новые материалы появятся после проверки преподавателем.</article>{% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-heading"><div><p class="eyebrow">События</p><h2>Уведомления</h2></div></div>
+  <div class="notification-list">
+    {% for item in home.notifications %}
+    <article class="notification-item {% if not item.read_at %}unread{% endif %}">
+      <div><strong>{{ item.title }}</strong><p>{{ item.body }}</p><small>{{ item.created_at|local_dt }}</small></div>
+      {% if item.delivery_id and item.kind != 'material_revoked' %}<a class="button ghost small" href="/portal/deliveries/{{ item.delivery_id }}">Открыть</a>{% endif %}
+      {% if not item.read_at %}<form method="post" action="/api/notifications/{{ item.id }}/read"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-button">Прочитано</button></form>{% endif %}
+    </article>
+    {% else %}<p class="muted">Уведомлений пока нет.</p>{% endfor %}
+  </div>
+</section>
+{% endblock %}

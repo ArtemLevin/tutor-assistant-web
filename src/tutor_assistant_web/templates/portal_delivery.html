@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ delivery.generation_run.lesson.title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><a class="back" href="/portal">← Материалы</a><p class="eyebrow">{{ delivery.student.full_name }} · версия {{ delivery.publication_version }}</p><h1>{{ delivery.generation_run.lesson.topic or delivery.generation_run.lesson.title }}</h1><p class="subtitle">Опубликовано {{ delivery.published_at|local_dt('%d.%m.%Y в %H:%M') }}</p></div>
+</header>
+<section class="panel">
+  <div class="section-heading"><div><p class="eyebrow">Форматы</p><h2>Файлы комплекта</h2></div><span class="badge published">Доступно</span></div>
+  <div class="factory-files portal-files">
+    {% for artifact in delivery.generation_run.versions %}
+    <a class="factory-file" href="/portal/artifacts/{{ artifact.id }}/{% if artifact.kind == 'html' %}preview{% else %}download{% endif %}" {% if artifact.kind == 'html' %}target="material-preview"{% endif %}>
+      <span class="document-icon">{{ artifact.kind|upper }}</span><span><strong>{{ artifact.filename }}</strong><small>{{ (artifact.size / 1024)|round(1) }} КБ · SHA-256 {{ artifact.sha256[:10] }}…</small></span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% set html_artifacts = delivery.generation_run.versions|selectattr('kind', 'equalto', 'html')|list %}
+{% if html_artifacts %}
+<section class="section"><div class="section-heading"><div><p class="eyebrow">Предпросмотр</p><h2>Web-версия</h2></div></div><iframe class="material-preview" name="material-preview" title="Предпросмотр материалов" sandbox src="/portal/artifacts/{{ html_artifacts[0].id }}/preview"></iframe></section>
+{% endif %}
+{% endblock %}

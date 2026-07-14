@@ -91,13 +91,25 @@ class AppContainer:
 
     def outbox_service(self):
         from tutor_assistant_web.modules.automation.application import OutboxService
+        from tutor_assistant_web.modules.portal.application import PortalEventHandler
 
         return OutboxService(
             self.database,
             self.jobs,
             max_attempts=self.settings.outbox_max_attempts,
             retry_base_seconds=self.settings.workflow_retry_base_seconds,
+            event_handlers=(PortalEventHandler(self.database),),
         )
+
+    def publication_service(self, organization_id: str):
+        from tutor_assistant_web.modules.portal.application import PublicationService
+
+        return PublicationService(self.database, organization_id)
+
+    def portal_service(self, principal):
+        from tutor_assistant_web.modules.portal.application import PortalService
+
+        return PortalService(self.database, self.artifact_storage, principal)
 
     def workflow_service(self, organization_id: str):
         from tutor_assistant_web.modules.automation.application import PostLessonWorkflowService
