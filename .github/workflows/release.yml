@@ -1,0 +1,275 @@
+name: Production release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable release tag
+        required: true
+        default: v1.0.0
+      promote_production:
+        description: Deploy to production after staging gates and approval
+        type: boolean
+        required: true
+        default: false
+
+concurrency:
+  group: production-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: uv sync --frozen --extra dev
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pytest
+      - name: Validate production Compose rendering
+        env:
+          BBB_SECRET: ci-bbb-secret
+          TRANSCRIPTION_WEBHOOK_TOKEN: ci-transcription-token
+          DOCUMENT_ENGINE_TOKEN: ci-document-token
+          MATERIALS_WEBHOOK_TOKEN: ci-materials-token
+        run: |
+          deploy/production/init.sh
+          docker compose -f compose.production.yml \
+            --env-file deploy/production/.env.production \
+            --env-file deploy/production/runtime/deployment.env config --quiet
+      - run: uv run bandit -r src -ll
+      - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/audit.txt
+      - run: uv run pip-audit --strict --requirement /tmp/audit.txt
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.9-alpine
+        env:
+          POSTGRES_DB: tutor_release
+          POSTGRES_USER: tutor
+          POSTGRES_PASSWORD: tutor
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tutor -d tutor_release"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7.4.5-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://tutor:tutor@127.0.0.1:5432/tutor_release
+      TEST_DATABASE_URL: postgresql+psycopg://tutor:tutor@127.0.0.1:5432/tutor_release
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
+      TEST_S3_ENDPOINT_URL: http://127.0.0.1:9000
+      TEST_S3_ACCESS_KEY: minioadmin
+      TEST_S3_SECRET_KEY: minioadmin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: >-
+          docker run -d --name minio-release -p 9000:9000
+          -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
+          minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+      - run: uv sync --frozen --extra dev
+      - run: uv run deploy/production/migration-check.sh
+      - run: uv run pytest tests/test_postgres_integration.py tests/test_redis_integration.py tests/test_minio_integration.py
+
+  images:
+    needs: [quality, postgres]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [web, worker, scheduler, migration, ops]
+    env:
+      REGISTRY: ghcr.io
+      RELEASE_TAG: ${{ inputs.release_tag || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Normalize OCI repository name
+        id: image
+        run: echo "prefix=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.image.outputs.prefix }}-${{ matrix.target }}:${{ env.RELEASE_TAG }}
+          build-args: |
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.prefix }}-${{ matrix.target }}:${{ env.RELEASE_TAG }}
+          format: sarif
+          output: trivy-${{ matrix.target }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          limit-severities-for-sarif: true
+      - name: Summarize Trivy findings
+        if: always()
+        env:
+          SARIF_PATH: trivy-${{ matrix.target }}.sarif
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["SARIF_PATH"])
+          if not path.exists():
+              raise SystemExit(f"{path} was not produced")
+          document = json.loads(path.read_text(encoding="utf-8"))
+          results = [
+              result
+              for run in document.get("runs", [])
+              for result in run.get("results", [])
+          ]
+          print(f"Trivy findings: {len(results)}")
+          for result in results[:100]:
+              rule = result.get("ruleId", "unknown")
+              message = result.get("message", {}).get("text", "").replace("\n", " ")
+              print(f"{rule}: {message}")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-${{ matrix.target }}-sarif
+          path: trivy-${{ matrix.target }}.sarif
+          if-no-files-found: error
+          retention-days: 30
+      - name: Assert non-root runtime
+        if: success()
+        run: |
+          image="${{ steps.image.outputs.prefix }}-${{ matrix.target }}:${RELEASE_TAG}"
+          if [ "${{ github.event_name }}" != "pull_request" ]; then docker pull "$image"; fi
+          test "$(docker inspect --format '{{.Config.User}}' "$image")" = "tutor:tutor"
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.target }}.sarif
+
+  staging:
+    if: github.event_name == 'workflow_dispatch'
+    needs: images
+    runs-on: [self-hosted, tutor-staging]
+    environment: staging
+    timeout-minutes: 240
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {clean: false}
+      - name: Verify provisioned environment
+        run: |
+          test -s deploy/production/.env.production
+          test -s deploy/production/secrets/app_secret_key
+          test -s deploy/production/runtime/deployment.env
+      - name: Deploy staging blue/green
+        run: deploy/production/deploy.sh "$RELEASE_TAG"
+      - name: Smoke tests
+        run: deploy/production/smoke.sh
+      - name: 100 concurrent sessions
+        run: >-
+          docker run --rm --network host
+          -v "$PWD/load:/scripts:ro" grafana/k6:0.57.0
+          run -e BASE_URL="$BASE_URL" -e VUS=100 -e DURATION=5m /scripts/http.js
+        env:
+          BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+      - name: 100 transcriptions and parallel PDF/HTML generation
+        env:
+          LOAD_AUDIO_URL: ${{ vars.LOAD_AUDIO_URL }}
+          LOAD_DATABASE_NAME: ${{ vars.LOAD_DATABASE_NAME }}
+        run: |
+          compose="docker compose -f compose.production.yml --env-file deploy/production/.env.production --env-file deploy/production/runtime/deployment.env --profile jobs"
+          output=$(APP_ENV=staging $compose run --rm \
+            -e APP_ENV=staging \
+            -e CONFIRM_LOAD_DATABASE="$LOAD_DATABASE_NAME" \
+            -e LOAD_AUDIO_URL="$LOAD_AUDIO_URL" \
+            ops tutor-assistant-load-fixture seed --count 100)
+          printf '%s\n' "$output"
+          json=$(printf '%s\n' "$output" | tail -n 1)
+          batch_id=$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["batch_id"])')
+          join_urls=$(printf '%s' "$json" | python3 -c 'import json,sys; print(",".join(json.load(sys.stdin)["student_join_urls"]))')
+          docker run --rm --network host -v "$PWD/load:/scripts:ro" grafana/k6:0.57.0 \
+            run -e JOIN_URLS="$join_urls" /scripts/bbb-join.js
+          (sleep 15; CONFIRM_STAGING_CHAOS=yes deploy/production/chaos-drill.sh \
+            > deploy/production/runtime/chaos.log 2>&1) &
+          chaos_pid=$!
+          APP_ENV=staging $compose run --rm \
+            -e APP_ENV=staging \
+            -e CONFIRM_LOAD_DATABASE="$LOAD_DATABASE_NAME" \
+            ops tutor-assistant-load-fixture wait "$batch_id" --timeout 7200
+          wait "$chaos_pid"
+          cat deploy/production/runtime/chaos.log
+      - name: Backup and isolated restore drill
+        run: |
+          backup_id=$(date -u +%Y%m%dT%H%M%SZ)
+          deploy/production/backup.sh --backup-id "$backup_id"
+          deploy/production/restore-drill.sh "$backup_id"
+
+  production:
+    if: github.event_name == 'workflow_dispatch' && inputs.promote_production
+    needs: staging
+    runs-on: [self-hosted, tutor-production]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with: {clean: false}
+      - run: deploy/production/deploy.sh "${{ inputs.release_tag }}"
+      - run: deploy/production/smoke.sh
+
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.promote_production
+    needs: production
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Create tag for the deployed commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          test "$RELEASE_TAG" = "v1.0.0"
+          git tag -a "$RELEASE_TAG" "$GITHUB_SHA" -m "Tutor Assistant Web $RELEASE_TAG"
+          git push origin "$RELEASE_TAG"
+          gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "$RELEASE_TAG"

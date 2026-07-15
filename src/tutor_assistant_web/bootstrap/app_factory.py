@@ -33,6 +33,7 @@ from tutor_assistant_web.shared.middleware import (
     RateLimitMiddleware,
     SecurityAndCorrelationMiddleware,
 )
+from tutor_assistant_web.version import __version__
 
 PACKAGE_DIR = Path(__file__).parent.parent
 ALL_MODULES = (
@@ -70,7 +71,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
                 seed_data(session, DEFAULT_ORGANIZATION_ID)
         yield
 
-    app = FastAPI(title=settings.app_name, version="0.11.0", lifespan=lifespan)
+    app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
     app.state.container = container
     app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
     app.add_middleware(

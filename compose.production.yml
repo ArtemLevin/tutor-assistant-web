@@ -1,0 +1,341 @@
+x-app-environment: &app-environment
+  APP_ENV: ${APP_ENV:-production}
+  AUTO_MIGRATE: "false"
+  TASK_EAGER: "false"
+  SEED_DEMO_DATA: "false"
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_SAME_SITE: lax
+  LOG_JSON: "true"
+  METRICS_ENABLED: "true"
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}
+  TRUSTED_HOSTS: ${TRUSTED_HOSTS:?set TRUSTED_HOSTS}
+  TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-172.16.0.0/12}
+  DATABASE_URL_FILE: /run/secrets/database_url
+  REDIS_URL_FILE: /run/secrets/redis_url
+  APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
+  BBB_SECRET_FILE: /run/secrets/bbb_secret
+  BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/bootstrap_admin_password
+  ARTIFACT_S3_SECRET_KEY_FILE: /run/secrets/artifact_s3_secret_key
+  TRANSCRIPTION_WEBHOOK_TOKEN_FILE: /run/secrets/transcription_webhook_token
+  MATERIALS_WEBHOOK_TOKEN_FILE: /run/secrets/materials_webhook_token
+  DOCUMENT_ENGINE_TOKEN_FILE: /run/secrets/document_engine_token
+  METRICS_BEARER_TOKEN_FILE: /run/secrets/metrics_bearer_token
+  SENTRY_DSN_FILE: /run/secrets/sentry_dsn
+  BACKUP_S3_SECRET_KEY_FILE: /run/secrets/backup_s3_secret_key
+  BBB_DEMO_MODE: ${BBB_DEMO_MODE:-false}
+  BBB_BASE_URL: ${BBB_BASE_URL:?set BBB_BASE_URL}
+  TRANSCRIPTION_PROVIDER: ${TRANSCRIPTION_PROVIDER:-webhook}
+  TRANSCRIPTION_WEBHOOK_URL: ${TRANSCRIPTION_WEBHOOK_URL:?set TRANSCRIPTION_WEBHOOK_URL}
+  DOCUMENT_ENGINE_PROVIDER: ${DOCUMENT_ENGINE_PROVIDER:-latex-for-everyone}
+  DOCUMENT_ENGINE_URL: ${DOCUMENT_ENGINE_URL:?set DOCUMENT_ENGINE_URL}
+  ARTIFACT_STORAGE_PROVIDER: s3
+  ARTIFACT_S3_ENDPOINT_URL: ${ARTIFACT_S3_ENDPOINT_URL-http://minio:9000}
+  ARTIFACT_S3_REGION: ${ARTIFACT_S3_REGION-us-east-1}
+  ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:-tutor-artifacts}
+  ARTIFACT_S3_ACCESS_KEY: ${S3_APP_ACCESS_KEY-tutor-app}
+  ARTIFACT_CLAMAV_ENABLED: "true"
+  ARTIFACT_RETENTION_DAYS: ${ARTIFACT_RETENTION_DAYS:-365}
+  BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-tutor-backups}
+  BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-tutor-assistant}
+  BACKUP_S3_ENDPOINT_URL: ${BACKUP_S3_ENDPOINT_URL-http://minio:9000}
+  BACKUP_S3_REGION: ${BACKUP_S3_REGION-us-east-1}
+  BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY-tutor-app}
+  BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-35}
+  BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-79200}
+  PUSHGATEWAY_URL: http://pushgateway:9091
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+  SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+  BOOTSTRAP_ORGANIZATION_NAME: ${BOOTSTRAP_ORGANIZATION_NAME:-Tutor Workspace}
+  BOOTSTRAP_ORGANIZATION_SLUG: ${BOOTSTRAP_ORGANIZATION_SLUG:-default}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?set BOOTSTRAP_ADMIN_EMAIL}
+  BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Owner}
+
+x-app-secrets: &app-secrets
+  - database_url
+  - redis_url
+  - app_secret_key
+  - bbb_secret
+  - bootstrap_admin_password
+  - artifact_s3_secret_key
+  - transcription_webhook_token
+  - materials_webhook_token
+  - document_engine_token
+  - metrics_bearer_token
+  - sentry_dsn
+  - backup_s3_secret_key
+
+x-app-depends: &app-depends
+  postgres: {condition: service_healthy}
+  redis: {condition: service_healthy}
+  minio: {condition: service_healthy}
+  clamav: {condition: service_healthy}
+
+x-web-common: &web-common
+  environment: *app-environment
+  secrets: *app-secrets
+  depends_on: *app-depends
+  restart: unless-stopped
+  stop_grace_period: 45s
+  networks: [frontend, backend, egress]
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+
+x-worker-common: &worker-common
+  environment: *app-environment
+  secrets: *app-secrets
+  depends_on: *app-depends
+  restart: unless-stopped
+  stop_grace_period: 90s
+  networks: [backend, egress]
+
+services:
+  caddy:
+    image: caddy:2.10.0-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/production/runtime:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    networks: [frontend, egress]
+
+  web-blue:
+    <<: *web-common
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-web:${BLUE_RELEASE:?set BLUE_RELEASE}
+    profiles: [blue]
+
+  web-green:
+    <<: *web-common
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-web:${GREEN_RELEASE:?set GREEN_RELEASE}
+    profiles: [green]
+
+  worker-blue:
+    <<: *worker-common
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-worker:${BLUE_RELEASE:?set BLUE_RELEASE}
+    profiles: [blue]
+
+  worker-green:
+    <<: *worker-common
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-worker:${GREEN_RELEASE:?set GREEN_RELEASE}
+    profiles: [green]
+
+  scheduler:
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-scheduler:${SCHEDULER_RELEASE:?set SCHEDULER_RELEASE}
+    environment: *app-environment
+    secrets: *app-secrets
+    depends_on: *app-depends
+    restart: unless-stopped
+    stop_grace_period: 45s
+    networks: [backend, egress]
+
+  migration:
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-migration:${OPS_RELEASE:?set OPS_RELEASE}
+    environment: *app-environment
+    secrets: *app-secrets
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    profiles: [jobs]
+    networks: [backend]
+
+  ops:
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-ops:${OPS_RELEASE:?set OPS_RELEASE}
+    environment: *app-environment
+    secrets: *app-secrets
+    depends_on: *app-depends
+    profiles: [jobs]
+    networks: [backend, egress]
+
+  backup:
+    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-ops:${OPS_RELEASE:?set OPS_RELEASE}
+    command: ["/bin/sh", "-c", "while true; do if tutor-assistant-backup create; then sleep $${BACKUP_INTERVAL_SECONDS}; else sleep 900; fi; done"]
+    environment: *app-environment
+    secrets: *app-secrets
+    depends_on: *app-depends
+    restart: unless-stopped
+    networks: [backend, egress]
+
+  postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tutor}
+      POSTGRES_USER: ${POSTGRES_USER:-tutor}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks: [backend]
+
+  redis:
+    image: redis:7.4.5-alpine
+    command: ["/bin/sh", "-c", "exec redis-server --appendonly yes --maxmemory-policy noeviction --requirepass \"$$(cat /run/secrets/redis_password)\""]
+    secrets: [redis_password]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    networks: [backend]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tutor-root}
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    secrets: [minio_root_password]
+    volumes: [minio-data:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks: [backend]
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$$(cat /run/secrets/minio_root_password)" &&
+        mc mb --ignore-existing local/$${ARTIFACT_BUCKET} local/$${BACKUP_BUCKET} &&
+        mc anonymous set none local/$${ARTIFACT_BUCKET} && mc anonymous set none local/$${BACKUP_BUCKET} &&
+        (mc admin user add local "$${S3_APP_ACCESS_KEY}" "$$(cat /run/secrets/artifact_s3_secret_key)" || true) &&
+        printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:*"],"Resource":["arn:aws:s3:::%s","arn:aws:s3:::%s/*","arn:aws:s3:::%s","arn:aws:s3:::%s/*"]}]}'
+          "$${ARTIFACT_BUCKET}" "$${ARTIFACT_BUCKET}" "$${BACKUP_BUCKET}" "$${BACKUP_BUCKET}" > /tmp/tutor-policy.json &&
+        (mc admin policy create local tutor-assistant /tmp/tutor-policy.json || true) &&
+        mc admin policy attach local tutor-assistant --user "$${S3_APP_ACCESS_KEY}"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tutor-root}
+      S3_APP_ACCESS_KEY: ${S3_APP_ACCESS_KEY:-tutor-app}
+      ARTIFACT_BUCKET: ${ARTIFACT_S3_BUCKET:-tutor-artifacts}
+      BACKUP_BUCKET: ${BACKUP_S3_BUCKET:-tutor-backups}
+    secrets: [minio_root_password, artifact_s3_secret_key]
+    depends_on:
+      minio: {condition: service_healthy}
+    restart: "no"
+    profiles: [jobs]
+    networks: [backend]
+
+  clamav:
+    image: clamav/clamav:1.4.3
+    volumes: [clamav-data:/var/lib/clamav]
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    restart: unless-stopped
+    networks: [backend]
+
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--web.enable-lifecycle"]
+    volumes:
+      - ./deploy/production/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./deploy/production/runtime/prometheus-targets.json:/etc/prometheus/targets/active.json:ro
+      - prometheus-data:/prometheus
+    secrets: [metrics_bearer_token]
+    restart: unless-stopped
+    networks: [backend]
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./deploy/production/runtime/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    restart: unless-stopped
+    networks: [backend, egress]
+
+  pushgateway:
+    image: prom/pushgateway:v1.11.1
+    command: ["--persistence.file=/data/metrics"]
+    volumes: [pushgateway-data:/data]
+    restart: unless-stopped
+    networks: [backend]
+
+  grafana:
+    image: grafana/grafana:12.0.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    secrets: [grafana_admin_password]
+    volumes:
+      - ./deploy/observability/grafana-provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana-dashboard.json:/var/lib/grafana/dashboards/tutor.json:ro
+      - grafana-data:/var/lib/grafana
+    depends_on: [prometheus]
+    restart: unless-stopped
+    networks: [backend]
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otelcol/config.yml"]
+    volumes: [./deploy/observability/otel-collector.yml:/etc/otelcol/config.yml:ro]
+    depends_on: [tempo]
+    restart: unless-stopped
+    networks: [backend]
+
+  tempo:
+    image: grafana/tempo:2.8.1
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./deploy/observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+    networks: [backend]
+
+networks:
+  frontend:
+    internal: true
+  egress:
+  backend:
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  clamav-data:
+  caddy-data:
+  caddy-config:
+  prometheus-data:
+  pushgateway-data:
+  grafana-data:
+  tempo-data:
+
+secrets:
+  database_url: {file: ./deploy/production/secrets/database_url}
+  redis_url: {file: ./deploy/production/secrets/redis_url}
+  app_secret_key: {file: ./deploy/production/secrets/app_secret_key}
+  bbb_secret: {file: ./deploy/production/secrets/bbb_secret}
+  bootstrap_admin_password: {file: ./deploy/production/secrets/bootstrap_admin_password}
+  postgres_password: {file: ./deploy/production/secrets/postgres_password}
+  redis_password: {file: ./deploy/production/secrets/redis_password}
+  minio_root_password: {file: ./deploy/production/secrets/minio_root_password}
+  artifact_s3_secret_key: {file: ./deploy/production/secrets/artifact_s3_secret_key}
+  transcription_webhook_token: {file: ./deploy/production/secrets/transcription_webhook_token}
+  materials_webhook_token: {file: ./deploy/production/secrets/materials_webhook_token}
+  document_engine_token: {file: ./deploy/production/secrets/document_engine_token}
+  metrics_bearer_token: {file: ./deploy/production/secrets/metrics_bearer_token}
+  sentry_dsn: {file: ./deploy/production/secrets/sentry_dsn}
+  backup_s3_secret_key: {file: ./deploy/production/secrets/backup_s3_secret_key}
+  grafana_admin_password: {file: ./deploy/production/secrets/grafana_admin_password}

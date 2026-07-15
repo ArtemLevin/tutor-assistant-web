@@ -30,3 +30,51 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: "Tutor Assistant HTTP 5xx rate exceeds 5%"
+      - alert: TutorAssistantAvailabilityBudgetFastBurn
+        expr: sum(rate(tutor_http_requests_total{route!~"/health/.*|/metrics",status=~"5.."}[1h])) / clamp_min(sum(rate(tutor_http_requests_total{route!~"/health/.*|/metrics",status!~"4.."}[1h])), 0.001) > 0.072
+        for: 5m
+        labels: {severity: critical, slo: web-availability}
+        annotations:
+          summary: "Web availability burns the monthly 99.5% budget at >14.4x"
+      - alert: TutorAssistantHttpP95Slow
+        expr: histogram_quantile(0.95, sum by (le) (rate(tutor_http_request_duration_seconds_bucket{route!~"/health/.*|/metrics"}[10m]))) > 0.5
+        for: 10m
+        labels: {severity: warning, slo: http-latency}
+        annotations:
+          summary: "Ordinary HTTP p95 exceeds 500 ms"
+      - alert: TutorAssistantDeliverySloAtRisk
+        expr: (sum(rate(tutor_workflow_duration_seconds_count{stage="delivery",outcome="success"}[1h])) / clamp_min(sum(rate(tutor_workflow_duration_seconds_count{stage="delivery"}[1h])), 0.001) < 0.999) and (sum(rate(tutor_workflow_duration_seconds_count{stage="delivery"}[1h])) > 0)
+        for: 15m
+        labels: {severity: critical, slo: material-delivery}
+        annotations:
+          summary: "Published material delivery success is below 99.9%"
+      - alert: TutorAssistantDeadLetterPresent
+        expr: sum(tutor_queue_size{status="dead_letter"}) > 0
+        for: 2m
+        labels: {severity: critical, slo: durable-jobs}
+        annotations:
+          summary: "A durable job requires manual recovery"
+      - alert: TutorAssistantBackupStale
+        expr: time() - tutor_backup_last_success_timestamp_seconds > 86400
+        for: 15m
+        labels: {severity: critical, slo: rpo}
+        annotations:
+          summary: "No successful backup within the 24-hour RPO window"
+      - alert: TutorAssistantBackupMetricMissing
+        expr: absent(tutor_backup_last_success_timestamp_seconds)
+        for: 30m
+        labels: {severity: critical, slo: rpo}
+        annotations:
+          summary: "Backup success metric is missing"
+      - alert: TutorAssistantRestoreDrillOverdue
+        expr: time() - tutor_restore_drill_last_success_timestamp_seconds > 2678400
+        for: 1h
+        labels: {severity: warning, slo: rto}
+        annotations:
+          summary: "No successful restore drill in the last 31 days"
+      - alert: TutorAssistantRestoreDrillMetricMissing
+        expr: absent(tutor_restore_drill_last_success_timestamp_seconds)
+        for: 24h
+        labels: {severity: warning, slo: rto}
+        annotations:
+          summary: "Restore drill success metric is missing"
