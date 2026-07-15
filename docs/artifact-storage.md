@@ -17,6 +17,8 @@ Initialize policy and lifecycle rules:
 uv run tutor-assistant-artifacts configure-bucket
 ```
 
+AWS S3 uses SSE-S3 by default. Compatible endpoints use their server-side storage policy; set
+`ARTIFACT_S3_SERVER_SIDE_ENCRYPTION` explicitly when the endpoint has KMS/SSE configured.
 Uploads are streamed through a bounded spool, checked for maximum size, MIME signature and
 SHA-256, then scanned through the ClamAV `INSTREAM` protocol. Objects use SSE-S3 (`AES256`). A
 database row moves through `uploading`, `available`, `quarantined`, and `deleted`. Failed uploads

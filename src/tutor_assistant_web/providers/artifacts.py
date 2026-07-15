@@ -243,6 +243,7 @@ class S3ArtifactStorage(_ValidatedStorage):
         region: str = "us-east-1",
         access_key: str = "",
         secret_key: str = "",
+        server_side_encryption: str = "auto",
         max_bytes: int = 500 * 1024 * 1024,
         allowed_mime_types: set[str] | None = None,
         scanner: ClamAVScanner | None = None,
@@ -264,6 +265,14 @@ class S3ArtifactStorage(_ValidatedStorage):
                 signature_version="s3v4", retries={"max_attempts": 4, "mode": "adaptive"}
             ),
         )
+        endpoint = str(getattr(getattr(self.client, "meta", None), "endpoint_url", ""))
+        self.server_side_encryption = (
+            "AES256"
+            if server_side_encryption == "auto" and endpoint.endswith("amazonaws.com")
+            else server_side_encryption
+        )
+        if self.server_side_encryption == "auto":
+            self.server_side_encryption = ""
 
     def ensure_private_bucket(self) -> None:
         try:
@@ -306,15 +315,17 @@ class S3ArtifactStorage(_ValidatedStorage):
         validate_key(key)
         staged, info = self._prepare(stream, media_type, expected_sha256, max_bytes)
         try:
+            extra_args = {
+                "ContentType": media_type,
+                "Metadata": {"sha256": info.sha256},
+            }
+            if self.server_side_encryption:
+                extra_args["ServerSideEncryption"] = self.server_side_encryption
             self.client.upload_fileobj(
                 staged,
                 self.bucket,
                 key,
-                ExtraArgs={
-                    "ContentType": media_type,
-                    "Metadata": {"sha256": info.sha256},
-                    "ServerSideEncryption": "AES256",
-                },
+                ExtraArgs=extra_args,
             )
         finally:
             staged.close()

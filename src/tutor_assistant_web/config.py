@@ -85,6 +85,7 @@ class Settings(BaseSettings):
     artifact_s3_bucket: str = "tutor-artifacts"
     artifact_s3_access_key: str = ""
     artifact_s3_secret_key: str = ""
+    artifact_s3_server_side_encryption: str = "auto"
     artifact_max_size_mb: int = Field(default=500, ge=1, le=4096)
     artifact_allowed_mime_types: str = (
         "application/pdf,application/json,application/x-tex,text/html,text/plain,"

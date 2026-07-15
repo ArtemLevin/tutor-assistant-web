@@ -234,6 +234,7 @@ def build_artifact_storage(settings: Settings) -> ArtifactStorage:
             region=settings.artifact_s3_region,
             access_key=settings.artifact_s3_access_key,
             secret_key=settings.artifact_s3_secret_key,
+            server_side_encryption=settings.artifact_s3_server_side_encryption,
             **common,
         )
     return LocalArtifactStorage(settings.artifact_storage_root, **common)
