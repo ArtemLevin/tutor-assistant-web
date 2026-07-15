@@ -10,13 +10,17 @@ from tutor_assistant_web.bbb import BigBlueButtonClient
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.identity.application import IdentityService
+from tutor_assistant_web.providers.artifacts import (
+    ClamAVScanner,
+    LocalArtifactStorage,
+    S3ArtifactStorage,
+)
 from tutor_assistant_web.providers.conference import (
     BigBlueButtonConferenceProvider,
     DemoConferenceProvider,
 )
 from tutor_assistant_web.providers.documents import (
     LatexedDocumentEngine,
-    LocalArtifactStorage,
     LocalDocumentEngine,
 )
 from tutor_assistant_web.providers.materials import (
@@ -205,7 +209,34 @@ def build_document_engine(settings: Settings) -> DocumentEngine:
 
 
 def build_artifact_storage(settings: Settings) -> ArtifactStorage:
-    return LocalArtifactStorage(settings.artifact_storage_root)
+    scanner = (
+        ClamAVScanner(
+            settings.artifact_clamav_host,
+            settings.artifact_clamav_port,
+            settings.artifact_clamav_timeout,
+        )
+        if settings.artifact_clamav_enabled
+        else None
+    )
+    common = {
+        "max_bytes": settings.artifact_max_size_mb * 1024 * 1024,
+        "allowed_mime_types": {
+            item.strip().lower()
+            for item in settings.artifact_allowed_mime_types.split(",")
+            if item.strip()
+        },
+        "scanner": scanner,
+    }
+    if settings.artifact_storage_provider.lower() == "s3":
+        return S3ArtifactStorage(
+            settings.artifact_s3_bucket,
+            endpoint_url=settings.artifact_s3_endpoint_url,
+            region=settings.artifact_s3_region,
+            access_key=settings.artifact_s3_access_key,
+            secret_key=settings.artifact_s3_secret_key,
+            **common,
+        )
+    return LocalArtifactStorage(settings.artifact_storage_root, **common)
 
 
 def _circuit(settings: Settings, name: str) -> CircuitBreaker:

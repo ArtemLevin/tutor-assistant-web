@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-import hashlib
 import html
 import json
 import re
-from pathlib import Path, PurePosixPath
 
 import httpx
 
+from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
 from tutor_assistant_web.providers.resilience import CircuitBreaker
 from tutor_assistant_web.shared.contracts import (
-    ArtifactStorage,
     DocumentBuildRequest,
     DocumentBuildResult,
     DocumentOutput,
-    StoredArtifact,
 )
+
+__all__ = ["LocalArtifactStorage"]
 
 
 class DocumentEngineError(RuntimeError):
@@ -192,36 +191,3 @@ class LatexedDocumentEngine:
                 DocumentOutput("pdf", "material.pdf", "application/pdf", pdf_content),
             ],
         )
-
-
-class LocalArtifactStorage(ArtifactStorage):
-    name = "local"
-
-    def __init__(self, root: str | Path) -> None:
-        self.root = Path(root).resolve()
-        self.root.mkdir(parents=True, exist_ok=True)
-
-    def _path(self, key: str) -> Path:
-        pure = PurePosixPath(key)
-        if pure.is_absolute() or ".." in pure.parts or not pure.parts:
-            raise ValueError("invalid artifact storage key")
-        candidate = self.root.joinpath(*pure.parts).resolve()
-        if self.root not in candidate.parents:
-            raise ValueError("artifact path escapes storage root")
-        return candidate
-
-    def put(self, key: str, content: bytes, media_type: str) -> StoredArtifact:
-        path = self._path(key)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_bytes(content)
-        temporary.replace(path)
-        return StoredArtifact(
-            key=key,
-            sha256=hashlib.sha256(content).hexdigest(),
-            size=len(content),
-            media_type=media_type,
-        )
-
-    def read(self, key: str) -> bytes:
-        return self._path(key).read_bytes()
