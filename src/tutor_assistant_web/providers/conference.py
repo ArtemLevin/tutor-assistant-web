@@ -24,6 +24,9 @@ class DemoConferenceProvider:
     def recordings(self, meeting_id: str) -> list[ConferenceRecording]:
         return []
 
+    def healthcheck(self) -> None:
+        return None
+
 
 class BigBlueButtonConferenceProvider:
     name = "bigbluebutton"
@@ -65,3 +68,6 @@ class BigBlueButtonConferenceProvider:
             )
             for item in self.client.get_recordings(meeting_id)
         ]
+
+    def healthcheck(self) -> None:
+        self.client.is_running("tutor-assistant-readiness")

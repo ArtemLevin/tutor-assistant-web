@@ -26,6 +26,11 @@ from tutor_assistant_web.modules.classroom.models import RecordingAsset
 from tutor_assistant_web.modules.materials.application import MaterialsService
 from tutor_assistant_web.modules.materials.models import JobStatus, ProcessingJob
 from tutor_assistant_web.modules.scheduling.models import Lesson
+from tutor_assistant_web.observability import (
+    bind_correlation,
+    reset_correlation,
+    workflow_timer,
+)
 from tutor_assistant_web.providers.transcription import resolve_media_url, segment_payload
 from tutor_assistant_web.shared.contracts import (
     JobDispatcher,
@@ -198,37 +203,47 @@ class OutboxService:
         events = self._claim_batch(limit, now, stale)
         result = {"dispatched": 0, "retried": 0, "dead": 0}
         for event in events:
+            token = bind_correlation(event.correlation_id or new_id())
             try:
-                if event.topic == "post_lesson.requested":
-                    job_id = event.payload.get("job_id")
-                    if not isinstance(job_id, str) or not job_id:
-                        raise ValueError("outbox event has no job_id")
-                    self.dispatcher.enqueue_lesson_processing(job_id, queue="transcription")
-                elif event.topic == "materials.requested":
-                    job_id = event.payload.get("job_id")
-                    if not isinstance(job_id, str) or not job_id:
-                        raise ValueError("outbox event has no job_id")
-                    self.dispatcher.enqueue_lesson_processing(job_id, queue="materials")
-                else:
-                    handler = next(
-                        (item for item in self.event_handlers if item.handles(event.topic)), None
+                try:
+                    if event.topic == "post_lesson.requested":
+                        job_id = event.payload.get("job_id")
+                        if not isinstance(job_id, str) or not job_id:
+                            raise ValueError("outbox event has no job_id")
+                        self.dispatcher.enqueue_lesson_processing(job_id, queue="transcription")
+                    elif event.topic == "materials.requested":
+                        job_id = event.payload.get("job_id")
+                        if not isinstance(job_id, str) or not job_id:
+                            raise ValueError("outbox event has no job_id")
+                        self.dispatcher.enqueue_lesson_processing(job_id, queue="materials")
+                    else:
+                        handler = next(
+                            (item for item in self.event_handlers if item.handles(event.topic)),
+                            None,
+                        )
+                        if handler is None:
+                            raise ValueError(f"unsupported outbox topic: {event.topic}")
+                        if self.dispatcher.name == "celery":
+                            self.dispatcher.enqueue_outbox_delivery(
+                                event.id, event.lease_token or ""
+                            )
+                            logger.info("Outbox delivery enqueued event_id=%s", event.id)
+                            result["dispatched"] += 1
+                            continue
+                        handler.handle(event.topic, event.organization_id, event.payload)
+                except Exception as exc:
+                    logger.warning(
+                        "Outbox dispatch failed",
+                        extra={"event_id": event.id, "exception_type": type(exc).__name__},
                     )
-                    if handler is None:
-                        raise ValueError(f"unsupported outbox topic: {event.topic}")
-                    if self.dispatcher.name == "celery":
-                        self.dispatcher.enqueue_outbox_delivery(event.id, event.lease_token or "")
-                        logger.info("Outbox delivery enqueued event_id=%s", event.id)
-                        result["dispatched"] += 1
-                        continue
-                    handler.handle(event.topic, event.organization_id, event.payload)
-            except Exception as exc:
-                logger.warning("Outbox dispatch failed event_id=%s: %s", event.id, exc)
-                outcome = self._release_failed(event.id, exc)
-                result[outcome] += 1
-            else:
-                self._complete(event.id)
-                logger.info("Outbox event dispatched event_id=%s", event.id)
-                result["dispatched"] += 1
+                    outcome = self._release_failed(event.id, exc)
+                    result[outcome] += 1
+                else:
+                    self._complete(event.id)
+                    logger.info("Outbox event dispatched event_id=%s", event.id)
+                    result["dispatched"] += 1
+            finally:
+                reset_correlation(token)
         return result
 
     def _claim_batch(self, limit: int, now: datetime, stale: datetime) -> list[OutboxEvent]:
@@ -349,13 +364,14 @@ class PostLessonWorkflowService:
             transcript = self._completed_transcript(job.lesson_id, recording.record_id)
             if transcript is None:
                 self._mark_transcript_running(job.lesson_id, recording.record_id, media_url)
-                result = self.transcriber.transcribe(
-                    TranscriptionSource(
-                        record_id=recording.record_id,
-                        media_url=media_url,
-                        metadata=recording.raw_metadata,
+                with workflow_timer("transcription"):
+                    result = self.transcriber.transcribe(
+                        TranscriptionSource(
+                            record_id=recording.record_id,
+                            media_url=media_url,
+                            metadata=recording.raw_metadata,
+                        )
                     )
-                )
                 self._save_transcript(job.lesson_id, recording.record_id, media_url, result)
             if enqueue_materials:
                 self._queue_materials(job_id)

@@ -1,8 +1,15 @@
+import secrets
+
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from tutor_assistant_web.bootstrap.container import AppContainer
-from tutor_assistant_web.modules.dashboard.application import DashboardService
+from tutor_assistant_web.modules.dashboard.application import (
+    DashboardService,
+    QueueMetricsService,
+    ReadinessService,
+)
 
 
 def create_router(container: AppContainer) -> APIRouter:
@@ -33,22 +40,38 @@ def create_router(container: AppContainer) -> APIRouter:
 
     @router.get("/health/live")
     def health_live():
-        return {"status": "ok", "version": "0.8.0"}
+        return {"status": "ok", "version": "0.11.0"}
 
     @router.get("/health/ready")
     def health_ready():
-        checks: dict[str, str] = {"database": "ok"}
-        try:
-            container.database.healthcheck()
-        except Exception as exc:
-            checks["database"] = f"error: {exc}"
-            return JSONResponse({"status": "error", "checks": checks}, status_code=503)
-        checks["bigbluebutton"] = container.conference.name
-        checks["materials"] = container.materials.name
-        checks["document_engine"] = container.document_engine.name
-        checks["artifact_storage"] = container.artifact_storage.name
-        checks["transcription"] = container.transcription.name
-        checks["queue"] = container.jobs.name
-        return {"status": "ok", "checks": checks}
+        ready, checks = ReadinessService(
+            container.database,
+            container.settings,
+            container.conference,
+            container.artifact_storage,
+            container.materials.name,
+        ).check()
+        return JSONResponse(
+            {"status": "ok" if ready else "error", "checks": checks},
+            status_code=200 if ready else 503,
+        )
+
+    @router.get("/metrics")
+    def metrics(request: Request):
+        if not container.settings.metrics_enabled:
+            return Response(status_code=404)
+        expected = container.settings.metrics_bearer_token
+        supplied = request.headers.get("authorization", "").removeprefix("Bearer ")
+        if expected and not secrets.compare_digest(supplied, expected):
+            return Response(status_code=401)
+        ReadinessService(
+            container.database,
+            container.settings,
+            container.conference,
+            container.artifact_storage,
+            container.materials.name,
+        ).check()
+        QueueMetricsService(container.database, container.settings).refresh()
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     return router

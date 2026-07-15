@@ -24,6 +24,7 @@ from tutor_assistant_web.modules.materials.models import (
     ProcessingJob,
 )
 from tutor_assistant_web.modules.scheduling.models import Lesson
+from tutor_assistant_web.observability import ARTIFACT_BYTES, workflow_timer
 from tutor_assistant_web.providers.artifacts import ArtifactStorageError
 from tutor_assistant_web.shared.contracts import (
     ArtifactStorage,
@@ -210,17 +211,19 @@ class MaterialsService:
             } and self._run_has_versions(run.id):
                 self._complete_job(job_id)
                 return
-            artifacts = self.generator.generate(bundle.model_dump(mode="json"))
+            with workflow_timer("generation"):
+                artifacts = self.generator.generate(bundle.model_dump(mode="json"))
             build_result = None
             if self.document_engine is not None and self.artifact_storage is not None:
                 self.progress(job_id, 82, "building", "Собираем TEX, PDF и HTML")
-                build_result = self.document_engine.build(
-                    DocumentBuildRequest(
-                        title=f"{lesson.student.full_name}: {lesson.topic or lesson.title}",
-                        evidence=bundle.model_dump(mode="json"),
-                        materials=artifacts,
+                with workflow_timer("pdf_compilation"):
+                    build_result = self.document_engine.build(
+                        DocumentBuildRequest(
+                            title=f"{lesson.student.full_name}: {lesson.topic or lesson.title}",
+                            evidence=bundle.model_dump(mode="json"),
+                            materials=artifacts,
+                        )
                     )
-                )
             self.progress(job_id, 90, "saving", "Сохраняем материалы")
             with self.database.sessions() as session:
                 session.execute(delete(MaterialArtifact).where(MaterialArtifact.job_id == job_id))
@@ -296,6 +299,7 @@ class MaterialsService:
                         version.status = ArtifactStatus.review_required.value
                         version.storage_status = ArtifactStorageStatus.available.value
                         version.quarantine_reason = ""
+                        ARTIFACT_BYTES.labels(kind=output.kind).observe(stored.size)
                     run_model.engine = build_result.engine
                     session.add(
                         BuildLog(

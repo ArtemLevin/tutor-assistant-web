@@ -1,0 +1,32 @@
+groups:
+  - name: tutor-assistant
+    rules:
+      - alert: TutorAssistantMetricsTargetDown
+        expr: up{job="tutor-assistant"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Tutor Assistant metrics target is unavailable"
+      - alert: TutorAssistantDependencyDown
+        expr: tutor_readiness_dependency == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "Tutor Assistant dependency is unavailable"
+      - alert: TutorAssistantCriticalFailures
+        expr: increase(tutor_critical_failures_total[5m]) > 0
+        labels: {severity: critical}
+        annotations:
+          summary: "Tutor Assistant recorded a critical failure"
+      - alert: TutorAssistantQueueStalled
+        expr: tutor_queue_oldest_age_seconds > 900
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Tutor Assistant queue item is older than 15 minutes"
+      - alert: TutorAssistantErrorRate
+        expr: sum(rate(tutor_http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(tutor_http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Tutor Assistant HTTP 5xx rate exceeds 5%"

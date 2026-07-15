@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,7 +23,12 @@ class Settings(BaseSettings):
     # bootstrap password unless BOOTSTRAP_ADMIN_PASSWORD is configured.
     app_access_token: str = ""
     app_timezone: str = "Europe/Moscow"
+    app_host: str = "127.0.0.1"
+    app_port: int = Field(default=8000, ge=1, le=65535)
+    app_reload: bool = False
     public_base_url: str = "http://localhost:8000"
+    trusted_hosts: str = "localhost,127.0.0.1,testserver"
+    trusted_proxy_ips: str = "127.0.0.1"
 
     database_url: str = "sqlite:///./data/tutor-assistant.db"
     auto_migrate: bool = True
@@ -103,7 +109,43 @@ class Settings(BaseSettings):
 
     seed_demo_data: bool = True
     session_cookie_secure: bool = False
+    session_cookie_name: str = "tutor_session"
+    session_same_site: str = "lax"
     session_max_age: int = Field(default=60 * 60 * 12, ge=300)
+    session_idle_timeout: int = Field(default=60 * 60, ge=300)
+    session_rotation_seconds: int = Field(default=15 * 60, ge=60)
+    rate_limit_login: int = Field(default=10, ge=1, le=1000)
+    rate_limit_invitations: int = Field(default=30, ge=1, le=1000)
+    rate_limit_callbacks: int = Field(default=120, ge=1, le=10000)
+    rate_limit_downloads: int = Field(default=120, ge=1, le=10000)
+    rate_limit_window_seconds: int = Field(default=60, ge=10, le=3600)
+    security_csp: str = (
+        "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; "
+        "object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "font-src 'self'; connect-src 'self'"
+    )
+
+    log_level: str = "INFO"
+    log_json: bool = True
+    otel_service_name: str = "tutor-assistant-web"
+    otel_exporter_otlp_endpoint: str = ""
+    sentry_dsn: str = ""
+    sentry_environment: str = ""
+    metrics_enabled: bool = True
+    metrics_bearer_token: str = ""
+    readiness_timeout_seconds: float = Field(default=3.0, ge=0.2, le=30)
+
+    app_secret_key_file: str = ""
+    database_url_file: str = ""
+    redis_url_file: str = ""
+    bbb_secret_file: str = ""
+    bootstrap_admin_password_file: str = ""
+    artifact_s3_secret_key_file: str = ""
+    transcription_webhook_token_file: str = ""
+    materials_webhook_token_file: str = ""
+    document_engine_token_file: str = ""
+    metrics_bearer_token_file: str = ""
+    sentry_dsn_file: str = ""
     enabled_modules: str = ""
 
     bootstrap_organization_name: str = "Tutor Workspace"
@@ -119,6 +161,22 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production(self) -> Settings:
+        for value_field, file_field in (
+            ("app_secret_key", "app_secret_key_file"),
+            ("database_url", "database_url_file"),
+            ("redis_url", "redis_url_file"),
+            ("bbb_secret", "bbb_secret_file"),
+            ("bootstrap_admin_password", "bootstrap_admin_password_file"),
+            ("artifact_s3_secret_key", "artifact_s3_secret_key_file"),
+            ("transcription_webhook_token", "transcription_webhook_token_file"),
+            ("materials_webhook_token", "materials_webhook_token_file"),
+            ("document_engine_token", "document_engine_token_file"),
+            ("metrics_bearer_token", "metrics_bearer_token_file"),
+            ("sentry_dsn", "sentry_dsn_file"),
+        ):
+            path = str(getattr(self, file_field, "")).strip()
+            if path:
+                setattr(self, value_field, Path(path).read_text(encoding="utf-8").strip())
         enabled = {item.strip() for item in self.enabled_modules.split(",") if item.strip()}
         classroom_enabled = not enabled or bool(
             enabled & {"classroom", "materials", "automation", "portal", "dashboard"}
@@ -134,11 +192,30 @@ class Settings(BaseSettings):
                 raise ValueError("AUTO_MIGRATE must be false in production; use a migration job")
             if self.app_secret_key == "change-me-in-production":
                 raise ValueError("APP_SECRET_KEY must be changed in production")
+            if len(self.app_secret_key) < 32:
+                raise ValueError("APP_SECRET_KEY must contain at least 32 characters")
+            if any(
+                marker in self.app_secret_key.lower()
+                for marker in ("change-me", "replace-with", "demo-secret", "test-secret")
+            ):
+                raise ValueError("APP_SECRET_KEY must not use a demo or placeholder value")
             if len(self.bootstrap_admin_password) < 12:
                 raise ValueError("BOOTSTRAP_ADMIN_PASSWORD must contain at least 12 characters")
+            normalized_password = self.bootstrap_admin_password.strip().lower()
+            if normalized_password in {
+                "administrator",
+                "password1234",
+                "test-password",
+            } or any(
+                marker in normalized_password
+                for marker in ("change-this", "change-me", "demo-password")
+            ):
+                raise ValueError(
+                    "BOOTSTRAP_ADMIN_PASSWORD must not use a demo or placeholder value"
+                )
             if self.bbb_demo_mode and classroom_enabled:
                 raise ValueError("BBB_DEMO_MODE must be false in production")
-            if classroom_enabled and not self.public_base_url.startswith("https://"):
+            if not self.public_base_url.startswith("https://"):
                 raise ValueError("PUBLIC_BASE_URL must use https in production")
             if automation_enabled and self.transcription_provider.lower() in {
                 "disabled",
@@ -164,6 +241,33 @@ class Settings(BaseSettings):
                 raise ValueError("ARTIFACT_STORAGE_PROVIDER must be s3 in production")
             if materials_enabled and not self.artifact_clamav_enabled:
                 raise ValueError("ARTIFACT_CLAMAV_ENABLED must be true in production")
+            if not self.session_cookie_secure:
+                raise ValueError("SESSION_COOKIE_SECURE must be true in production")
+            if self.session_same_site not in {"lax", "strict"}:
+                raise ValueError("SESSION_SAME_SITE must be lax or strict in production")
+            hosts = {item.strip() for item in self.trusted_hosts.split(",") if item.strip()}
+            if not hosts or "*" in hosts:
+                raise ValueError("TRUSTED_HOSTS must explicitly list production hosts")
+            proxies = {item.strip() for item in self.trusted_proxy_ips.split(",") if item.strip()}
+            if not proxies or "*" in proxies:
+                raise ValueError("TRUSTED_PROXY_IPS must explicitly list trusted proxy addresses")
+            if self.seed_demo_data:
+                raise ValueError("SEED_DEMO_DATA must be false in production")
+            if self.bootstrap_admin_email.endswith("@localhost"):
+                raise ValueError("BOOTSTRAP_ADMIN_EMAIL must not use a demo address")
+            if not self.log_json:
+                raise ValueError("LOG_JSON must be true in production")
+            if self.app_reload:
+                raise ValueError("APP_RELOAD must be false in production")
+            if not self.metrics_enabled:
+                raise ValueError("METRICS_ENABLED must be true in production")
+            if len(self.metrics_bearer_token) < 24:
+                raise ValueError("METRICS_BEARER_TOKEN must contain at least 24 characters")
+            if any(
+                marker in self.metrics_bearer_token.lower()
+                for marker in ("change-me", "replace-with", "demo-token", "test-token")
+            ):
+                raise ValueError("METRICS_BEARER_TOKEN must not use a placeholder value")
         if make_url(self.redis_url).get_backend_name() not in {"redis", "rediss"}:
             raise ValueError("REDIS_URL must use redis:// or rediss://")
         if self.workflow_soft_time_limit >= self.workflow_hard_time_limit:
@@ -191,6 +295,10 @@ class Settings(BaseSettings):
             raise ValueError("ARTIFACT_STORAGE_PROVIDER is not supported")
         if storage_provider == "s3" and not self.artifact_s3_bucket:
             raise ValueError("ARTIFACT_S3_BUCKET is required for S3 storage")
+        if self.session_idle_timeout > self.session_max_age:
+            raise ValueError("SESSION_IDLE_TIMEOUT must not exceed SESSION_MAX_AGE")
+        if self.session_rotation_seconds > self.session_max_age:
+            raise ValueError("SESSION_ROTATION_SECONDS must not exceed SESSION_MAX_AGE")
         return self
 
 

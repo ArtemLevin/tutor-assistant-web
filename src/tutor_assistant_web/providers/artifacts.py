@@ -231,6 +231,10 @@ class LocalArtifactStorage(_ValidatedStorage):
                 size += len(chunk)
         return StoredArtifact(key, digest.hexdigest(), size, "application/octet-stream")
 
+    def healthcheck(self) -> None:
+        if not self.root.is_dir():
+            raise ArtifactStorageError("local artifact root is unavailable")
+
 
 class S3ArtifactStorage(_ValidatedStorage):
     name = "s3"
@@ -356,6 +360,9 @@ class S3ArtifactStorage(_ValidatedStorage):
             int(response["ContentLength"]),
             response.get("ContentType", "application/octet-stream"),
         )
+
+    def healthcheck(self) -> None:
+        self.client.head_bucket(Bucket=self.bucket)
 
     def configure_lifecycle(self, retention_days: int, abort_multipart_days: int) -> None:
         endpoint = str(getattr(getattr(self.client, "meta", None), "endpoint_url", ""))

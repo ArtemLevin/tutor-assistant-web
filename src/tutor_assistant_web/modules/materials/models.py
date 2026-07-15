@@ -4,10 +4,21 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
+from tutor_assistant_web.observability import correlation_id
 from tutor_assistant_web.shared.models import new_id, utcnow
 
 if TYPE_CHECKING:
@@ -52,6 +63,7 @@ class ProcessingJob(Base):
     __table_args__ = (
         Index("ix_processing_jobs_lease", "status", "lease_expires_at"),
         Index("ix_processing_jobs_operations", "organization_id", "status", "created_at"),
+        CheckConstraint("length(correlation_id) > 0", name="ck_processing_jobs_correlation_id"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
@@ -64,6 +76,7 @@ class ProcessingJob(Base):
     trigger: Mapped[str] = mapped_column(String(32), default="manual", index=True)
     stage: Mapped[str] = mapped_column(String(64), default="queued", index=True)
     dedup_key: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
+    correlation_id: Mapped[str] = mapped_column(String(128), default=correlation_id, index=True)
     record_id: Mapped[str] = mapped_column(String(256), default="", index=True)
     status: Mapped[str] = mapped_column(String(24), default=JobStatus.queued.value, index=True)
     attempt_count: Mapped[int] = mapped_column(default=0)

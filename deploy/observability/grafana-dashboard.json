@@ -1,0 +1,18 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {"type": "stat", "title": "Dependencies", "targets": [{"expr": "min(tutor_readiness_dependency)"}], "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0}},
+    {"type": "timeseries", "title": "HTTP latency p95", "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(tutor_http_request_duration_seconds_bucket[5m])))"}], "gridPos": {"h": 6, "w": 9, "x": 6, "y": 0}},
+    {"type": "timeseries", "title": "Queue age", "targets": [{"expr": "tutor_queue_oldest_age_seconds", "legendFormat": "{{queue}}"}], "gridPos": {"h": 6, "w": 9, "x": 15, "y": 0}},
+    {"type": "timeseries", "title": "Workflow duration p95", "targets": [{"expr": "histogram_quantile(0.95, sum by (le, stage) (rate(tutor_workflow_duration_seconds_bucket[10m])))", "legendFormat": "{{stage}}"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6}},
+    {"type": "timeseries", "title": "Critical failures", "targets": [{"expr": "increase(tutor_critical_failures_total[5m])", "legendFormat": "{{component}}"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}}
+  ],
+  "schemaVersion": 41,
+  "tags": ["tutor-assistant"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "Tutor Assistant / Production",
+  "uid": "tutor-assistant-production",
+  "version": 1
+}

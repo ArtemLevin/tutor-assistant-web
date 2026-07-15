@@ -12,6 +12,10 @@ const openDialog = (id, date) => {
   dialog.showModal();
 };
 
+document.querySelectorAll('[data-auto-submit]').forEach((element) => {
+  element.addEventListener('change', () => element.form?.requestSubmit());
+});
+
 document.querySelectorAll('[data-dialog-open]').forEach((button) => {
   button.addEventListener('click', () => openDialog(button.dataset.dialogOpen, button.dataset.date));
 });

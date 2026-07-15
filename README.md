@@ -57,6 +57,10 @@ BBB ссылки ведут в полноценную комнату с виде
 - lease/heartbeat, автоматическое восстановление зависших jobs и dead-letter;
 - bounded retry с exponential backoff/jitter и circuit breaker внешних сервисов;
 - экран «Задачи» и CLI для retry, отмены и повторной отправки outbox.
+- secure sessions, CSRF, строгий CSP, TrustedHost/proxy policy и распределённые rate limits;
+- JSON-логи без PII, сквозной correlation ID для HTTP/outbox/Celery и audit скачиваний;
+- OpenTelemetry → Tempo, Prometheus-метрики, Grafana dashboard, readiness и базовые alerts;
+- Bandit и `pip-audit` в обязательном CI security pipeline.
 
 ## Быстрый старт в demo-режиме
 
@@ -97,6 +101,7 @@ make beat       # планировщик transactional outbox
 make outbox     # однократная отправка накопленных событий
 make sync-transcription # зависимости локального faster-whisper
 make check      # Ruff + pytest
+make security   # Bandit + аудит зависимостей
 make test-postgres # интеграционные тесты PostgreSQL
 make schema-check # проверить контракт LessonEvidenceBundle v1
 make diagnose   # безопасная диагностика конфигурации
@@ -143,13 +148,19 @@ BBB_SECRET=long-shared-secret
 TRANSCRIPTION_PROVIDER=faster-whisper
 PUBLIC_BASE_URL=https://tutor.example.com
 APP_ENV=production
-APP_SECRET_KEY=another-long-random-secret
+APP_SECRET_KEY=a-unique-random-application-secret-over-32-characters
+APP_RELOAD=false
 DATABASE_URL=postgresql+psycopg://tutor:strong-password@postgres:5432/tutor
 AUTO_MIGRATE=false
+TRUSTED_HOSTS=tutor.example.com
+TRUSTED_PROXY_IPS=10.0.0.10
 BOOTSTRAP_ADMIN_EMAIL=tutor@example.com
 BOOTSTRAP_ADMIN_PASSWORD=a-long-unique-admin-password
 SESSION_COOKIE_SECURE=true
 SEED_DEMO_DATA=false
+LOG_JSON=true
+METRICS_ENABLED=true
+METRICS_BEARER_TOKEN=a-unique-random-metrics-token-over-24-characters
 DOCUMENT_ENGINE_PROVIDER=latex-for-everyone
 DOCUMENT_ENGINE_URL=https://latex.example.com
 DOCUMENT_ENGINE_TOKEN=service-access-token
@@ -173,8 +184,11 @@ docker compose up --build
 ```
 
 Compose запускает приложение, четыре специализированных Celery worker, Celery Beat, PostgreSQL и
-Redis с AOF. Сам BigBlueButton подключается как внешний сервис. Одноразовый сервис `migrate`
-применяет Alembic-ревизии до запуска web и workers.
+Redis с AOF, MinIO, ClamAV, Prometheus, Grafana, Tempo и OpenTelemetry Collector. Сам
+BigBlueButton подключается как внешний сервис. Одноразовый сервис `migrate` применяет
+Alembic-ревизии до запуска web и workers. Перед запуском задайте в `.env` уникальные
+`POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` и
+`METRICS_BEARER_TOKEN`; Compose больше не подставляет demo-пароли.
 
 Для локального запуска без Redis оставьте `TASK_EAGER=true`: обработка выполнится в процессе web.
 Для Compose и production используется `TASK_EAGER=false`.
@@ -239,11 +253,20 @@ TRANSCRIPTION_COMPUTE_TYPE=int8
 ```bash
 uv run python -m pytest
 uv run ruff check .
+make security
 curl http://localhost:8000/health/live
 curl http://localhost:8000/health/ready
 ```
 
-`/health/ready` проверяет БД и сообщает режим BBB и очереди без вывода секретов.
+`/health/ready` проверяет PostgreSQL, Redis, S3 и BBB, возвращает `503` при отказе обязательного
+компонента и не раскрывает текст исключения. В локальном eager/demo-профиле необязательные
+адаптеры помечаются как `eager`, `local` и `demo`.
+
+`/metrics` закрыт Bearer-токеном, если задан `METRICS_BEARER_TOKEN`. Docker Compose передаёт его
+Prometheus через secret-файл. Grafana доступна на <http://localhost:3000>, Prometheus — на
+<http://localhost:9090>; трассы HTTP/Celery сохраняются в Tempo. Полная модель защиты, параметры
+reverse proxy, правила редактирования логов и runbook alerts описаны в
+[docs/security-observability.md](docs/security-observability.md).
 
 ## Структура
 
@@ -338,8 +361,8 @@ ENABLED_MODULES=students,scheduling
 
 ## Ближайший production backlog
 
-1. S3/MinIO-адаптер `ArtifactStorage`, retention и антивирусная проверка.
-2. Email/Telegram-уведомления и настройки предпочтений получателя.
-3. Diarization говорящих и словарь терминов конкретного ученика.
-4. Повторяющееся расписание, уведомления и iCal.
-5. Метрики Prometheus/OpenTelemetry, backup/restore и disaster recovery drill.
+1. Email/Telegram-уведомления и настройки предпочтений получателя.
+2. Diarization говорящих и словарь терминов конкретного ученика.
+3. Повторяющееся расписание, уведомления и iCal.
+4. Централизованный secrets manager и автоматическая ротация ключей.
+5. Backup/restore и disaster recovery drill для PostgreSQL, S3 и Tempo.

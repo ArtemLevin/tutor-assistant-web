@@ -87,11 +87,21 @@ class CeleryJobDispatcher:
     name = "celery"
 
     def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None:
+        from tutor_assistant_web.observability import correlation_id
         from tutor_assistant_web.worker import process_lesson_task
 
-        process_lesson_task.apply_async(args=(job_id, queue), queue=queue)
+        process_lesson_task.apply_async(
+            args=(job_id, queue),
+            queue=queue,
+            headers={"x-correlation-id": correlation_id()},
+        )
 
     def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None:
+        from tutor_assistant_web.observability import correlation_id
         from tutor_assistant_web.worker import deliver_outbox_task
 
-        deliver_outbox_task.apply_async(args=(event_id, lease_token), queue="delivery")
+        deliver_outbox_task.apply_async(
+            args=(event_id, lease_token),
+            queue="delivery",
+            headers={"x-correlation-id": correlation_id()},
+        )

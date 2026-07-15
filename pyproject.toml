@@ -1,6 +1,6 @@
 [project]
 name = "tutor-assistant-web"
-version = "0.10.0"
+version = "0.11.0"
 description = "Fast pilot of a tutor workspace powered by BigBlueButton"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -8,15 +8,25 @@ dependencies = [
   "alembic>=1.14,<2",
   "boto3>=1.35,<2",
   "celery[redis]>=5.4,<6",
+  "defusedxml>=0.7.1,<1",
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",
   "itsdangerous>=2.2,<3",
   "jinja2>=3.1,<4",
+  "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
+  "opentelemetry-instrumentation-celery>=0.51b0,<1",
+  "opentelemetry-instrumentation-fastapi>=0.51b0,<1",
+  "opentelemetry-instrumentation-httpx>=0.51b0,<1",
+  "opentelemetry-instrumentation-sqlalchemy>=0.51b0,<1",
+  "opentelemetry-sdk>=1.30,<2",
+  "prometheus-client>=0.21,<1",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.7,<3",
   "PyJWT>=2.10,<3",
   "pwdlib[argon2]>=0.3,<1",
   "python-multipart>=0.0.20,<1",
+  "redis>=5,<7",
+  "sentry-sdk[fastapi]>=2.20,<3",
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.34,<1",
 ]
@@ -26,7 +36,9 @@ transcription = [
   "faster-whisper>=1.1,<2",
 ]
 dev = [
-  "pytest>=8.3,<9",
+  "bandit>=1.8,<2",
+  "pip-audit>=2.8,<3",
+  "pytest>=9.0.3,<10",
   "pytest-cov>=6,<7",
   "ruff>=0.9,<1",
 ]
