@@ -41,7 +41,8 @@ RUN groupadd --gid "${APP_GID}" tutor \
 WORKDIR /app
 COPY --from=builder /wheels /wheels
 COPY alembic.ini ./alembic.ini
-RUN python -m pip install --no-index --find-links=/wheels tutor-assistant-web==1.0.0 \
+RUN python -m pip install --upgrade pip==26.1.2 \
+    && python -m pip install --no-index --find-links=/wheels tutor-assistant-web==1.0.0 \
     && rm -rf /wheels \
     && mkdir -p /app/data \
     && chown -R tutor:tutor /app /home/tutor

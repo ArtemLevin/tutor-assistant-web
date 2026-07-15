@@ -28,6 +28,7 @@ def test_release_version_and_images_are_immutable_non_root() -> None:
     for target in ("web", "worker", "scheduler", "migration", "ops"):
         assert f"AS {target}" in dockerfile
     assert "tutor-assistant-web==1.0.0" in dockerfile
+    assert "pip==26.1.2" in dockerfile
 
 
 def test_production_compose_has_separate_processes_and_private_network() -> None:
