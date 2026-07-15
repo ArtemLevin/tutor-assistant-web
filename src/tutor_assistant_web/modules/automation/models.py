@@ -72,6 +72,7 @@ class OutboxEvent(Base):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(24), default=OutboxStatus.pending.value, index=True)
     attempts: Mapped[int] = mapped_column(default=0)
+    lease_token: Mapped[str | None] = mapped_column(String(36), nullable=True)
     last_error: Mapped[str] = mapped_column(Text, default="")
     available_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True

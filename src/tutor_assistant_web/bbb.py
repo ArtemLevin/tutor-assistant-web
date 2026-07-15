@@ -8,6 +8,8 @@ from xml.etree import ElementTree
 
 import httpx
 
+from tutor_assistant_web.providers.resilience import CircuitBreaker
+
 
 class BigBlueButtonError(RuntimeError):
     pass
@@ -22,7 +24,13 @@ class Recording:
 
 
 class BigBlueButtonClient:
-    def __init__(self, base_url: str, secret: str, timeout: float = 15.0) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        secret: str,
+        timeout: float = 15.0,
+        circuit_breaker: CircuitBreaker | None = None,
+    ) -> None:
         self.base_url = base_url.rstrip("/")
         if self.base_url.endswith("/bigbluebutton/api"):
             self.api_url = self.base_url
@@ -30,6 +38,7 @@ class BigBlueButtonClient:
             self.api_url = f"{self.base_url}/bigbluebutton/api"
         self.secret = secret
         self.timeout = timeout
+        self.circuit_breaker = circuit_breaker or CircuitBreaker("bigbluebutton")
 
     def signed_url(self, call: str, params: dict[str, Any] | None = None) -> str:
         clean = {key: value for key, value in (params or {}).items() if value is not None}
@@ -40,9 +49,10 @@ class BigBlueButtonClient:
 
     def _call(self, call: str, params: dict[str, Any] | None = None) -> ElementTree.Element:
         try:
-            response = httpx.get(self.signed_url(call, params), timeout=self.timeout)
-            response.raise_for_status()
-            root = ElementTree.fromstring(response.content)
+            with self.circuit_breaker.guard():
+                response = httpx.get(self.signed_url(call, params), timeout=self.timeout)
+                response.raise_for_status()
+                root = ElementTree.fromstring(response.content)
         except (httpx.HTTPError, ElementTree.ParseError) as exc:
             raise BigBlueButtonError(f"BigBlueButton request failed: {exc}") from exc
         if root.findtext("returncode") != "SUCCESS":

@@ -21,6 +21,7 @@ from tutor_assistant_web.modules.automation.models import (
     LessonTranscript,
     OutboxEvent,
     OutboxStatus,
+    TranscriptStatus,
     WebhookReceipt,
 )
 from tutor_assistant_web.modules.classroom.application import ClassroomService
@@ -122,8 +123,11 @@ def test_webhook_verifier_rejects_wrong_secret():
 class FailingDispatcher:
     name = "failing"
 
-    def enqueue_lesson_processing(self, job_id: str) -> None:
+    def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None:
         raise RuntimeError(f"broker unavailable for {job_id}")
+
+    def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None:
+        raise RuntimeError(f"broker unavailable for {event_id}")
 
 
 def test_outbox_schedules_retry_when_dispatch_fails(tmp_path):
@@ -236,3 +240,38 @@ def test_post_lesson_workflow_transcribes_then_generates_materials(tmp_path):
         assert transcript is not None and transcript.text.startswith("Решили")
         assert artifact is not None and artifact.job_id == job.id
     assert generator.evidence["transcript"]["text"].startswith("Решили")
+
+
+def test_post_lesson_transcription_hands_off_to_materials_queue_transactionally(tmp_path):
+    database = Database(f"sqlite:///{tmp_path / 'workflow-handoff.db'}")
+    database.migrate()
+    lesson = add_lesson(database)
+    accepted = RecordingReadyService(database).accept(lesson.bbb_meeting_id, "record-3")
+    classroom = ClassroomService(
+        database,
+        RecordingConference(),
+        "https://app.example.test",
+        "secret",
+        ORG_ID,
+    )
+    generator = CapturingGenerator()
+    workflow = PostLessonWorkflowService(
+        database,
+        classroom,
+        MaterialsService(database, generator, classroom, organization_id=ORG_ID),
+        FakeTranscriber(),
+        ORG_ID,
+    )
+
+    workflow.transcribe(accepted.job_id)
+
+    with database.sessions() as session:
+        job = session.get(ProcessingJob, accepted.job_id)
+        topics = set(session.scalars(select(OutboxEvent.topic)))
+        transcript = session.scalar(select(LessonTranscript))
+        assert job.status == JobStatus.queued.value
+        assert job.queue_name == "materials"
+        assert job.stage == "materials_queued"
+        assert topics == {"post_lesson.requested", "materials.requested"}
+        assert transcript.status == TranscriptStatus.completed.value
+    assert generator.evidence is None
