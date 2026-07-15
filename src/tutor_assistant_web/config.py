@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     database_lock_timeout_ms: int = Field(default=5000, ge=100, le=120_000)
     redis_url: str = "redis://localhost:6379/0"
     task_eager: bool = True
+    celery_visibility_timeout: int = Field(default=10_800, ge=300, le=86_400)
+    worker_shutdown_timeout: float = Field(default=30.0, ge=1, le=300)
 
     bbb_base_url: str = ""
     bbb_secret: str = ""
@@ -51,10 +53,21 @@ class Settings(BaseSettings):
     transcription_max_download_mb: int = Field(default=500, ge=1, le=4096)
 
     workflow_max_retries: int = Field(default=5, ge=0, le=20)
+    workflow_max_attempts: int = Field(default=6, ge=1, le=20)
     workflow_retry_base_seconds: int = Field(default=30, ge=1, le=3600)
+    workflow_retry_max_seconds: int = Field(default=3600, ge=1, le=86_400)
+    workflow_soft_time_limit: int = Field(default=7200, ge=60, le=86_400)
+    workflow_hard_time_limit: int = Field(default=7500, ge=60, le=86_400)
+    job_lease_seconds: int = Field(default=300, ge=30, le=3600)
+    job_recovery_poll_seconds: int = Field(default=30, ge=5, le=600)
+    job_recovery_batch_size: int = Field(default=100, ge=1, le=1000)
     outbox_batch_size: int = Field(default=20, ge=1, le=500)
     outbox_poll_seconds: int = Field(default=10, ge=1, le=300)
     outbox_max_attempts: int = Field(default=12, ge=1, le=100)
+    outbox_dispatch_lease_seconds: int = Field(default=300, ge=30, le=3600)
+
+    circuit_breaker_failure_threshold: int = Field(default=5, ge=1, le=100)
+    circuit_breaker_recovery_seconds: int = Field(default=60, ge=1, le=3600)
 
     materials_webhook_url: str = ""
     materials_webhook_token: str = ""
@@ -124,6 +137,14 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "DOCUMENT_ENGINE_PROVIDER must use a production compiler for materials"
                 )
+            if automation_enabled and self.task_eager:
+                raise ValueError("TASK_EAGER must be false in production")
+        if make_url(self.redis_url).get_backend_name() not in {"redis", "rediss"}:
+            raise ValueError("REDIS_URL must use redis:// or rediss://")
+        if self.workflow_soft_time_limit >= self.workflow_hard_time_limit:
+            raise ValueError("WORKFLOW_HARD_TIME_LIMIT must exceed WORKFLOW_SOFT_TIME_LIMIT")
+        if self.celery_visibility_timeout <= self.workflow_hard_time_limit:
+            raise ValueError("CELERY_VISIBILITY_TIMEOUT must exceed WORKFLOW_HARD_TIME_LIMIT")
         if not self.bbb_demo_mode and (not self.bbb_base_url or not self.bbb_secret):
             raise ValueError("BBB_BASE_URL and BBB_SECRET are required when demo mode is off")
         provider = self.transcription_provider.lower()

@@ -124,6 +124,28 @@ def test_production_configuration_requires_postgresql_and_migration_job():
         Settings(**common, database_url=PRODUCTION_DATABASE_URL, auto_migrate=True)
 
 
+def test_production_automation_requires_celery_dispatcher():
+    with pytest.raises(ValueError, match="TASK_EAGER"):
+        Settings(
+            app_env="production",
+            app_secret_key="production-secret",
+            bootstrap_admin_password="a-secure-production-password",
+            database_url=PRODUCTION_DATABASE_URL,
+            auto_migrate=False,
+            task_eager=True,
+            enabled_modules="automation",
+            bbb_demo_mode=False,
+            bbb_base_url="https://bbb.example.test",
+            bbb_secret="bbb-secret",
+            public_base_url="https://tutor.example.test",
+            transcription_provider="webhook",
+            transcription_webhook_url="https://speech.example.test",
+            document_engine_provider="latex-for-everyone",
+            document_engine_url="https://latex.example.test",
+            document_engine_token="service-token",
+        )
+
+
 class FakeConference:
     name = "fake"
     is_demo = False

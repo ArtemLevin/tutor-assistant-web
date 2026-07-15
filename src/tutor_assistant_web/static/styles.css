@@ -180,6 +180,8 @@ textarea { resize: vertical; line-height: 1.5; }
 .room-note strong { color: var(--accent); }
 .room-note p { margin: 6px 0 0; }
 .data-table { display: grid; }
+.operations-row { grid-template-columns: minmax(220px, 1.2fr) auto minmax(240px, 1fr) auto; gap: 16px; align-items: center; }
+.row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .data-row { border-top: 1px solid var(--line); padding: 14px 4px; align-items: center; gap: 14px; }
 .data-row strong, .data-row small { display: block; }
 .data-row small { color: var(--muted); margin-top: 5px; }

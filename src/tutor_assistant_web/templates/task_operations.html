@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Фоновые задачи · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div><p class="eyebrow">Надёжность</p><h1>Фоновые задачи</h1><p class="subtitle">Ошибки, dead-letter и истёкшие lease в текущем пространстве.</p></div>
+</header>
+
+<section class="section">
+  <div class="section-heading"><div><p class="eyebrow">Processing jobs</p><h2>Требуют внимания</h2></div><span class="count">{{ jobs|length }}</span></div>
+  <div class="data-table">
+    {% for job in jobs %}
+    <div class="data-row operations-row">
+      <div><strong>{{ job.kind }} · {{ job.stage }}</strong><small>{{ job.id }} · попыток: {{ job.attempt_count }}</small></div>
+      <span class="badge {{ job.status }}">{{ job.status }}</span>
+      <div><small>{{ job.message }}</small>{% if job.error %}<small title="{{ job.error }}">{{ job.error[:120] }}</small>{% endif %}</div>
+      <div class="row-actions">
+        {% if job.status in ['failed', 'dead_letter', 'canceled', 'retrying'] %}
+        <form method="post" action="/settings/tasks/{{ job.id }}/retry"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button secondary small">Повторить</button></form>
+        {% endif %}
+        {% if job.status not in ['completed', 'dead_letter', 'canceled'] %}
+        <form method="post" action="/settings/tasks/{{ job.id }}/cancel"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button ghost small">Отменить</button></form>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}<div class="empty">Зависших и ошибочных задач нет.</div>{% endfor %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-heading"><div><p class="eyebrow">Transactional outbox</p><h2>Dead-letter события</h2></div><span class="count">{{ events|length }}</span></div>
+  <div class="data-table">
+    {% for event in events %}
+    <div class="data-row operations-row">
+      <div><strong>{{ event.topic }}</strong><small>{{ event.id }} · попыток: {{ event.attempts }}</small></div>
+      <span class="badge dead_letter">dead</span>
+      <small title="{{ event.last_error }}">{{ event.last_error[:160] }}</small>
+      <form method="post" action="/settings/outbox/{{ event.id }}/resend"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button secondary small">Переотправить</button></form>
+    </div>
+    {% else %}<div class="empty">Dead-letter событий нет.</div>{% endfor %}
+  </div>
+</section>
+{% endblock %}

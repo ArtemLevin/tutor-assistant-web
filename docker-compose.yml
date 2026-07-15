@@ -1,3 +1,27 @@
+x-worker-common: &worker-common
+  build:
+    context: .
+    args:
+      INSTALL_TRANSCRIPTION: ${INSTALL_TRANSCRIPTION:-false}
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
+    REDIS_URL: redis://redis:6379/0
+    TASK_EAGER: "false"
+    AUTO_MIGRATE: "false"
+    ARTIFACT_STORAGE_ROOT: /data/artifacts
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+  volumes:
+    - artifact-data:/data/artifacts
+  restart: unless-stopped
+  stop_grace_period: 45s
+
 services:
   migrate:
     build: .
@@ -32,29 +56,21 @@ services:
       - artifact-data:/data/artifacts
     restart: unless-stopped
 
-  worker:
-    build:
-      context: .
-      args:
-        INSTALL_TRANSCRIPTION: ${INSTALL_TRANSCRIPTION:-false}
-    command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "worker", "--loglevel=INFO"]
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
-      REDIS_URL: redis://redis:6379/0
-      TASK_EAGER: "false"
-      AUTO_MIGRATE: "false"
-      ARTIFACT_STORAGE_ROOT: /data/artifacts
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
-    volumes:
-      - artifact-data:/data/artifacts
-    restart: unless-stopped
+  worker-transcription:
+    <<: *worker-common
+    command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "worker", "--loglevel=INFO", "--queues=transcription", "--hostname=transcription@%h"]
+
+  worker-materials:
+    <<: *worker-common
+    command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "worker", "--loglevel=INFO", "--queues=materials", "--hostname=materials@%h"]
+
+  worker-delivery:
+    <<: *worker-common
+    command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "worker", "--loglevel=INFO", "--queues=delivery", "--hostname=delivery@%h"]
+
+  worker-maintenance:
+    <<: *worker-common
+    command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "worker", "--loglevel=INFO", "--queues=maintenance", "--hostname=maintenance@%h"]
 
   beat:
     build: .
@@ -90,7 +106,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     volumes:
       - redis-data:/data
     healthcheck:

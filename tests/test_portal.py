@@ -47,8 +47,21 @@ ORG_ID = DEFAULT_ORGANIZATION_ID
 class UnusedDispatcher:
     name = "unused"
 
-    def enqueue_lesson_processing(self, job_id: str) -> None:
+    def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None:
         raise AssertionError(f"unexpected lesson job: {job_id}")
+
+    def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None:
+        raise AssertionError(f"unexpected delivery: {event_id}")
+
+
+class UnavailableDeliveryDispatcher:
+    name = "celery"
+
+    def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None:
+        raise AssertionError(f"unexpected lesson job: {job_id}")
+
+    def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None:
+        raise ConnectionError("delivery worker broker is unavailable")
 
 
 def csrf_from(html: str) -> str:
@@ -297,6 +310,28 @@ def test_publication_is_atomic_and_delivery_is_idempotent(tmp_path):
         assert notification is not None and notification.user_id == parent.user_id
         assert session.scalar(select(func.count(MaterialDelivery.id))) == 1
         assert session.scalar(select(func.count(UserNotification.id))) == 1
+
+
+def test_publication_survives_temporary_delivery_unavailability(tmp_path):
+    database, _, _, admin, _, _, run, _ = setup_portal_data(tmp_path)
+    PublicationService(database, ORG_ID).publish(run.id, admin.user_id)
+
+    result = OutboxService(
+        database,
+        UnavailableDeliveryDispatcher(),
+        max_attempts=3,
+        retry_base_seconds=1,
+        event_handlers=(PortalEventHandler(database),),
+        jitter=lambda low, high: high,
+    ).dispatch_pending()
+
+    assert result == {"dispatched": 0, "retried": 1, "dead": 0}
+    with database.sessions() as session:
+        published = session.get(GenerationRun, run.id)
+        event = session.scalar(select(OutboxEvent))
+        assert published.status == GenerationStatus.published.value
+        assert event.status == OutboxStatus.pending.value
+        assert "delivery worker broker is unavailable" in event.last_error
 
 
 def test_recipient_can_read_only_assigned_published_artifacts(tmp_path):

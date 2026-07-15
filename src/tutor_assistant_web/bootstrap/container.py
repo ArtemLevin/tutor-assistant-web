@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
@@ -22,6 +23,7 @@ from tutor_assistant_web.providers.materials import (
     LocalTemplateMaterialGenerator,
     WebhookMaterialGenerator,
 )
+from tutor_assistant_web.providers.resilience import CircuitBreaker
 from tutor_assistant_web.providers.tasks import CeleryJobDispatcher, InlineJobDispatcher
 from tutor_assistant_web.providers.transcription import (
     DemoTranscriptionProvider,
@@ -38,6 +40,9 @@ from tutor_assistant_web.shared.contracts import (
     TranscriptionProvider,
 )
 from tutor_assistant_web.shared.web import WebSupport
+
+_CIRCUITS: dict[tuple[str, int, int], CircuitBreaker] = {}
+_CIRCUITS_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -99,6 +104,18 @@ class AppContainer:
             max_attempts=self.settings.outbox_max_attempts,
             retry_base_seconds=self.settings.workflow_retry_base_seconds,
             event_handlers=(PortalEventHandler(self.database),),
+            dispatch_lease_seconds=self.settings.outbox_dispatch_lease_seconds,
+        )
+
+    def durable_jobs(self):
+        from tutor_assistant_web.modules.automation.durability import DurableJobService
+
+        return DurableJobService(
+            self.database,
+            lease_seconds=self.settings.job_lease_seconds,
+            max_attempts=self.settings.workflow_max_attempts,
+            retry_base_seconds=self.settings.workflow_retry_base_seconds,
+            retry_max_seconds=self.settings.workflow_retry_max_seconds,
         )
 
     def publication_service(self, organization_id: str):
@@ -131,6 +148,7 @@ def build_conference_provider(settings: Settings) -> ConferenceProvider:
         settings.bbb_base_url,
         settings.bbb_secret,
         settings.bbb_request_timeout,
+        _circuit(settings, "bigbluebutton"),
     )
     return BigBlueButtonConferenceProvider(client)
 
@@ -142,6 +160,7 @@ def build_material_generator(settings: Settings) -> MaterialGenerator:
         settings.materials_webhook_url,
         settings.materials_webhook_token,
         settings.materials_request_timeout,
+        _circuit(settings, "materials-webhook"),
     )
 
 
@@ -159,6 +178,7 @@ def build_transcription_provider(settings: Settings) -> TranscriptionProvider:
             settings.transcription_webhook_url,
             settings.transcription_webhook_token,
             settings.transcription_request_timeout,
+            _circuit(settings, "transcription-webhook"),
         )
     if provider == "faster-whisper":
         return FasterWhisperTranscriptionProvider(
@@ -179,12 +199,29 @@ def build_document_engine(settings: Settings) -> DocumentEngine:
             settings.document_engine_token,
             settings.document_engine_timeout,
             max_pdf_mb=settings.document_max_pdf_mb,
+            circuit_breaker=_circuit(settings, "document-engine"),
         )
     return LocalDocumentEngine()
 
 
 def build_artifact_storage(settings: Settings) -> ArtifactStorage:
     return LocalArtifactStorage(settings.artifact_storage_root)
+
+
+def _circuit(settings: Settings, name: str) -> CircuitBreaker:
+    key = (
+        name,
+        settings.circuit_breaker_failure_threshold,
+        settings.circuit_breaker_recovery_seconds,
+    )
+    with _CIRCUITS_LOCK:
+        if key not in _CIRCUITS:
+            _CIRCUITS[key] = CircuitBreaker(
+                name,
+                failure_threshold=settings.circuit_breaker_failure_threshold,
+                recovery_seconds=settings.circuit_breaker_recovery_seconds,
+            )
+        return _CIRCUITS[key]
 
 
 def build_container(

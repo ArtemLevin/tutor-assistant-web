@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from tutor_assistant_web.bootstrap.container import AppContainer
 from tutor_assistant_web.modules.automation.application import (
@@ -49,6 +49,14 @@ def create_router(container: AppContainer) -> APIRouter:
                     "next_retry_at": (job.next_retry_at.isoformat() if job.next_retry_at else None),
                     "message": job.message,
                     "error": job.error,
+                    "lease_owner": job.lease_owner,
+                    "lease_expires_at": (
+                        job.lease_expires_at.isoformat() if job.lease_expires_at else None
+                    ),
+                    "heartbeat_at": job.heartbeat_at.isoformat() if job.heartbeat_at else None,
+                    "cancel_requested_at": (
+                        job.cancel_requested_at.isoformat() if job.cancel_requested_at else None
+                    ),
                 }
                 if job
                 else None
@@ -86,5 +94,61 @@ def create_router(container: AppContainer) -> APIRouter:
             {"lesson_id": lesson_id},
         )
         return RedirectResponse(f"/lessons/{lesson_id}", status_code=303)
+
+    @router.get("/settings/tasks", response_class=HTMLResponse)
+    def operations_page(request: Request):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        principal = web.principal_required(request)
+        jobs, events = container.durable_jobs().operations(principal.organization_id)
+        return container.templates.TemplateResponse(
+            request=request,
+            name="task_operations.html",
+            context=web.context(request, jobs=jobs, events=events),
+        )
+
+    @router.post("/settings/tasks/{job_id}/retry")
+    async def retry_job(request: Request, job_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        principal = web.principal_required(request)
+        await web.validated_form(request)
+        job = container.durable_jobs().retry_manually(principal.organization_id, job_id)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id, "job.retried", "processing_job", job.id
+        )
+        if container.settings.task_eager:
+            container.outbox_service().dispatch_pending(limit=1)
+        return RedirectResponse("/settings/tasks", status_code=303)
+
+    @router.post("/settings/tasks/{job_id}/cancel")
+    async def cancel_job(request: Request, job_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        principal = web.principal_required(request)
+        await web.validated_form(request)
+        job = container.durable_jobs().cancel(principal.organization_id, job_id)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id, "job.canceled", "processing_job", job.id
+        )
+        return RedirectResponse("/settings/tasks", status_code=303)
+
+    @router.post("/settings/outbox/{event_id}/resend")
+    async def resend_outbox(request: Request, event_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        principal = web.principal_required(request)
+        await web.validated_form(request)
+        event = container.durable_jobs().resend_outbox(principal.organization_id, event_id)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id, "outbox.resent", "outbox_event", event.id
+        )
+        if container.settings.task_eager:
+            container.outbox_service().dispatch_pending(limit=1)
+        return RedirectResponse("/settings/tasks", status_code=303)
 
     return router
