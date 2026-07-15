@@ -17,6 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
+from tutor_assistant_web.observability import correlation_id
 from tutor_assistant_web.shared.models import new_id, utcnow
 
 if TYPE_CHECKING:
@@ -59,6 +60,7 @@ class OutboxEvent(Base):
             "status IN ('pending', 'dispatching', 'completed', 'dead')",
             name="ck_outbox_events_status",
         ),
+        CheckConstraint("length(correlation_id) > 0", name="ck_outbox_events_correlation_id"),
         Index("ix_outbox_claim", "status", "available_at", "created_at"),
         Index("ix_outbox_stale", "status", "updated_at"),
     )
@@ -69,6 +71,7 @@ class OutboxEvent(Base):
     )
     topic: Mapped[str] = mapped_column(String(100), index=True)
     dedup_key: Mapped[str] = mapped_column(String(320), unique=True)
+    correlation_id: Mapped[str] = mapped_column(String(128), default=correlation_id, index=True)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(24), default=OutboxStatus.pending.value, index=True)
     attempts: Mapped[int] = mapped_column(default=0)

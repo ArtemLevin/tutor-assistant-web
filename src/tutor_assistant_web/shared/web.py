@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import time
 from datetime import UTC, datetime
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
@@ -58,6 +59,16 @@ class WebSupport:
         if hasattr(request.state, "validated_principal"):
             return request.state.validated_principal
         session = request.session
+        now = int(time.time())
+        created = int(session.get("session_created", now))
+        seen = int(session.get("session_seen", now))
+        if (
+            now - created > self.settings.session_max_age
+            or now - seen > self.settings.session_idle_timeout
+        ):
+            request.session.clear()
+            request.state.validated_principal = None
+            return None
         required = ("user_id", "organization_id", "role", "email", "full_name")
         if not all(session.get(key) for key in required):
             request.state.validated_principal = None
@@ -71,6 +82,11 @@ class WebSupport:
             request.state.validated_principal = None
             return None
         self.set_principal(request, principal)
+        request.session["session_seen"] = now
+        rotated = int(request.session.get("session_rotated", created))
+        if now - rotated >= self.settings.session_rotation_seconds:
+            request.session["session_id"] = secrets.token_urlsafe(24)
+            request.session["session_rotated"] = now
         request.state.validated_principal = principal
         return principal
 
@@ -111,6 +127,7 @@ class WebSupport:
         return RedirectResponse(f"/login?next={target}", status_code=303)
 
     def set_principal(self, request: Request, principal: Principal) -> None:
+        now = int(time.time())
         request.session.update(
             {
                 "user_id": principal.user_id,
@@ -121,6 +138,10 @@ class WebSupport:
                 "full_name": principal.full_name,
             }
         )
+        request.session.setdefault("session_id", secrets.token_urlsafe(24))
+        request.session.setdefault("session_created", now)
+        request.session.setdefault("session_rotated", now)
+        request.session["session_seen"] = now
         request.state.validated_principal = principal
 
     async def validated_form(self, request: Request):

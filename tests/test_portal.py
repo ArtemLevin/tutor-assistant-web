@@ -512,3 +512,6 @@ def test_parent_portal_web_flow_and_sandboxed_preview(tmp_path):
         assert preview.status_code == 200
         assert preview.headers["content-security-policy"].startswith("sandbox;")
         assert client.get("/students").status_code == 403
+    with database.sessions() as session:
+        actions = set(session.scalars(select(AuditEvent.action)))
+    assert {"artifact.downloaded", "artifact.previewed"} <= actions

@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks artifacts-init artifacts-verify artifacts-migrate test test-postgres test-minio lint format check schema-check diagnose docker-up docker-down
+.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks artifacts-init artifacts-verify artifacts-migrate test test-postgres test-minio lint format security check schema-check diagnose docker-up docker-down
 
 help:
 	@echo "sync        Install all dependencies with uv"
@@ -12,6 +12,7 @@ help:
 	@echo "outbox      Dispatch pending outbox events once"
 	@echo "artifacts-* Configure, verify or migrate S3 artifacts"
 	@echo "check       Run lint and tests"
+	@echo "security    Run static and dependency security scans"
 	@echo "test-postgres Run PostgreSQL integration tests"
 	@echo "schema-check Validate the committed evidence schema contract"
 	@echo "diagnose    Print runtime diagnostics"
@@ -77,7 +78,11 @@ lint:
 format:
 	$(UV) run ruff format .
 
-check: lint test
+security:
+	$(UV) run bandit -r src -ll
+	$(UV) run pip-audit --skip-editable
+
+check: lint security test
 
 schema-check:
 	$(UV) run pytest tests/test_materials_factory.py -k schema

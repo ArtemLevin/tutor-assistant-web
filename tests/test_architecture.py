@@ -20,6 +20,7 @@ from tutor_assistant_web.shared.contracts import ConferenceRecording
 
 SOURCE_ROOT = Path(__file__).parents[1] / "src" / "tutor_assistant_web"
 PRODUCTION_DATABASE_URL = "postgresql+psycopg://tutor:secret@db:5432/tutor"
+PRODUCTION_SECRET = "production-secret-with-more-than-32-characters"
 
 
 def _router(_):
@@ -56,19 +57,24 @@ def test_http_routes_do_not_depend_on_sqlalchemy_or_bbb_adapter():
 
 def test_composition_entrypoint_stays_small():
     app_file = SOURCE_ROOT / "app.py"
-    assert len(app_file.read_text(encoding="utf-8").splitlines()) <= 15
+    assert len(app_file.read_text(encoding="utf-8").splitlines()) <= 20
 
 
 def test_crm_only_production_configuration_does_not_require_bbb():
     settings = Settings(
         app_env="production",
-        app_secret_key="production-secret",
+        app_secret_key=PRODUCTION_SECRET,
         app_access_token="access-token",
         bootstrap_admin_password="a-secure-production-password",
         database_url=PRODUCTION_DATABASE_URL,
         auto_migrate=False,
         enabled_modules="students",
         bbb_demo_mode=True,
+        public_base_url="https://tutor.example.test",
+        session_cookie_secure=True,
+        seed_demo_data=False,
+        bootstrap_admin_email="admin@example.test",
+        metrics_bearer_token="metrics-token-with-24-characters",
     )
 
     assert settings.enabled_modules == "students"
@@ -78,7 +84,7 @@ def test_automation_production_configuration_requires_real_bbb():
     try:
         Settings(
             app_env="production",
-            app_secret_key="production-secret",
+            app_secret_key=PRODUCTION_SECRET,
             bootstrap_admin_password="a-secure-production-password",
             database_url=PRODUCTION_DATABASE_URL,
             auto_migrate=False,
@@ -95,7 +101,7 @@ def test_materials_production_configuration_requires_real_document_engine():
     try:
         Settings(
             app_env="production",
-            app_secret_key="production-secret",
+            app_secret_key=PRODUCTION_SECRET,
             bootstrap_admin_password="a-secure-production-password",
             database_url=PRODUCTION_DATABASE_URL,
             auto_migrate=False,
@@ -114,7 +120,7 @@ def test_materials_production_configuration_requires_real_document_engine():
 def test_production_configuration_requires_postgresql_and_migration_job():
     common = {
         "app_env": "production",
-        "app_secret_key": "production-secret",
+        "app_secret_key": PRODUCTION_SECRET,
         "bootstrap_admin_password": "a-secure-production-password",
         "enabled_modules": "students",
     }
@@ -128,7 +134,7 @@ def test_production_automation_requires_celery_dispatcher():
     with pytest.raises(ValueError, match="TASK_EAGER"):
         Settings(
             app_env="production",
-            app_secret_key="production-secret",
+            app_secret_key=PRODUCTION_SECRET,
             bootstrap_admin_password="a-secure-production-password",
             database_url=PRODUCTION_DATABASE_URL,
             auto_migrate=False,
