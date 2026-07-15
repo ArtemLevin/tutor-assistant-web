@@ -291,14 +291,18 @@ def purge_artifacts_task() -> int:
 
     database = _database()
     try:
+        storage = build_artifact_storage(settings)
         lifecycle = ArtifactLifecycleService(
             database,
-            build_artifact_storage(settings),
+            storage,
             delete_grace_days=settings.artifact_delete_grace_days,
         )
         lifecycle.expire_retention(
             settings.artifact_retention_days, settings.artifact_integrity_batch_size
         )
+        cleanup = getattr(storage, "cleanup_incomplete_multipart_uploads", None)
+        if cleanup:
+            cleanup(settings.artifact_abort_multipart_days)
         return lifecycle.purge_due(settings.artifact_integrity_batch_size)
     finally:
         database.dispose()

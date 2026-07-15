@@ -24,8 +24,9 @@ remain `uploading` for diagnosis and never become downloadable.
 
 `ARTIFACT_RETENTION_DAYS` controls soft expiry. `ARTIFACT_DELETE_GRACE_DAYS` is the recovery
 window before physical deletion. S3 lifecycle provides a final expiry guard after retention plus
-the recovery window and aborts incomplete multipart uploads after
-`ARTIFACT_ABORT_MULTIPART_DAYS`. Celery beat verifies object bytes against the stored SHA-256 and
+the recovery window. AWS S3 lifecycle and the maintenance worker clean incomplete multipart
+uploads; MinIO uses the worker because its lifecycle API does not support that action. The age is
+set by `ARTIFACT_ABORT_MULTIPART_DAYS`. Celery beat verifies object bytes against the stored SHA-256 and
 size, quarantines mismatches, expires retained objects, and purges due soft deletes.
 
 ## Migration from local storage

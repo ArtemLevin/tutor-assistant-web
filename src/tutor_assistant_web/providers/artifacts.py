@@ -6,6 +6,7 @@ import socket
 import struct
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from tempfile import SpooledTemporaryFile
 from typing import Any, BinaryIO
@@ -346,22 +347,54 @@ class S3ArtifactStorage(_ValidatedStorage):
         )
 
     def configure_lifecycle(self, retention_days: int, abort_multipart_days: int) -> None:
+        endpoint = str(getattr(getattr(self.client, "meta", None), "endpoint_url", ""))
+        rules = [
+            {
+                "ID": "retention-guard",
+                "Status": "Enabled",
+                "Filter": {"Prefix": ""},
+                "Expiration": {"Days": retention_days},
+            }
+        ]
+        if endpoint.endswith("amazonaws.com"):
+            rules.append(
+                {
+                    "ID": "abort-incomplete-multipart",
+                    "Status": "Enabled",
+                    "Filter": {"Prefix": ""},
+                    "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": abort_multipart_days},
+                }
+            )
         self.client.put_bucket_lifecycle_configuration(
             Bucket=self.bucket,
-            LifecycleConfiguration={
-                "Rules": [
-                    {
-                        "ID": "abort-incomplete-multipart",
-                        "Status": "Enabled",
-                        "Filter": {"Prefix": ""},
-                        "Expiration": {"Days": retention_days},
-                        "AbortIncompleteMultipartUpload": {
-                            "DaysAfterInitiation": abort_multipart_days
-                        },
-                    }
-                ]
-            },
+            LifecycleConfiguration={"Rules": rules},
         )
+
+    def cleanup_incomplete_multipart_uploads(self, older_than_days: int) -> int:
+        cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
+        key_marker = upload_marker = None
+        aborted = 0
+        while True:
+            request = {"Bucket": self.bucket}
+            if key_marker:
+                request["KeyMarker"] = key_marker
+            if upload_marker:
+                request["UploadIdMarker"] = upload_marker
+            response = self.client.list_multipart_uploads(**request)
+            for upload in response.get("Uploads", []):
+                initiated = upload.get("Initiated")
+                if initiated and initiated <= cutoff:
+                    self.client.abort_multipart_upload(
+                        Bucket=self.bucket,
+                        Key=upload["Key"],
+                        UploadId=upload["UploadId"],
+                    )
+                    aborted += 1
+            if not response.get("IsTruncated"):
+                break
+            key_marker = response.get("NextKeyMarker")
+            upload_marker = response.get("NextUploadIdMarker")
+        return aborted
 
 
 def default_allowed_mimes() -> set[str]:
