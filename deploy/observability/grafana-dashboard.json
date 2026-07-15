@@ -6,7 +6,11 @@
     {"type": "timeseries", "title": "HTTP latency p95", "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(tutor_http_request_duration_seconds_bucket[5m])))"}], "gridPos": {"h": 6, "w": 9, "x": 6, "y": 0}},
     {"type": "timeseries", "title": "Queue age", "targets": [{"expr": "tutor_queue_oldest_age_seconds", "legendFormat": "{{queue}}"}], "gridPos": {"h": 6, "w": 9, "x": 15, "y": 0}},
     {"type": "timeseries", "title": "Workflow duration p95", "targets": [{"expr": "histogram_quantile(0.95, sum by (le, stage) (rate(tutor_workflow_duration_seconds_bucket[10m])))", "legendFormat": "{{stage}}"}], "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6}},
-    {"type": "timeseries", "title": "Critical failures", "targets": [{"expr": "increase(tutor_critical_failures_total[5m])", "legendFormat": "{{component}}"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}}
+    {"type": "timeseries", "title": "Critical failures", "targets": [{"expr": "increase(tutor_critical_failures_total[5m])", "legendFormat": "{{component}}"}], "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6}},
+    {"type": "stat", "title": "Web availability · 30d", "targets": [{"expr": "1 - sum(rate(tutor_http_requests_total{route!~\"/health/.*|/metrics\",status=~\"5..\"}[30d])) / clamp_min(sum(rate(tutor_http_requests_total{route!~\"/health/.*|/metrics\",status!~\"4..\"}[30d])), 0.001)"}], "gridPos": {"h": 6, "w": 6, "x": 0, "y": 14}, "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 0.995}]}}}},
+    {"type": "stat", "title": "Delivery success · 30d", "targets": [{"expr": "sum(rate(tutor_workflow_duration_seconds_count{stage=\"delivery\",outcome=\"success\"}[30d])) / clamp_min(sum(rate(tutor_workflow_duration_seconds_count{stage=\"delivery\"}[30d])), 0.001)"}], "gridPos": {"h": 6, "w": 6, "x": 6, "y": 14}, "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 0.999}]}}}},
+    {"type": "stat", "title": "Backup age", "targets": [{"expr": "time() - tutor_backup_last_success_timestamp_seconds"}], "gridPos": {"h": 6, "w": 6, "x": 12, "y": 14}, "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 86400}]}}}},
+    {"type": "stat", "title": "Restore drill age", "targets": [{"expr": "time() - tutor_restore_drill_last_success_timestamp_seconds"}], "gridPos": {"h": 6, "w": 6, "x": 18, "y": 14}, "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 2678400}]}}}}
   ],
   "schemaVersion": 41,
   "tags": ["tutor-assistant"],
@@ -14,5 +18,5 @@
   "time": {"from": "now-6h", "to": "now"},
   "title": "Tutor Assistant / Production",
   "uid": "tutor-assistant-production",
-  "version": 1
+  "version": 2
 }

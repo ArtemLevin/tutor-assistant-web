@@ -134,6 +134,15 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True
     metrics_bearer_token: str = ""
     readiness_timeout_seconds: float = Field(default=3.0, ge=0.2, le=30)
+    backup_s3_bucket: str = "tutor-backups"
+    backup_s3_prefix: str = "tutor-assistant"
+    backup_s3_endpoint_url: str = ""
+    backup_s3_region: str = ""
+    backup_s3_access_key: str = ""
+    backup_s3_secret_key: str = ""
+    backup_interval_seconds: int = Field(default=79_200, ge=3600, le=604_800)
+    backup_retention_days: int = Field(default=35, ge=2, le=3650)
+    pushgateway_url: str = ""
 
     app_secret_key_file: str = ""
     database_url_file: str = ""
@@ -146,6 +155,7 @@ class Settings(BaseSettings):
     document_engine_token_file: str = ""
     metrics_bearer_token_file: str = ""
     sentry_dsn_file: str = ""
+    backup_s3_secret_key_file: str = ""
     enabled_modules: str = ""
 
     bootstrap_organization_name: str = "Tutor Workspace"
@@ -173,6 +183,7 @@ class Settings(BaseSettings):
             ("document_engine_token", "document_engine_token_file"),
             ("metrics_bearer_token", "metrics_bearer_token_file"),
             ("sentry_dsn", "sentry_dsn_file"),
+            ("backup_s3_secret_key", "backup_s3_secret_key_file"),
         ):
             path = str(getattr(self, file_field, "")).strip()
             if path:
@@ -295,6 +306,8 @@ class Settings(BaseSettings):
             raise ValueError("ARTIFACT_STORAGE_PROVIDER is not supported")
         if storage_provider == "s3" and not self.artifact_s3_bucket:
             raise ValueError("ARTIFACT_S3_BUCKET is required for S3 storage")
+        if storage_provider == "s3" and self.backup_s3_bucket == self.artifact_s3_bucket:
+            raise ValueError("BACKUP_S3_BUCKET must differ from ARTIFACT_S3_BUCKET")
         if self.session_idle_timeout > self.session_max_age:
             raise ValueError("SESSION_IDLE_TIMEOUT must not exceed SESSION_MAX_AGE")
         if self.session_rotation_seconds > self.session_max_age:

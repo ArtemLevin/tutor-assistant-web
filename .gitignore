@@ -14,3 +14,7 @@ data/*.db
 data/*.sqlite*
 data/artifacts/
 .DS_Store
+deploy/production/.env.production
+deploy/production/secrets/
+deploy/production/runtime/
+load/results/

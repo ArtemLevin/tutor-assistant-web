@@ -61,6 +61,10 @@ BBB ссылки ведут в полноценную комнату с виде
 - JSON-логи без PII, сквозной correlation ID для HTTP/outbox/Celery и audit скачиваний;
 - OpenTelemetry → Tempo, Prometheus-метрики, Grafana dashboard, readiness и базовые alerts;
 - Bandit и `pip-audit` в обязательном CI security pipeline.
+- production images для web/worker/scheduler/migration/ops, non-root runtime и immutable tags;
+- TLS reverse proxy Caddy, blue/green deployment, практический rollback и отдельные migration jobs;
+- автоматический PostgreSQL+S3 backup, checksum manifest, retention и изолированный restore drill;
+- SLO/error budget, release load gates, эксплуатационные runbooks и approval-gated v1.0.0.
 
 ## Быстрый старт в demo-режиме
 
@@ -192,6 +196,32 @@ Alembic-ревизии до запуска web и workers. Перед запус
 
 Для локального запуска без Redis оставьте `TASK_EAGER=true`: обработка выполнится в процессе web.
 Для Compose и production используется `TASK_EAGER=false`.
+
+## Production release
+
+Базовая production-топология — `compose.production.yml`; Helm намеренно не добавлен, пока не
+выбрана Kubernetes-инфраструктура. Приложение разворачивается blue/green за Caddy, а web, worker,
+scheduler и migration job используют отдельные image targets.
+
+```bash
+make production-init
+# заполнить deploy/production/.env.production и пустые provider secrets
+make production-config
+make production-deploy RELEASE=v1.0.0
+```
+
+`deploy.sh` принимает только immutable tag, делает backup, запускает migration отдельным job,
+ждёт readiness неактивного slot и лишь затем переключает Caddy. `make production-rollback`
+возвращает предыдущий application release. Schema rollback требует отдельного подтверждения и
+проверенного Alembic downgrade.
+
+Workflow `Production release` собирает и сканирует пять images, разворачивает staging, выполняет
+smoke/load/restore/resilience gates и останавливается на GitHub Environment approval перед
+production. Annotated tag и GitHub Release `v1.0.0` создаются только после успешного production
+smoke, поэтому tag всегда указывает на фактически развёрнутый commit.
+
+Цели и бюджеты описаны в [docs/slo.md](docs/slo.md), полный порядок — в
+[release checklist](docs/release-checklist.md) и [production runbooks](docs/runbooks/deployment.md).
 
 ## Материалы после занятия
 
@@ -353,7 +383,7 @@ ENABLED_MODULES=students,scheduling
 - diarization говорящих пока не подключён;
 - локальные AI-материалы являются шаблонными черновиками;
 - demo-доска служит только для знакомства с интерфейсом и не синхронизируется;
-- журнал аудита и политика удаления персональных данных относятся к production-этапу.
+- юридические основания обработки данных несовершеннолетних и тексты согласий задаются владельцем развёртывания.
 
 Пилот предназначен для проверки реального сценария на нескольких занятиях. Перед работой с
 персональными данными несовершеннолетних требуется определить согласия, сроки хранения, резервное
