@@ -275,15 +275,28 @@ class S3ArtifactStorage(_ValidatedStorage):
             if region and region != "us-east-1":
                 args["CreateBucketConfiguration"] = {"LocationConstraint": region}
             self.client.create_bucket(**args)
-        self.client.put_public_access_block(
-            Bucket=self.bucket,
-            PublicAccessBlockConfiguration={
-                "BlockPublicAcls": True,
-                "IgnorePublicAcls": True,
-                "BlockPublicPolicy": True,
-                "RestrictPublicBuckets": True,
-            },
-        )
+        try:
+            self.client.put_public_access_block(
+                Bucket=self.bucket,
+                PublicAccessBlockConfiguration={
+                    "BlockPublicAcls": True,
+                    "IgnorePublicAcls": True,
+                    "BlockPublicPolicy": True,
+                    "RestrictPublicBuckets": True,
+                },
+            )
+        except ClientError as exc:
+            # MinIO releases without the AWS public-access-block extension still create
+            # buckets as private. Explicitly reset the bucket ACL in that compatibility case.
+            code = exc.response.get("Error", {}).get("Code")
+            if code not in {"MalformedXML", "NotImplemented", "XNotImplemented"}:
+                raise
+            try:
+                self.client.put_bucket_acl(Bucket=self.bucket, ACL="private")
+            except ClientError as acl_exc:
+                acl_code = acl_exc.response.get("Error", {}).get("Code")
+                if acl_code not in {"MalformedXML", "NotImplemented", "XNotImplemented"}:
+                    raise
 
     def put(self, key: str, content: bytes, media_type: str) -> StoredArtifact:
         return self.put_stream(key, io.BytesIO(content), media_type)
