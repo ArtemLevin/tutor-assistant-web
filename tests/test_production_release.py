@@ -7,10 +7,15 @@ from pathlib import Path
 
 import pytest
 import yaml
+from sqlalchemy import UniqueConstraint
 
 from tutor_assistant_web import backup_operations
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.load_operations import _guard
+from tutor_assistant_web.modules.classroom.models import RecordingAsset
+from tutor_assistant_web.modules.identity.models import Organization, User
+from tutor_assistant_web.modules.materials.models import GenerationRun
+from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.version import __version__
 
 ROOT = Path(__file__).parents[1]
@@ -40,6 +45,30 @@ def test_production_compose_has_separate_processes_and_private_network() -> None
     assert "ports" not in services["postgres"]
     assert document["networks"]["backend"]["internal"] is True
     assert services["migration"]["restart"] == "no"
+
+
+@pytest.mark.parametrize(
+    ("model", "column"),
+    [
+        (Organization, "slug"),
+        (User, "email"),
+        (Lesson, "bbb_meeting_id"),
+        (RecordingAsset, "record_id"),
+        (GenerationRun, "job_id"),
+        (GenerationRun, "idempotency_key"),
+    ],
+)
+def test_postgresql_unique_constraints_keep_plain_lookup_indexes(model, column: str) -> None:
+    table = model.__table__
+    assert any(
+        isinstance(constraint, UniqueConstraint)
+        and tuple(item.name for item in constraint.columns) == (column,)
+        for constraint in table.constraints
+    )
+    assert any(
+        tuple(item.name for item in index.columns) == (column,) and not index.unique
+        for index in table.indexes
+    )
 
 
 def test_release_shell_scripts_are_syntactically_valid() -> None:

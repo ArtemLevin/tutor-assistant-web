@@ -36,6 +36,17 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pytest
+      - name: Validate production Compose rendering
+        env:
+          BBB_SECRET: ci-bbb-secret
+          TRANSCRIPTION_WEBHOOK_TOKEN: ci-transcription-token
+          DOCUMENT_ENGINE_TOKEN: ci-document-token
+          MATERIALS_WEBHOOK_TOKEN: ci-materials-token
+        run: |
+          deploy/production/init.sh
+          docker compose -f compose.production.yml \
+            --env-file deploy/production/.env.production \
+            --env-file deploy/production/runtime/deployment.env config --quiet
       - run: uv run bandit -r src -ll
       - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/audit.txt
       - run: uv run pip-audit --strict --requirement /tmp/audit.txt

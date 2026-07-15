@@ -34,10 +34,11 @@ class MembershipRole(StrEnum):
 
 class Organization(Base):
     __tablename__ = "organizations"
+    __table_args__ = (UniqueConstraint("slug"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(160))
-    slug: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    slug: Mapped[str] = mapped_column(String(120), index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -48,9 +49,10 @@ class Organization(Base):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (UniqueConstraint("email"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(254), index=True)
     full_name: Mapped[str] = mapped_column(String(160))
     password_hash: Mapped[str] = mapped_column(String(512))
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)

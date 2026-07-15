@@ -146,7 +146,11 @@ class EvidenceBundle(Base):
 
 class GenerationRun(Base):
     __tablename__ = "generation_runs"
-    __table_args__ = (UniqueConstraint("organization_id", "id", name="uq_generation_runs_org_id"),)
+    __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_generation_runs_org_id"),
+        UniqueConstraint("job_id"),
+        UniqueConstraint("idempotency_key"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(
@@ -154,12 +158,12 @@ class GenerationRun(Base):
     )
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), index=True)
     job_id: Mapped[str] = mapped_column(
-        ForeignKey("processing_jobs.id", ondelete="CASCADE"), unique=True, index=True
+        ForeignKey("processing_jobs.id", ondelete="CASCADE"), index=True
     )
     evidence_bundle_id: Mapped[str] = mapped_column(
         ForeignKey("lesson_evidence_bundles.id", ondelete="RESTRICT"), index=True
     )
-    idempotency_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(64), index=True)
     status: Mapped[str] = mapped_column(
         String(24), default=GenerationStatus.building.value, index=True
     )
