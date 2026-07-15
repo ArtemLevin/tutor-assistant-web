@@ -23,7 +23,8 @@ database row moves through `uploading`, `available`, `quarantined`, and `deleted
 remain `uploading` for diagnosis and never become downloadable.
 
 `ARTIFACT_RETENTION_DAYS` controls soft expiry. `ARTIFACT_DELETE_GRACE_DAYS` is the recovery
-window before physical deletion. S3 lifecycle aborts incomplete multipart uploads after
+window before physical deletion. S3 lifecycle provides a final expiry guard after retention plus
+the recovery window and aborts incomplete multipart uploads after
 `ARTIFACT_ABORT_MULTIPART_DAYS`. Celery beat verifies object bytes against the stored SHA-256 and
 size, quarantines mismatches, expires retained objects, and purges due soft deletes.
 

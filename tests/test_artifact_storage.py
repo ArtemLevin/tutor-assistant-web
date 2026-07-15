@@ -49,6 +49,9 @@ class FakeS3:
     def put_public_access_block(self, **kwargs):
         self.public_block = kwargs
 
+    def put_bucket_acl(self, **kwargs):
+        self.private_acl = kwargs
+
     def put_bucket_lifecycle_configuration(self, **kwargs):
         self.lifecycle = kwargs
 

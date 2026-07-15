@@ -346,9 +346,6 @@ class S3ArtifactStorage(_ValidatedStorage):
         )
 
     def configure_lifecycle(self, retention_days: int, abort_multipart_days: int) -> None:
-        # Retention expiry is database-driven to preserve the soft-delete recovery window.
-        # The bucket lifecycle owns cleanup that cannot be represented by an object row.
-        _ = retention_days
         self.client.put_bucket_lifecycle_configuration(
             Bucket=self.bucket,
             LifecycleConfiguration={
@@ -356,7 +353,8 @@ class S3ArtifactStorage(_ValidatedStorage):
                     {
                         "ID": "abort-incomplete-multipart",
                         "Status": "Enabled",
-                        "Prefix": "",
+                        "Filter": {"Prefix": ""},
+                        "Expiration": {"Days": retention_days},
                         "AbortIncompleteMultipartUpload": {
                             "DaysAfterInitiation": abort_multipart_days
                         },
