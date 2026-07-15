@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import random
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -34,7 +35,7 @@ from tutor_assistant_web.shared.contracts import (
     TranscriptionSource,
 )
 from tutor_assistant_web.shared.errors import GoneError, NotFoundError
-from tutor_assistant_web.shared.models import utcnow
+from tutor_assistant_web.shared.models import new_id, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,7 @@ class RecordingReadyService:
                     organization_id=lesson.organization_id,
                     lesson_id=lesson.id,
                     kind="post_lesson",
+                    queue_name="transcription",
                     trigger="bbb_recording_ready",
                     stage="queued",
                     dedup_key=dedup_key,
@@ -179,16 +181,20 @@ class OutboxService:
         max_attempts: int,
         retry_base_seconds: int,
         event_handlers: tuple[OutboxEventHandler, ...] = (),
+        dispatch_lease_seconds: int = 300,
+        jitter=random.uniform,
     ) -> None:
         self.database = database
         self.dispatcher = dispatcher
         self.max_attempts = max_attempts
         self.retry_base_seconds = retry_base_seconds
         self.event_handlers = event_handlers
+        self.dispatch_lease_seconds = dispatch_lease_seconds
+        self.jitter = jitter
 
     def dispatch_pending(self, limit: int = 20) -> dict[str, int]:
         now = utcnow()
-        stale = now - timedelta(minutes=5)
+        stale = now - timedelta(seconds=self.dispatch_lease_seconds)
         events = self._claim_batch(limit, now, stale)
         result = {"dispatched": 0, "retried": 0, "dead": 0}
         for event in events:
@@ -197,13 +203,23 @@ class OutboxService:
                     job_id = event.payload.get("job_id")
                     if not isinstance(job_id, str) or not job_id:
                         raise ValueError("outbox event has no job_id")
-                    self.dispatcher.enqueue_lesson_processing(job_id)
+                    self.dispatcher.enqueue_lesson_processing(job_id, queue="transcription")
+                elif event.topic == "materials.requested":
+                    job_id = event.payload.get("job_id")
+                    if not isinstance(job_id, str) or not job_id:
+                        raise ValueError("outbox event has no job_id")
+                    self.dispatcher.enqueue_lesson_processing(job_id, queue="materials")
                 else:
                     handler = next(
                         (item for item in self.event_handlers if item.handles(event.topic)), None
                     )
                     if handler is None:
                         raise ValueError(f"unsupported outbox topic: {event.topic}")
+                    if self.dispatcher.name == "celery":
+                        self.dispatcher.enqueue_outbox_delivery(event.id, event.lease_token or "")
+                        logger.info("Outbox delivery enqueued event_id=%s", event.id)
+                        result["dispatched"] += 1
+                        continue
                     handler.handle(event.topic, event.organization_id, event.payload)
             except Exception as exc:
                 logger.warning("Outbox dispatch failed event_id=%s: %s", event.id, exc)
@@ -239,34 +255,45 @@ class OutboxService:
             )
             for event in events:
                 event.status = OutboxStatus.dispatching.value
+                event.lease_token = new_id()
                 event.updated_at = now
             session.commit()
             return events
 
-    def _complete(self, event_id: str) -> None:
+    def _complete(self, event_id: str, lease_token: str | None = None) -> bool:
         with self.database.sessions() as session:
             event = session.get(OutboxEvent, event_id)
             if event is None:
-                return
+                return False
+            if lease_token is not None and event.lease_token != lease_token:
+                return False
             event.status = OutboxStatus.completed.value
             event.processed_at = utcnow()
             event.updated_at = utcnow()
             event.last_error = ""
+            event.lease_token = None
             session.commit()
+            return True
 
-    def _release_failed(self, event_id: str, error: Exception) -> str:
+    def _release_failed(
+        self, event_id: str, error: Exception, lease_token: str | None = None
+    ) -> str:
         with self.database.sessions() as session:
             event = session.get(OutboxEvent, event_id)
             if event is None:
                 return "dead"
+            if lease_token is not None and event.lease_token != lease_token:
+                return "stale"
             event.attempts += 1
             event.last_error = str(error)[:4000]
             event.updated_at = utcnow()
+            event.lease_token = None
             if event.attempts >= self.max_attempts:
                 event.status = OutboxStatus.dead.value
                 outcome = "dead"
             else:
-                delay = min(self.retry_base_seconds * (2 ** (event.attempts - 1)), 3600)
+                ceiling = min(self.retry_base_seconds * (2 ** (event.attempts - 1)), 3600)
+                delay = max(1, int(self.jitter(ceiling * 0.5, float(ceiling))))
                 event.status = OutboxStatus.pending.value
                 event.available_at = utcnow() + timedelta(seconds=delay)
                 outcome = "retried"
@@ -294,6 +321,12 @@ class PostLessonWorkflowService:
         self.organization_id = organization_id
 
     def process(self, job_id: str) -> None:
+        self.transcribe(job_id, enqueue_materials=False)
+        self.materials.progress(job_id, 65, "evidence", "Транскрипт готов, собираем материалы")
+        self.materials.process(job_id, start=False, sync_recordings=False)
+        logger.info("Post-lesson workflow completed job_id=%s", job_id)
+
+    def transcribe(self, job_id: str, *, enqueue_materials: bool = True) -> None:
         job = self.materials.status(job_id)
         if job.status == JobStatus.completed.value:
             return
@@ -324,14 +357,51 @@ class PostLessonWorkflowService:
                     )
                 )
                 self._save_transcript(job.lesson_id, recording.record_id, media_url, result)
-            self.materials.progress(job_id, 65, "evidence", "Транскрипт готов, собираем материалы")
-            self.materials.process(job_id, start=False, sync_recordings=False)
-            logger.info("Post-lesson workflow completed job_id=%s", job_id)
+            if enqueue_materials:
+                self._queue_materials(job_id)
+            else:
+                self.materials.progress(
+                    job_id, 65, "evidence", "Транскрипт готов, собираем материалы"
+                )
+            logger.info("Post-lesson transcription completed job_id=%s", job_id)
         except Exception as exc:
             self._mark_transcript_failed(job.lesson_id, exc)
             self.materials.fail(job_id, exc)
             logger.exception("Post-lesson workflow failed job_id=%s", job_id)
             raise
+
+    def _queue_materials(self, job_id: str) -> None:
+        with self.database.sessions() as session:
+            job = session.scalar(
+                select(ProcessingJob)
+                .where(
+                    ProcessingJob.id == job_id,
+                    ProcessingJob.organization_id == self.organization_id,
+                )
+                .with_for_update()
+            )
+            if job is None:
+                raise NotFoundError("Задание не найдено")
+            job.status = JobStatus.queued.value
+            job.queue_name = "materials"
+            job.stage = "materials_queued"
+            job.progress = 65
+            job.message = "Транскрипт готов, ожидаем генерацию материалов"
+            job.next_retry_at = None
+            dedup_key = f"materials.requested:{job.id}"
+            existing = session.scalar(
+                select(OutboxEvent.id).where(OutboxEvent.dedup_key == dedup_key)
+            )
+            if existing is None:
+                session.add(
+                    OutboxEvent(
+                        organization_id=self.organization_id,
+                        topic="materials.requested",
+                        dedup_key=dedup_key,
+                        payload={"job_id": job.id},
+                    )
+                )
+            session.commit()
 
     def _recording(self, lesson_id: str, record_id: str) -> RecordingAsset:
         with self.database.sessions() as session:

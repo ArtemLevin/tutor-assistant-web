@@ -77,6 +77,7 @@ def test_admin_invites_tutor_and_audit_is_visible(tmp_path):
         )
         assert accepted.status_code == 303
         assert client.get("/").status_code == 200
+        assert client.get("/settings/tasks").status_code == 200
         assert client.get("/settings/team").status_code == 403
 
         with database.sessions() as session:
@@ -104,6 +105,7 @@ def test_admin_invites_tutor_and_audit_is_visible(tmp_path):
             assert changed.status_code == 303
             audit = admin_client.get("/settings/audit")
             assert audit.status_code == 200
+            assert admin_client.get("/settings/tasks").status_code == 200
             assert "invitation.created" in audit.text
             assert "membership.updated" in audit.text
 

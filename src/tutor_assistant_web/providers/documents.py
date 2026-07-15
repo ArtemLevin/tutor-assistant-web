@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 
 import httpx
 
+from tutor_assistant_web.providers.resilience import CircuitBreaker
 from tutor_assistant_web.shared.contracts import (
     ArtifactStorage,
     DocumentBuildRequest,
@@ -132,17 +133,20 @@ class LatexedDocumentEngine:
         timeout: float = 120.0,
         transport: httpx.BaseTransport | None = None,
         max_pdf_mb: int = 50,
+        circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
         self.transport = transport
         self.max_pdf_bytes = max_pdf_mb * 1024 * 1024
+        self.circuit_breaker = circuit_breaker or CircuitBreaker("document-engine")
 
     def build(self, request: DocumentBuildRequest) -> DocumentBuildResult:
         tex = _tex_source(request)
         web = _html_source(request)
         headers = {"Authorization": f"Bearer {self.token}"}
+        self.circuit_breaker.before_call()
         try:
             with httpx.Client(
                 timeout=self.timeout,
@@ -173,8 +177,12 @@ class LatexedDocumentEngine:
                 pdf_content = b"".join(chunks)
                 if not pdf_content.startswith(b"%PDF-"):
                     raise DocumentEngineError("compiler returned a non-PDF artifact")
-        except (httpx.HTTPError, ValueError) as exc:
+        except Exception as exc:
+            self.circuit_breaker.record_failure(exc)
+            if isinstance(exc, DocumentEngineError):
+                raise
             raise DocumentEngineError(f"latex-for-everyone request failed: {exc}") from exc
+        self.circuit_breaker.record_success()
         return DocumentBuildResult(
             engine=self.name,
             log=str(payload.get("output") or payload.get("compile_time") or "Compiled"),

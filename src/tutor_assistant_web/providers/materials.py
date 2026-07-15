@@ -5,6 +5,7 @@ from typing import Any
 
 import httpx
 
+from tutor_assistant_web.providers.resilience import CircuitBreaker
 from tutor_assistant_web.shared.contracts import GeneratedArtifact
 
 
@@ -47,22 +48,30 @@ class LocalTemplateMaterialGenerator:
 class WebhookMaterialGenerator:
     name = "webhook"
 
-    def __init__(self, url: str, token: str = "", timeout: float = 60.0) -> None:
+    def __init__(
+        self,
+        url: str,
+        token: str = "",
+        timeout: float = 60.0,
+        circuit_breaker: CircuitBreaker | None = None,
+    ) -> None:
         self.url = url
         self.token = token
         self.timeout = timeout
+        self.circuit_breaker = circuit_breaker or CircuitBreaker("materials-webhook")
 
     def generate(self, evidence: dict[str, Any]) -> list[GeneratedArtifact]:
         headers = {"Content-Type": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        response = httpx.post(
-            self.url,
-            json=evidence,
-            headers=headers,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
+        with self.circuit_breaker.guard():
+            response = httpx.post(
+                self.url,
+                json=evidence,
+                headers=headers,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
         body = response.json()
         artifacts = body.get("artifacts") if isinstance(body, dict) else None
         if not isinstance(artifacts, list):

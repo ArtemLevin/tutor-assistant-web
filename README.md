@@ -52,6 +52,11 @@ BBB ссылки ведут в полноценную комнату с виде
 - PostgreSQL production profile с настраиваемым pool и SQL timeout;
 - tenant foreign keys и конкурентный outbox на `FOR UPDATE SKIP LOCKED`;
 - отдельный migration job и проверяемый перенос существующей SQLite-базы.
+- durable Celery workers с Redis AOF, late acknowledgement и graceful shutdown;
+- отдельные очереди `transcription`, `materials`, `delivery`, `maintenance`;
+- lease/heartbeat, автоматическое восстановление зависших jobs и dead-letter;
+- bounded retry с exponential backoff/jitter и circuit breaker внешних сервисов;
+- экран «Задачи» и CLI для retry, отмены и повторной отправки outbox.
 
 ## Быстрый старт в demo-режиме
 
@@ -84,6 +89,10 @@ make sync       # зависимости
 make migrate    # применить миграции базы
 make run        # web-приложение
 make worker     # Celery worker
+make worker-transcription # worker транскрибации
+make worker-materials     # worker генерации
+make worker-delivery      # worker доставки
+make worker-maintenance   # outbox и восстановление lease
 make beat       # планировщик transactional outbox
 make outbox     # однократная отправка накопленных событий
 make sync-transcription # зависимости локального faster-whisper
@@ -92,6 +101,16 @@ make test-postgres # интеграционные тесты PostgreSQL
 make schema-check # проверить контракт LessonEvidenceBundle v1
 make diagnose   # безопасная диагностика конфигурации
 make docker-up  # app + worker + PostgreSQL + Redis
+```
+
+Операторские команды:
+
+```bash
+uv run tutor-assistant-ops list --organization <organization-id>
+uv run tutor-assistant-ops retry <job-id> --organization <organization-id>
+uv run tutor-assistant-ops cancel <job-id> --organization <organization-id>
+uv run tutor-assistant-ops resend-outbox <event-id> --organization <organization-id>
+uv run tutor-assistant-ops recover --limit 100
 ```
 
 Если Windows Make сообщает, что `uv` не найден, проверьте `uv --version` в том же PowerShell и
@@ -153,9 +172,9 @@ Shared secret остаётся только на backend. В браузер пе
 docker compose up --build
 ```
 
-Compose запускает приложение, Celery worker, Celery Beat, PostgreSQL и Redis. Сам BigBlueButton в
-Compose не включён и подключается как внешний сервис. Одноразовый сервис `migrate` применяет
-Alembic-ревизии до запуска web и workers.
+Compose запускает приложение, четыре специализированных Celery worker, Celery Beat, PostgreSQL и
+Redis с AOF. Сам BigBlueButton подключается как внешний сервис. Одноразовый сервис `migrate`
+применяет Alembic-ревизии до запуска web и workers.
 
 Для локального запуска без Redis оставьте `TASK_EAGER=true`: обработка выполнится в процессе web.
 Для Compose и production используется `TASK_EAGER=false`.
@@ -180,6 +199,8 @@ Alembic-ревизии до запуска web и workers.
 [docs/portal-delivery.md](docs/portal-delivery.md).
 Production PostgreSQL, параметры pool, backup и перенос SQLite описаны в
 [docs/production-database.md](docs/production-database.md).
+Очереди, lease, retry/dead-letter и действия оператора описаны в
+[docs/durable-workers.md](docs/durable-workers.md).
 
 По умолчанию включён локальный детерминированный preview-движок. Для настоящей PDF-компиляции
 подключите отдельный экземпляр `latex-for-everyone`:

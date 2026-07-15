@@ -35,7 +35,7 @@ class InlineJobDispatcher:
         self.document_engine = document_engine
         self.artifact_storage = artifact_storage
 
-    def enqueue_lesson_processing(self, job_id: str) -> None:
+    def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None:
         from sqlalchemy import select
 
         from tutor_assistant_web.modules.automation.application import PostLessonWorkflowService
@@ -79,11 +79,19 @@ class InlineJobDispatcher:
         else:
             materials_service.process(job_id)
 
+    def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None:
+        raise RuntimeError("inline delivery is handled by OutboxService")
+
 
 class CeleryJobDispatcher:
     name = "celery"
 
-    def enqueue_lesson_processing(self, job_id: str) -> None:
+    def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None:
         from tutor_assistant_web.worker import process_lesson_task
 
-        process_lesson_task.delay(job_id)
+        process_lesson_task.apply_async(args=(job_id, queue), queue=queue)
+
+    def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None:
+        from tutor_assistant_web.worker import deliver_outbox_task
+
+        deliver_outbox_task.apply_async(args=(event_id, lease_token), queue="delivery")

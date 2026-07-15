@@ -136,7 +136,9 @@ class TranscriptionProvider(Protocol):
 class JobDispatcher(Protocol):
     name: str
 
-    def enqueue_lesson_processing(self, job_id: str) -> None: ...
+    def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None: ...
+
+    def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None: ...
 
 
 class OutboxEventHandler(Protocol):

@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import selectinload
 
 from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.automation.models import OutboxEvent
 from tutor_assistant_web.modules.classroom.application import ClassroomService
 from tutor_assistant_web.modules.materials.evidence import build_evidence_bundle
 from tutor_assistant_web.modules.materials.models import (
@@ -92,8 +93,19 @@ class MaterialsService:
                 stage="queued",
             )
             session.add(job)
+            session.flush()
+            if self.dispatcher.name == "celery":
+                session.add(
+                    OutboxEvent(
+                        organization_id=self.organization_id,
+                        topic="materials.requested",
+                        dedup_key=f"materials.requested:{job.id}",
+                        payload={"job_id": job.id},
+                    )
+                )
             session.commit()
-        self.dispatcher.enqueue_lesson_processing(job.id)
+        if self.dispatcher.name != "celery":
+            self.dispatcher.enqueue_lesson_processing(job.id, queue="materials")
         return job
 
     def status(self, job_id: str) -> ProcessingJob:
@@ -436,7 +448,8 @@ class MaterialsService:
             job.started_at = datetime.now(UTC)
             job.completed_at = None
             job.next_retry_at = None
-            job.attempt_count += 1
+            if job.lease_owner is None:
+                job.attempt_count += 1
             job.progress = 10
             job.message = message
             job.error = ""

@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from tutor_assistant_web.db import Base
@@ -20,6 +20,8 @@ class JobStatus(StrEnum):
     retrying = "retrying"
     completed = "completed"
     failed = "failed"
+    canceled = "canceled"
+    dead_letter = "dead_letter"
 
 
 class GenerationStatus(StrEnum):
@@ -40,6 +42,10 @@ class ArtifactStatus(StrEnum):
 
 class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
+    __table_args__ = (
+        Index("ix_processing_jobs_lease", "status", "lease_expires_at"),
+        Index("ix_processing_jobs_operations", "organization_id", "status", "created_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(
@@ -47,6 +53,7 @@ class ProcessingJob(Base):
     )
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), index=True)
     kind: Mapped[str] = mapped_column(String(32), default="materials", index=True)
+    queue_name: Mapped[str] = mapped_column(String(32), default="materials", index=True)
     trigger: Mapped[str] = mapped_column(String(32), default="manual", index=True)
     stage: Mapped[str] = mapped_column(String(64), default="queued", index=True)
     dedup_key: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
@@ -61,6 +68,20 @@ class ProcessingJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_retry_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
+    )
+    lease_owner: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dead_lettered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
     lesson: Mapped[Lesson] = relationship("Lesson", back_populates="jobs")

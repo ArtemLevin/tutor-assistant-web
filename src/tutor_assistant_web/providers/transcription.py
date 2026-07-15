@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from tutor_assistant_web.providers.resilience import CircuitBreaker
 from tutor_assistant_web.shared.contracts import (
     TranscriptionResult,
     TranscriptionSegment,
@@ -63,27 +64,35 @@ class DemoTranscriptionProvider:
 class WebhookTranscriptionProvider:
     name = "webhook"
 
-    def __init__(self, url: str, token: str = "", timeout: float = 300.0) -> None:
+    def __init__(
+        self,
+        url: str,
+        token: str = "",
+        timeout: float = 300.0,
+        circuit_breaker: CircuitBreaker | None = None,
+    ) -> None:
         self.url = url
         self.token = token
         self.timeout = timeout
+        self.circuit_breaker = circuit_breaker or CircuitBreaker("transcription-webhook")
 
     def transcribe(self, source: TranscriptionSource) -> TranscriptionResult:
         headers = {"Content-Type": "application/json"}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        response = httpx.post(
-            self.url,
-            json={
-                "schema_version": "1.0",
-                "record_id": source.record_id,
-                "media_url": source.media_url,
-                "metadata": source.metadata,
-            },
-            headers=headers,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
+        with self.circuit_breaker.guard():
+            response = httpx.post(
+                self.url,
+                json={
+                    "schema_version": "1.0",
+                    "record_id": source.record_id,
+                    "media_url": source.media_url,
+                    "metadata": source.metadata,
+                },
+                headers=headers,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
         body = response.json()
         if not isinstance(body, dict) or not isinstance(body.get("text"), str):
             raise TranscriptionProviderError("transcription webhook must return a text field")

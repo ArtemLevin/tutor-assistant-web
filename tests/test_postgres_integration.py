@@ -17,6 +17,7 @@ from tutor_assistant_web.database_copy import copy_sqlite_to_postgres
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.audit.models import AuditEvent
 from tutor_assistant_web.modules.automation.application import OutboxService
+from tutor_assistant_web.modules.automation.durability import DurableJobService
 from tutor_assistant_web.modules.automation.models import OutboxEvent, OutboxStatus
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.modules.identity.models import (
@@ -32,6 +33,7 @@ from tutor_assistant_web.modules.materials.models import (
     EvidenceBundle,
     GenerationRun,
     GenerationStatus,
+    JobStatus,
     ProcessingJob,
 )
 from tutor_assistant_web.modules.portal.application import PublicationService
@@ -268,10 +270,13 @@ class RecordingDispatcher:
         self.job_ids: list[str] = []
         self.lock = threading.Lock()
 
-    def enqueue_lesson_processing(self, job_id: str) -> None:
+    def enqueue_lesson_processing(self, job_id: str, queue: str = "materials") -> None:
         time.sleep(0.01)
         with self.lock:
             self.job_ids.append(job_id)
+
+    def enqueue_outbox_delivery(self, event_id: str, lease_token: str) -> None:
+        raise AssertionError(f"unexpected delivery: {event_id}")
 
 
 def test_outbox_skip_locked_dispatches_each_event_once(database):
@@ -312,3 +317,47 @@ def test_outbox_skip_locked_dispatches_each_event_once(database):
             )
             == 12
         )
+
+
+def test_two_workers_cannot_claim_the_same_durable_job(database):
+    with database.sessions() as session:
+        student = Student(
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            full_name="Lease Student",
+        )
+        session.add(student)
+        session.flush()
+        lesson = Lesson(
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            student_id=student.id,
+            title="Lease lesson",
+            starts_at=datetime.now(UTC),
+            ends_at=datetime.now(UTC) + timedelta(hours=1),
+            bbb_meeting_id=f"lease-{uuid4().hex}",
+            attendee_password="attendee",
+            moderator_password="moderator",
+        )
+        session.add(lesson)
+        session.flush()
+        job = ProcessingJob(
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            lesson_id=lesson.id,
+        )
+        session.add(job)
+        session.commit()
+    barrier = threading.Barrier(2)
+
+    def claim(index: int) -> bool:
+        barrier.wait()
+        return (
+            DurableJobService(database, lease_seconds=60).claim(job.id, f"worker-{index}").acquired
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        claims = list(executor.map(claim, range(2)))
+
+    assert sorted(claims) == [False, True]
+    with database.sessions() as session:
+        stored = session.get(ProcessingJob, job.id)
+        assert stored.status == JobStatus.running.value
+        assert stored.attempt_count == 1
