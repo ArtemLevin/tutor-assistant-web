@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, BinaryIO, Protocol
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,23 @@ class ArtifactStorage(Protocol):
 
     def put(self, key: str, content: bytes, media_type: str) -> StoredArtifact: ...
 
+    def put_stream(
+        self,
+        key: str,
+        stream: BinaryIO,
+        media_type: str,
+        *,
+        expected_sha256: str | None = None,
+        max_bytes: int | None = None,
+    ) -> StoredArtifact: ...
+
     def read(self, key: str) -> bytes: ...
+
+    def iter_bytes(self, key: str, chunk_size: int = 1024 * 1024) -> Iterator[bytes]: ...
+
+    def delete(self, key: str) -> None: ...
+
+    def stat(self, key: str) -> StoredArtifact: ...
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,12 @@ x-worker-common: &worker-common
     REDIS_URL: redis://redis:6379/0
     TASK_EAGER: "false"
     AUTO_MIGRATE: "false"
-    ARTIFACT_STORAGE_ROOT: /data/artifacts
+    ARTIFACT_STORAGE_PROVIDER: s3
+    ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
+    ARTIFACT_S3_BUCKET: tutor-artifacts
+    ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
+    ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+    ARTIFACT_CLAMAV_ENABLED: "true"
   depends_on:
     postgres:
       condition: service_healthy
@@ -17,8 +22,10 @@ x-worker-common: &worker-common
       condition: service_healthy
     migrate:
       condition: service_completed_successfully
-  volumes:
-    - artifact-data:/data/artifacts
+    artifact-init:
+      condition: service_completed_successfully
+    clamav:
+      condition: service_healthy
   restart: unless-stopped
   stop_grace_period: 45s
 
@@ -42,7 +49,12 @@ services:
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
       AUTO_MIGRATE: "false"
-      ARTIFACT_STORAGE_ROOT: /data/artifacts
+      ARTIFACT_STORAGE_PROVIDER: s3
+      ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
+      ARTIFACT_S3_BUCKET: tutor-artifacts
+      ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
+      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      ARTIFACT_CLAMAV_ENABLED: "true"
     ports:
       - "8000:8000"
     depends_on:
@@ -52,8 +64,10 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-    volumes:
-      - artifact-data:/data/artifacts
+      artifact-init:
+        condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
     restart: unless-stopped
 
   worker-transcription:
@@ -81,6 +95,12 @@ services:
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
       AUTO_MIGRATE: "false"
+      ARTIFACT_STORAGE_PROVIDER: s3
+      ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
+      ARTIFACT_S3_BUCKET: tutor-artifacts
+      ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
+      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      ARTIFACT_CLAMAV_ENABLED: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,6 +108,10 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      artifact-init:
+        condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
     restart: unless-stopped
 
   postgres:
@@ -115,7 +139,68 @@ services:
       timeout: 3s
       retries: 10
 
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tutor-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+    ports:
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" &&
+        mc mb --ignore-existing local/tutor-artifacts &&
+        mc anonymous set none local/tutor-artifacts
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tutor-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+    restart: "no"
+
+  artifact-init:
+    build: .
+    command: ["tutor-assistant-artifacts", "configure-bucket"]
+    env_file: .env
+    environment:
+      ARTIFACT_STORAGE_PROVIDER: s3
+      ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
+      ARTIFACT_S3_BUCKET: tutor-artifacts
+      ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
+      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      ARTIFACT_RETENTION_DAYS: ${ARTIFACT_RETENTION_DAYS:-365}
+      ARTIFACT_ABORT_MULTIPART_DAYS: ${ARTIFACT_ABORT_MULTIPART_DAYS:-1}
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  clamav:
+    image: clamav/clamav:1.4
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
 volumes:
   postgres-data:
   redis-data:
-  artifact-data:
+  minio-data:
+  clamav-data:

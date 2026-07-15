@@ -201,6 +201,8 @@ Production PostgreSQL, параметры pool, backup и перенос SQLite 
 [docs/production-database.md](docs/production-database.md).
 Очереди, lease, retry/dead-letter и действия оператора описаны в
 [docs/durable-workers.md](docs/durable-workers.md).
+Private S3/MinIO, антивирусная проверка, retention, восстановление и миграция локальных файлов
+описаны в [docs/artifact-storage.md](docs/artifact-storage.md).
 
 По умолчанию включён локальный детерминированный preview-движок. Для настоящей PDF-компиляции
 подключите отдельный экземпляр `latex-for-everyone`:
@@ -209,7 +211,10 @@ Production PostgreSQL, параметры pool, backup и перенос SQLite 
 DOCUMENT_ENGINE_PROVIDER=latex-for-everyone
 DOCUMENT_ENGINE_URL=https://latex.example.com
 DOCUMENT_ENGINE_TOKEN=service-access-token
-ARTIFACT_STORAGE_ROOT=./data/artifacts
+ARTIFACT_STORAGE_PROVIDER=s3
+ARTIFACT_S3_BUCKET=tutor-artifacts
+# Для MinIO: ARTIFACT_S3_ENDPOINT_URL=https://minio.example.com
+ARTIFACT_CLAMAV_ENABLED=true
 ```
 
 Запись BigBlueButton появляется после серверной постобработки, иногда через несколько минут после

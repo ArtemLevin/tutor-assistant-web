@@ -40,6 +40,13 @@ class ArtifactStatus(StrEnum):
     revoked = "revoked"
 
 
+class ArtifactStorageStatus(StrEnum):
+    uploading = "uploading"
+    available = "available"
+    quarantined = "quarantined"
+    deleted = "deleted"
+
+
 class ProcessingJob(Base):
     __tablename__ = "processing_jobs"
     __table_args__ = (
@@ -188,10 +195,19 @@ class ArtifactVersion(Base):
     status: Mapped[str] = mapped_column(
         String(24), default=ArtifactStatus.review_required.value, index=True
     )
+    storage_status: Mapped[str] = mapped_column(
+        String(24), default=ArtifactStorageStatus.available.value, index=True
+    )
+    quarantine_reason: Mapped[str] = mapped_column(Text, default="")
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    purge_after: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
 
     generation_run: Mapped[GenerationRun] = relationship("GenerationRun", back_populates="versions")
 

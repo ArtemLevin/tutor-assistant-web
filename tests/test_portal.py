@@ -24,12 +24,14 @@ from tutor_assistant_web.modules.identity.models import (
 )
 from tutor_assistant_web.modules.materials.models import (
     ArtifactStatus,
+    ArtifactStorageStatus,
     ArtifactVersion,
     EvidenceBundle,
     GenerationRun,
     GenerationStatus,
     ProcessingJob,
 )
+from tutor_assistant_web.modules.materials.retention import LocalArtifactMigrator
 from tutor_assistant_web.modules.portal.application import (
     PortalEventHandler,
     PortalService,
@@ -423,6 +425,31 @@ def test_revocation_closes_download_and_notifies_recipient(tmp_path):
         kinds = set(session.scalars(select(UserNotification.kind)))
         assert delivery is not None and delivery.status == "revoked"
         assert "material_revoked" in kinds
+
+
+def test_quarantined_artifact_is_not_downloadable(tmp_path):
+    database, settings, _, admin, parent, _, run, artifact_ids = setup_portal_data(tmp_path)
+    publication = PublicationService(database, ORG_ID)
+    publication.publish(run.id, admin.user_id)
+    dispatch_publications(database)
+    with database.sessions() as session:
+        artifact = session.get(ArtifactVersion, artifact_ids["pdf"])
+        artifact.storage_status = ArtifactStorageStatus.quarantined.value
+        artifact.quarantine_reason = "test signature"
+        session.commit()
+    portal = PortalService(database, LocalArtifactStorage(settings.artifact_storage_root), parent)
+    with pytest.raises(NotFoundError):
+        portal.artifact(artifact_ids["pdf"])
+
+
+def test_local_artifact_migration_preserves_sha256(tmp_path):
+    database, settings, _, _, _, _, _, artifact_ids = setup_portal_data(tmp_path)
+    target = LocalArtifactStorage(tmp_path / "s3-target")
+    result = LocalArtifactMigrator(database, settings.artifact_storage_root, target).migrate()
+    assert result["migrated"] == 2
+    with database.sessions() as session:
+        artifact = session.get(ArtifactVersion, artifact_ids["pdf"])
+        assert target.stat(artifact.storage_key).sha256 == artifact.sha256
 
 
 def test_student_access_revocation_hides_delivery_and_notifications(tmp_path):

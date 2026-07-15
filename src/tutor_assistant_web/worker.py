@@ -73,6 +73,8 @@ celery_app.conf.update(
         "tutor.deliver_outbox": {"queue": "delivery"},
         "tutor.dispatch_outbox": {"queue": "maintenance"},
         "tutor.recover_expired_leases": {"queue": "maintenance"},
+        "tutor.verify_artifacts": {"queue": "maintenance"},
+        "tutor.purge_artifacts": {"queue": "maintenance"},
     },
     beat_schedule={
         "dispatch-transactional-outbox": {
@@ -82,6 +84,14 @@ celery_app.conf.update(
         "recover-expired-job-leases": {
             "task": "tutor.recover_expired_leases",
             "schedule": float(settings.job_recovery_poll_seconds),
+        },
+        "verify-artifact-integrity": {
+            "task": "tutor.verify_artifacts",
+            "schedule": float(settings.artifact_maintenance_poll_seconds),
+        },
+        "purge-soft-deleted-artifacts": {
+            "task": "tutor.purge_artifacts",
+            "schedule": float(settings.artifact_maintenance_poll_seconds),
         },
     },
 )
@@ -256,6 +266,44 @@ def recover_expired_leases_task() -> int:
     database = _database()
     try:
         return _durability(database).recover_expired(settings.job_recovery_batch_size)
+    finally:
+        database.dispose()
+
+
+@celery_app.task(name="tutor.verify_artifacts")
+def verify_artifacts_task() -> dict[str, int]:
+    from tutor_assistant_web.modules.materials.retention import ArtifactLifecycleService
+
+    database = _database()
+    try:
+        return ArtifactLifecycleService(
+            database,
+            build_artifact_storage(settings),
+            delete_grace_days=settings.artifact_delete_grace_days,
+        ).verify_integrity(settings.artifact_integrity_batch_size)
+    finally:
+        database.dispose()
+
+
+@celery_app.task(name="tutor.purge_artifacts")
+def purge_artifacts_task() -> int:
+    from tutor_assistant_web.modules.materials.retention import ArtifactLifecycleService
+
+    database = _database()
+    try:
+        storage = build_artifact_storage(settings)
+        lifecycle = ArtifactLifecycleService(
+            database,
+            storage,
+            delete_grace_days=settings.artifact_delete_grace_days,
+        )
+        lifecycle.expire_retention(
+            settings.artifact_retention_days, settings.artifact_integrity_batch_size
+        )
+        cleanup = getattr(storage, "cleanup_incomplete_multipart_uploads", None)
+        if cleanup:
+            cleanup(settings.artifact_abort_multipart_days)
+        return lifecycle.purge_due(settings.artifact_integrity_batch_size)
     finally:
         database.dispose()
 

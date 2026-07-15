@@ -13,6 +13,7 @@ from tutor_assistant_web.modules.classroom.application import ClassroomService
 from tutor_assistant_web.modules.materials.evidence import build_evidence_bundle
 from tutor_assistant_web.modules.materials.models import (
     ArtifactStatus,
+    ArtifactStorageStatus,
     ArtifactVersion,
     BuildLog,
     EvidenceBundle,
@@ -23,6 +24,7 @@ from tutor_assistant_web.modules.materials.models import (
     ProcessingJob,
 )
 from tutor_assistant_web.modules.scheduling.models import Lesson
+from tutor_assistant_web.providers.artifacts import ArtifactStorageError
 from tutor_assistant_web.shared.contracts import (
     ArtifactStorage,
     DocumentBuildRequest,
@@ -148,7 +150,17 @@ class MaterialsService:
         if self.artifact_storage is None:
             raise RuntimeError("artifact storage is not configured")
         artifact = self.artifact_version(artifact_id)
+        if artifact.storage_status != ArtifactStorageStatus.available.value:
+            raise NotFoundError("Файл недоступен")
         return artifact, self.artifact_storage.read(artifact.storage_key)
+
+    def stream_artifact_version(self, artifact_id: str):
+        if self.artifact_storage is None:
+            raise RuntimeError("artifact storage is not configured")
+        artifact = self.artifact_version(artifact_id)
+        if artifact.storage_status != ArtifactStorageStatus.available.value:
+            raise NotFoundError("Файл недоступен")
+        return artifact, self.artifact_storage.iter_bytes(artifact.storage_key)
 
     def approve(self, run_id: str, user_id: str) -> GenerationRun:
         with self.database.sessions() as session:
@@ -250,7 +262,6 @@ class MaterialsService:
                             f"{self.organization_id}/{lesson.id}/{run.id}/"
                             f"v{version_number}/{output.filename}"
                         )
-                        stored = self.artifact_storage.put(key, output.content, output.media_type)
                         version = existing.get(output.kind)
                         if version is None:
                             version = ArtifactVersion(
@@ -261,12 +272,30 @@ class MaterialsService:
                                 filename=output.filename,
                             )
                             session.add(version)
+                        version.storage_status = ArtifactStorageStatus.uploading.value
+                        version.media_type = output.media_type
+                        version.storage_key = key
+                        version.sha256 = hashlib.sha256(output.content).hexdigest()
+                        version.size = len(output.content)
+                        version.version = version_number
+                        session.commit()
+                        try:
+                            stored = self.artifact_storage.put(
+                                key, output.content, output.media_type
+                            )
+                        except ArtifactStorageError as exc:
+                            version.storage_status = ArtifactStorageStatus.quarantined.value
+                            version.quarantine_reason = str(exc)[:2000]
+                            session.commit()
+                            raise
                         version.media_type = stored.media_type
                         version.storage_key = stored.key
                         version.sha256 = stored.sha256
                         version.size = stored.size
                         version.version = version_number
                         version.status = ArtifactStatus.review_required.value
+                        version.storage_status = ArtifactStorageStatus.available.value
+                        version.quarantine_reason = ""
                     run_model.engine = build_result.engine
                     session.add(
                         BuildLog(

@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks test test-postgres lint format check schema-check diagnose docker-up docker-down
+.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks artifacts-init artifacts-verify artifacts-migrate test test-postgres test-minio lint format check schema-check diagnose docker-up docker-down
 
 help:
 	@echo "sync        Install all dependencies with uv"
@@ -10,6 +10,7 @@ help:
 	@echo "worker-*    Start one dedicated Celery queue worker"
 	@echo "beat        Start the transactional outbox scheduler"
 	@echo "outbox      Dispatch pending outbox events once"
+	@echo "artifacts-* Configure, verify or migrate S3 artifacts"
 	@echo "check       Run lint and tests"
 	@echo "test-postgres Run PostgreSQL integration tests"
 	@echo "schema-check Validate the committed evidence schema contract"
@@ -52,11 +53,23 @@ outbox:
 tasks:
 	$(UV) run tutor-assistant-ops list --organization $(ORGANIZATION)
 
+artifacts-init:
+	$(UV) run tutor-assistant-artifacts configure-bucket
+
+artifacts-verify:
+	$(UV) run tutor-assistant-artifacts verify --limit 500
+
+artifacts-migrate:
+	$(UV) run tutor-assistant-artifacts migrate-local --limit 500
+
 test:
 	$(UV) run pytest
 
 test-postgres:
 	$(UV) run pytest tests/test_postgres_integration.py
+
+test-minio:
+	$(UV) run pytest tests/test_minio_integration.py
 
 lint:
 	$(UV) run ruff check .
@@ -72,7 +85,7 @@ schema-check:
 diagnose:
 	@$(UV) --version
 	@$(UV) run python --version
-	@$(UV) run python -c "from tutor_assistant_web.config import get_settings; s=get_settings(); print({'env':s.app_env,'database':s.database_url.split(':',1)[0],'bbb_demo':s.bbb_demo_mode,'bbb_configured':bool(s.bbb_base_url and s.bbb_secret),'task_eager':s.task_eager,'document_engine':s.document_engine_provider,'artifact_storage_root':s.artifact_storage_root})"
+	@$(UV) run python -c "from tutor_assistant_web.config import get_settings; s=get_settings(); print({'env':s.app_env,'database':s.database_url.split(':',1)[0],'bbb_demo':s.bbb_demo_mode,'bbb_configured':bool(s.bbb_base_url and s.bbb_secret),'task_eager':s.task_eager,'document_engine':s.document_engine_provider,'artifact_storage':s.artifact_storage_provider,'artifact_bucket':s.artifact_s3_bucket})"
 
 docker-up:
 	docker compose up --build

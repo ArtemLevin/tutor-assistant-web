@@ -1,11 +1,12 @@
 [project]
 name = "tutor-assistant-web"
-version = "0.9.0"
+version = "0.10.0"
 description = "Fast pilot of a tutor workspace powered by BigBlueButton"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.14,<2",
+  "boto3>=1.35,<2",
   "celery[redis]>=5.4,<6",
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",
@@ -35,6 +36,7 @@ tutor-assistant-web = "tutor_assistant_web.app:run"
 tutor-assistant-worker = "tutor_assistant_web.worker:run"
 tutor-assistant-db-copy = "tutor_assistant_web.database_copy:main"
 tutor-assistant-ops = "tutor_assistant_web.operations:main"
+tutor-assistant-artifacts = "tutor_assistant_web.artifact_operations:main"
 
 [build-system]
 requires = ["hatchling"]

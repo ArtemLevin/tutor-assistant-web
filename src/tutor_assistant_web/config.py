@@ -78,7 +78,28 @@ class Settings(BaseSettings):
     document_engine_token: str = ""
     document_engine_timeout: float = 120.0
     document_max_pdf_mb: int = Field(default=50, ge=1, le=500)
+    artifact_storage_provider: str = "local"
     artifact_storage_root: str = "./data/artifacts"
+    artifact_s3_endpoint_url: str = ""
+    artifact_s3_region: str = "us-east-1"
+    artifact_s3_bucket: str = "tutor-artifacts"
+    artifact_s3_access_key: str = ""
+    artifact_s3_secret_key: str = ""
+    artifact_s3_server_side_encryption: str = "auto"
+    artifact_max_size_mb: int = Field(default=500, ge=1, le=4096)
+    artifact_allowed_mime_types: str = (
+        "application/pdf,application/json,application/x-tex,text/html,text/plain,"
+        "image/png,image/jpeg,audio/wav,audio/mpeg,audio/mp4,video/mp4"
+    )
+    artifact_clamav_enabled: bool = False
+    artifact_clamav_host: str = "clamav"
+    artifact_clamav_port: int = Field(default=3310, ge=1, le=65535)
+    artifact_clamav_timeout: float = Field(default=60.0, ge=1, le=600)
+    artifact_retention_days: int = Field(default=365, ge=1, le=3650)
+    artifact_delete_grace_days: int = Field(default=30, ge=1, le=365)
+    artifact_abort_multipart_days: int = Field(default=1, ge=1, le=30)
+    artifact_integrity_batch_size: int = Field(default=100, ge=1, le=1000)
+    artifact_maintenance_poll_seconds: int = Field(default=3600, ge=60, le=86400)
 
     seed_demo_data: bool = True
     session_cookie_secure: bool = False
@@ -139,6 +160,10 @@ class Settings(BaseSettings):
                 )
             if automation_enabled and self.task_eager:
                 raise ValueError("TASK_EAGER must be false in production")
+            if materials_enabled and self.artifact_storage_provider.lower() != "s3":
+                raise ValueError("ARTIFACT_STORAGE_PROVIDER must be s3 in production")
+            if materials_enabled and not self.artifact_clamav_enabled:
+                raise ValueError("ARTIFACT_CLAMAV_ENABLED must be true in production")
         if make_url(self.redis_url).get_backend_name() not in {"redis", "rediss"}:
             raise ValueError("REDIS_URL must use redis:// or rediss://")
         if self.workflow_soft_time_limit >= self.workflow_hard_time_limit:
@@ -161,6 +186,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "DOCUMENT_ENGINE_URL and DOCUMENT_ENGINE_TOKEN are required for latex-for-everyone"
             )
+        storage_provider = self.artifact_storage_provider.lower()
+        if storage_provider not in {"local", "s3"}:
+            raise ValueError("ARTIFACT_STORAGE_PROVIDER is not supported")
+        if storage_provider == "s3" and not self.artifact_s3_bucket:
+            raise ValueError("ARTIFACT_S3_BUCKET is required for S3 storage")
         return self
 
 
