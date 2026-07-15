@@ -52,6 +52,14 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         artifact = service(request).artifact(artifact_id)
+        principal = web.principal_required(request)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "artifact.downloaded",
+            "material_artifact",
+            artifact.id,
+            {"kind": artifact.kind},
+        )
         return PlainTextResponse(
             artifact.content,
             headers={
@@ -65,6 +73,14 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         artifact, content = service(request).stream_artifact_version(artifact_id)
+        principal = web.principal_required(request)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "artifact.downloaded",
+            "artifact_version",
+            artifact.id,
+            {"kind": artifact.kind, "version": artifact.version},
+        )
         return StreamingResponse(
             content,
             media_type=artifact.media_type,

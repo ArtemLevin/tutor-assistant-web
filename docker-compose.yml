@@ -5,7 +5,7 @@ x-worker-common: &worker-common
       INSTALL_TRANSCRIPTION: ${INSTALL_TRANSCRIPTION:-false}
   env_file: .env
   environment:
-    DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
+    DATABASE_URL: "postgresql+psycopg://tutor:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/tutor"
     REDIS_URL: redis://redis:6379/0
     TASK_EAGER: "false"
     AUTO_MIGRATE: "false"
@@ -13,7 +13,7 @@ x-worker-common: &worker-common
     ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
     ARTIFACT_S3_BUCKET: tutor-artifacts
     ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
-    ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+    ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
     ARTIFACT_CLAMAV_ENABLED: "true"
   depends_on:
     postgres:
@@ -35,7 +35,7 @@ services:
     command: ["alembic", "upgrade", "head"]
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
+      DATABASE_URL: "postgresql+psycopg://tutor:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/tutor"
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,7 +45,7 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
+      DATABASE_URL: "postgresql+psycopg://tutor:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/tutor"
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
       AUTO_MIGRATE: "false"
@@ -53,8 +53,12 @@ services:
       ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
       ARTIFACT_S3_BUCKET: tutor-artifacts
       ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
-      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
       ARTIFACT_CLAMAV_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces
+      METRICS_BEARER_TOKEN_FILE: /run/secrets/metrics_bearer_token
+    secrets:
+      - metrics_bearer_token
     ports:
       - "8000:8000"
     depends_on:
@@ -68,6 +72,8 @@ services:
         condition: service_completed_successfully
       clamav:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     restart: unless-stopped
 
   worker-transcription:
@@ -91,7 +97,7 @@ services:
     command: ["celery", "-A", "tutor_assistant_web.worker.celery_app", "beat", "--loglevel=INFO"]
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://tutor:tutor@postgres:5432/tutor
+      DATABASE_URL: "postgresql+psycopg://tutor:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/tutor"
       REDIS_URL: redis://redis:6379/0
       TASK_EAGER: "false"
       AUTO_MIGRATE: "false"
@@ -99,7 +105,7 @@ services:
       ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
       ARTIFACT_S3_BUCKET: tutor-artifacts
       ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
-      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
       ARTIFACT_CLAMAV_ENABLED: "true"
     depends_on:
       postgres:
@@ -119,7 +125,7 @@ services:
     environment:
       POSTGRES_DB: tutor
       POSTGRES_USER: tutor
-      POSTGRES_PASSWORD: tutor
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -144,7 +150,7 @@ services:
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tutor-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
     ports:
       - "9001:9001"
     volumes:
@@ -168,7 +174,7 @@ services:
         mc anonymous set none local/tutor-artifacts
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tutor-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
     restart: "no"
 
   artifact-init:
@@ -180,7 +186,7 @@ services:
       ARTIFACT_S3_ENDPOINT_URL: http://minio:9000
       ARTIFACT_S3_BUCKET: tutor-artifacts
       ARTIFACT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-tutor-minio}
-      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-tutor-minio-secret}
+      ARTIFACT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
       ARTIFACT_RETENTION_DAYS: ${ARTIFACT_RETENTION_DAYS:-365}
       ARTIFACT_ABORT_MULTIPART_DAYS: ${ARTIFACT_ABORT_MULTIPART_DAYS:-1}
     depends_on:
@@ -199,8 +205,63 @@ services:
       retries: 20
       start_period: 60s
 
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    secrets:
+      - metrics_bearer_token
+    ports:
+      - "9090:9090"
+    depends_on:
+      app:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:12.0.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/observability/grafana-provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/observability/grafana-dashboard.json:/var/lib/grafana/dashboards/tutor.json:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otelcol/config.yml"]
+    volumes:
+      - ./deploy/observability/otel-collector.yml:/etc/otelcol/config.yml:ro
+    ports:
+      - "4318:4318"
+    depends_on:
+      - tempo
+
+  tempo:
+    image: grafana/tempo:2.8.1
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./deploy/observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   redis-data:
   minio-data:
   clamav-data:
+  prometheus-data:
+  grafana-data:
+  tempo-data:
+
+secrets:
+  metrics_bearer_token:
+    environment: METRICS_BEARER_TOKEN

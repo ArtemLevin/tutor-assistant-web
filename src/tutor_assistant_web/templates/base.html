@@ -35,7 +35,7 @@
           {% if workspaces|length > 1 %}
           <form method="post" action="/workspace/switch">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <select name="organization_id" aria-label="Рабочее пространство" onchange="this.form.submit()">
+            <select name="organization_id" aria-label="Рабочее пространство" data-auto-submit>
               {% for membership in workspaces %}
               <option value="{{ membership.organization_id }}" {% if membership.organization_id == principal.organization_id %}selected{% endif %}>{{ membership.organization.name }}</option>
               {% endfor %}

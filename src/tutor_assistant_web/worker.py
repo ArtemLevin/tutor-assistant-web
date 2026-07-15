@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 from uuid import uuid4
 
-from celery import Celery
+from celery import Celery, signals
 from kombu import Queue
+from opentelemetry import trace
 from sqlalchemy import select
 
 from tutor_assistant_web.bootstrap.container import (
@@ -32,10 +33,22 @@ from tutor_assistant_web.modules.classroom.application import ClassroomService
 from tutor_assistant_web.modules.materials.application import MaterialsService
 from tutor_assistant_web.modules.materials.models import ProcessingJob
 from tutor_assistant_web.modules.portal.application import PortalEventHandler
+from tutor_assistant_web.observability import (
+    bind_correlation,
+    configure_logging,
+    configure_worker_telemetry,
+    correlation_id,
+    record_exception,
+    reset_correlation,
+    workflow_timer,
+)
 from tutor_assistant_web.providers.tasks import CeleryJobDispatcher
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+configure_logging(settings)
+configure_worker_telemetry(settings)
+_correlation_tokens: dict[str, object] = {}
 
 celery_app = Celery("tutor_assistant_web", broker=settings.redis_url, backend=settings.redis_url)
 celery_app.conf.update(
@@ -95,6 +108,22 @@ celery_app.conf.update(
         },
     },
 )
+
+
+@signals.task_prerun.connect
+def _bind_task_correlation(task_id=None, task=None, **_kwargs):
+    headers = getattr(getattr(task, "request", None), "headers", {}) or {}
+    token = bind_correlation(headers.get("x-correlation-id"))
+    trace.get_current_span().set_attribute("app.correlation_id", correlation_id())
+    if task_id:
+        _correlation_tokens[task_id] = token
+
+
+@signals.task_postrun.connect
+def _reset_task_correlation(task_id=None, **_kwargs):
+    token = _correlation_tokens.pop(task_id, None)
+    if token is not None:
+        reset_correlation(token)
 
 
 def _database() -> Database:
@@ -188,6 +217,7 @@ def process_lesson_task(self, job_id: str, phase: str = "materials") -> None:
         except LeaseUnavailable as exc:
             raise self.retry(countdown=exc.retry_after, max_retries=None) from exc
         except Exception as exc:
+            record_exception("worker", exc)
             delay = durability.retry(job_id, owner, exc)
             if delay is None:
                 logger.exception("Durable job moved to dead-letter job_id=%s", job_id)
@@ -225,8 +255,10 @@ def deliver_outbox_task(self, event_id: str, lease_token: str) -> None:
         if not handler.handles(event.topic):
             raise ValueError(f"unsupported delivery topic: {event.topic}")
         try:
-            handler.handle(event.topic, event.organization_id, event.payload)
+            with workflow_timer("delivery"):
+                handler.handle(event.topic, event.organization_id, event.payload)
         except Exception as exc:
+            record_exception("delivery", exc)
             outcome = outbox._release_failed(event.id, exc, lease_token)
             if outcome == "stale":
                 return
@@ -320,7 +352,11 @@ def enqueue_processing(job_id: str) -> None:
         database.dispose()
     if queue not in {"transcription", "materials"}:
         queue = "materials"
-    process_lesson_task.apply_async(args=(job_id, queue), queue=queue)
+    process_lesson_task.apply_async(
+        args=(job_id, queue),
+        queue=queue,
+        headers={"x-correlation-id": correlation_id()},
+    )
 
 
 def run() -> None:

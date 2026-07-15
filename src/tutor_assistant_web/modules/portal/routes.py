@@ -44,6 +44,14 @@ def create_router(container: AppContainer) -> APIRouter:
         if blocked:
             return blocked
         artifact, content = recipient_service(request).artifact_stream(artifact_id)
+        principal = web.principal_required(request)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "artifact.downloaded",
+            "artifact_version",
+            artifact.id,
+            {"kind": artifact.kind, "version": artifact.version, "channel": "portal"},
+        )
         return StreamingResponse(
             content,
             media_type=artifact.media_type,
@@ -65,6 +73,14 @@ def create_router(container: AppContainer) -> APIRouter:
         artifact, content = recipient_service(request).artifact(artifact_id)
         if artifact.kind != "html":
             return RedirectResponse(f"/portal/artifacts/{artifact_id}/download", status_code=303)
+        principal = web.principal_required(request)
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "artifact.previewed",
+            "artifact_version",
+            artifact.id,
+            {"kind": artifact.kind, "version": artifact.version, "channel": "portal"},
+        )
         return Response(
             content,
             media_type="text/html; charset=utf-8",

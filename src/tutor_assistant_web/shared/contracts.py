@@ -46,6 +46,8 @@ class ConferenceProvider(Protocol):
 
     def recordings(self, meeting_id: str) -> list[ConferenceRecording]: ...
 
+    def healthcheck(self) -> None: ...
+
 
 @dataclass(frozen=True)
 class GeneratedArtifact:
@@ -119,6 +121,8 @@ class ArtifactStorage(Protocol):
     def delete(self, key: str) -> None: ...
 
     def stat(self, key: str) -> StoredArtifact: ...
+
+    def healthcheck(self) -> None: ...
 
 
 @dataclass(frozen=True)

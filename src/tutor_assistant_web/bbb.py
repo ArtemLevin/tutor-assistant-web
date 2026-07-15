@@ -4,9 +4,9 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
-from xml.etree import ElementTree
 
 import httpx
+from defusedxml import ElementTree
 
 from tutor_assistant_web.providers.resilience import CircuitBreaker
 
@@ -43,7 +43,11 @@ class BigBlueButtonClient:
     def signed_url(self, call: str, params: dict[str, Any] | None = None) -> str:
         clean = {key: value for key, value in (params or {}).items() if value is not None}
         query = urlencode(clean, doseq=True)
-        checksum = hashlib.sha1(f"{call}{query}{self.secret}".encode()).hexdigest()
+        # BigBlueButton's checksum API mandates SHA-1; this is protocol
+        # compatibility rather than a locally chosen password hash.
+        checksum = hashlib.sha1(  # nosec B324
+            f"{call}{query}{self.secret}".encode()
+        ).hexdigest()
         separator = "&" if query else ""
         return f"{self.api_url}/{call}?{query}{separator}checksum={checksum}"
 

@@ -9,6 +9,7 @@ from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.classroom.models import RecordingAsset
 from tutor_assistant_web.modules.materials.models import GenerationRun
 from tutor_assistant_web.modules.scheduling.models import Lesson, LessonStatus
+from tutor_assistant_web.observability import LESSON_DURATION
 from tutor_assistant_web.shared.contracts import (
     ConferenceProvider,
     CreateConference,
@@ -135,6 +136,8 @@ class ClassroomService:
                 raise NotFoundError("Занятие не найдено")
             self.conference.end_room(lesson.bbb_meeting_id)
             lesson.status = LessonStatus.completed.value
+            duration = (lesson.ends_at - lesson.starts_at).total_seconds()
+            LESSON_DURATION.observe(max(duration, 0))
             session.commit()
 
     def demo_room(self, lesson_id: str) -> Lesson:
