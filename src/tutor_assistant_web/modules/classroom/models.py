@@ -22,7 +22,7 @@ class RecordingAsset(Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), index=True
     )
     lesson_id: Mapped[str] = mapped_column(ForeignKey("lessons.id"), index=True)
-    record_id: Mapped[str] = mapped_column(String(256), index=True)
+    record_id: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     state: Mapped[str] = mapped_column(String(32), default="processing")
     playback_url: Mapped[str] = mapped_column(Text, default="")
     raw_metadata: Mapped[dict] = mapped_column(JSON, default=dict)

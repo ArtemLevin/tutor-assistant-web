@@ -51,7 +51,7 @@ class Lesson(Base):
     topic: Mapped[str] = mapped_column(String(300), default="")
     tutor_notes: Mapped[str] = mapped_column(Text, default="")
     price_snapshot: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0)
-    bbb_meeting_id: Mapped[str] = mapped_column(String(256), index=True)
+    bbb_meeting_id: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     attendee_password: Mapped[str] = mapped_column(String(64))
     moderator_password: Mapped[str] = mapped_column(String(64))
     record_enabled: Mapped[bool] = mapped_column(Boolean, default=True)

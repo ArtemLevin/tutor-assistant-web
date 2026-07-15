@@ -48,17 +48,19 @@ def test_production_compose_has_separate_processes_and_private_network() -> None
 
 
 @pytest.mark.parametrize(
-    ("model", "column"),
+    ("model", "column", "unique_index"),
     [
-        (Organization, "slug"),
-        (User, "email"),
-        (Lesson, "bbb_meeting_id"),
-        (RecordingAsset, "record_id"),
-        (GenerationRun, "job_id"),
-        (GenerationRun, "idempotency_key"),
+        (Organization, "slug", True),
+        (User, "email", True),
+        (Lesson, "bbb_meeting_id", True),
+        (RecordingAsset, "record_id", True),
+        (GenerationRun, "job_id", False),
+        (GenerationRun, "idempotency_key", False),
     ],
 )
-def test_postgresql_unique_constraints_keep_plain_lookup_indexes(model, column: str) -> None:
+def test_postgresql_unique_constraints_match_historical_indexes(
+    model, column: str, unique_index: bool
+) -> None:
     table = model.__table__
     assert any(
         isinstance(constraint, UniqueConstraint)
@@ -66,7 +68,8 @@ def test_postgresql_unique_constraints_keep_plain_lookup_indexes(model, column: 
         for constraint in table.constraints
     )
     assert any(
-        tuple(item.name for item in index.columns) == (column,) and not index.unique
+        tuple(item.name for item in index.columns) == (column,)
+        and bool(index.unique) is unique_index
         for index in table.indexes
     )
 
