@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from starlette.responses import StreamingResponse
 
 from tutor_assistant_web.bootstrap.container import AppContainer
 
@@ -42,8 +43,8 @@ def create_router(container: AppContainer) -> APIRouter:
         blocked = web.require_recipient(request)
         if blocked:
             return blocked
-        artifact, content = recipient_service(request).artifact(artifact_id)
-        return Response(
+        artifact, content = recipient_service(request).artifact_stream(artifact_id)
+        return StreamingResponse(
             content,
             media_type=artifact.media_type,
             headers={

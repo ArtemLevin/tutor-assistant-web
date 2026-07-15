@@ -13,6 +13,7 @@ from tutor_assistant_web.modules.identity.application import Principal
 from tutor_assistant_web.modules.identity.models import StudentAccess
 from tutor_assistant_web.modules.materials.models import (
     ArtifactStatus,
+    ArtifactStorageStatus,
     ArtifactVersion,
     BuildLog,
     GenerationRun,
@@ -408,6 +409,14 @@ class PortalService:
             return delivery
 
     def artifact(self, artifact_id: str) -> tuple[ArtifactVersion, bytes]:
+        artifact = self._authorized_artifact(artifact_id)
+        return artifact, self.storage.read(artifact.storage_key)
+
+    def artifact_stream(self, artifact_id: str):
+        artifact = self._authorized_artifact(artifact_id)
+        return artifact, self.storage.iter_bytes(artifact.storage_key)
+
+    def _authorized_artifact(self, artifact_id: str) -> ArtifactVersion:
         with self.database.sessions() as session:
             artifact = session.scalar(
                 select(ArtifactVersion)
@@ -424,6 +433,7 @@ class PortalService:
                     ArtifactVersion.id == artifact_id,
                     ArtifactVersion.organization_id == self.principal.organization_id,
                     ArtifactVersion.status == ArtifactStatus.published.value,
+                    ArtifactVersion.storage_status == ArtifactStorageStatus.available.value,
                     GenerationRun.status == GenerationStatus.published.value,
                     MaterialDelivery.organization_id == self.principal.organization_id,
                     MaterialDelivery.status == DeliveryStatus.available.value,
@@ -434,7 +444,7 @@ class PortalService:
             )
             if artifact is None:
                 raise NotFoundError("Материал не найден")
-            return artifact, self.storage.read(artifact.storage_key)
+            return artifact
 
     def mark_notification_read(self, notification_id: str) -> UserNotification:
         with self.database.sessions() as session:

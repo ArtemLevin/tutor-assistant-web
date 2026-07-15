@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import PlainTextResponse, RedirectResponse
+from starlette.responses import StreamingResponse
 
 from tutor_assistant_web.bootstrap.container import AppContainer
 
@@ -63,8 +64,8 @@ def create_router(container: AppContainer) -> APIRouter:
         blocked = web.require_tutor(request)
         if blocked:
             return blocked
-        artifact, content = service(request).read_artifact_version(artifact_id)
-        return Response(
+        artifact, content = service(request).stream_artifact_version(artifact_id)
+        return StreamingResponse(
             content,
             media_type=artifact.media_type,
             headers={
