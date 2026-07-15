@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks artifacts-init artifacts-verify artifacts-migrate test test-postgres test-minio lint format security check schema-check diagnose docker-up docker-down
+.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks artifacts-init artifacts-verify artifacts-migrate test test-postgres test-minio lint format security check schema-check diagnose docker-up docker-down production-init production-config production-deploy production-rollback production-backup production-restore-drill production-smoke load-http
 
 help:
 	@echo "sync        Install all dependencies with uv"
@@ -17,6 +17,8 @@ help:
 	@echo "schema-check Validate the committed evidence schema contract"
 	@echo "diagnose    Print runtime diagnostics"
 	@echo "docker-up   Start app, worker, PostgreSQL and Redis"
+	@echo "production-* Initialize, validate, deploy, rollback, backup and restore-drill"
+	@echo "load-http   Run the 100-session k6 gate"
 
 sync:
 	$(UV) sync --extra dev
@@ -97,3 +99,32 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+production-init:
+	./deploy/production/init.sh
+
+production-config:
+	docker compose -f compose.production.yml \
+		--env-file deploy/production/.env.production \
+		--env-file deploy/production/runtime/deployment.env config --quiet
+
+production-deploy:
+	@test -n "$(RELEASE)" || (echo "Set RELEASE to an immutable tag" && exit 2)
+	./deploy/production/deploy.sh "$(RELEASE)"
+
+production-rollback:
+	./deploy/production/rollback.sh app
+
+production-backup:
+	./deploy/production/backup.sh
+
+production-restore-drill:
+	@test -n "$(BACKUP_ID)" || (echo "Set BACKUP_ID=YYYYMMDDTHHMMSSZ" && exit 2)
+	./deploy/production/restore-drill.sh "$(BACKUP_ID)"
+
+production-smoke:
+	./deploy/production/smoke.sh
+
+load-http:
+	docker run --rm --network host -v "$(CURDIR)/load:/scripts:ro" grafana/k6:0.57.0 \
+		run -e BASE_URL="$(BASE_URL)" -e VUS=100 -e DURATION=5m /scripts/http.js

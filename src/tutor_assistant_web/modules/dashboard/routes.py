@@ -10,6 +10,7 @@ from tutor_assistant_web.modules.dashboard.application import (
     QueueMetricsService,
     ReadinessService,
 )
+from tutor_assistant_web.version import __version__
 
 
 def create_router(container: AppContainer) -> APIRouter:
@@ -40,7 +41,7 @@ def create_router(container: AppContainer) -> APIRouter:
 
     @router.get("/health/live")
     def health_live():
-        return {"status": "ok", "version": "0.11.0"}
+        return {"status": "ok", "version": __version__}
 
     @router.get("/health/ready")
     def health_ready():
