@@ -18,3 +18,5 @@ deploy/production/.env.production
 deploy/production/secrets/
 deploy/production/runtime/
 load/results/
+.idea
+.gigaide
