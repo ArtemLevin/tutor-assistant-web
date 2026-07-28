@@ -90,6 +90,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return "callbacks", self.settings.rate_limit_callbacks
         if request.method == "GET" and ("download" in path or "artifact" in path):
             return "downloads", self.settings.rate_limit_downloads
+        if path.startswith("/api/v1/boards/") or (
+            path.startswith("/api/v1/lessons/") and path.endswith("/board")
+        ):
+            if request.method in {"GET", "HEAD", "OPTIONS"}:
+                return "board-reads", self.settings.rate_limit_board_reads
+            return "board-writes", self.settings.rate_limit_board_writes
         return None
 
     async def dispatch(self, request: Request, call_next):

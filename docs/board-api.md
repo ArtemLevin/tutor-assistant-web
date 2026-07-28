@@ -1,0 +1,46 @@
+# TutorBoard REST API
+
+The board API is session-authenticated and served from the same origin as
+TutorBoard. It uses the vendored `board/v1` schemas and the persistent revision
+journal described in `board-persistence.md`.
+
+## Access matrix
+
+| Role | Read assigned board | Append commands | Save snapshots | Create/delete |
+|---|---:|---:|---:|---:|
+| `admin` | all tenant boards | yes | yes | yes |
+| `tutor` | all tenant boards | yes | yes | yes |
+| `student` | active `StudentAccess` only | yes | yes | no |
+| `parent` | active `StudentAccess` only | no | no | no |
+
+An authenticated user without access receives `404` for a board so the API
+does not disclose whether a cross-student or cross-tenant identifier exists.
+A parent attempting to change an assigned board receives `403`.
+
+## Routes
+
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/boards/context` | actor, organization, role, and session CSRF token |
+| `POST` | `/api/v1/lessons/{lesson_id}/board` | create or resolve the lesson board |
+| `GET` | `/api/v1/boards/{document_id}` | latest valid snapshot plus command suffix |
+| `GET` | `/api/v1/boards/{document_id}/commands` | command batches after `afterRevision` |
+| `POST` | `/api/v1/boards/{document_id}/commands` | append one command envelope |
+| `POST` | `/api/v1/boards/{document_id}/snapshots` | store one canonical snapshot |
+| `DELETE` | `/api/v1/boards/{document_id}` | soft-delete a board |
+
+Unsafe requests require `X-CSRF-Token` from the context or board response.
+They accept only `application/json`, except `DELETE`, and enforce the configured
+command/snapshot size before parsing. The authenticated user ID must match the
+envelope and every command `actorId`.
+
+Successful board responses include `ETag`, `X-Board-Revision`, and
+`X-CSRF-Token`. `baseRevision` is the authoritative optimistic-lock contract.
+A stale append returns `409` with `currentRevision` and up to 500 missing
+command batches so TutorBoard can deterministically rebase. `hasMore=true`
+instructs the client to continue through the commands endpoint.
+
+Rate limits use `RATE_LIMIT_BOARD_READS` and `RATE_LIMIT_BOARD_WRITES` in the
+shared `RATE_LIMIT_WINDOW_SECONDS` window. Audit details contain identifiers,
+revision counts, sizes, and digests; board command and snapshot content is not
+copied into the audit log.
