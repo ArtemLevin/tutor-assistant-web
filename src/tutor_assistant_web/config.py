@@ -124,6 +124,8 @@ class Settings(BaseSettings):
     rate_limit_invitations: int = Field(default=30, ge=1, le=1000)
     rate_limit_callbacks: int = Field(default=120, ge=1, le=10000)
     rate_limit_downloads: int = Field(default=120, ge=1, le=10000)
+    rate_limit_board_reads: int = Field(default=600, ge=1, le=100_000)
+    rate_limit_board_writes: int = Field(default=300, ge=1, le=100_000)
     rate_limit_window_seconds: int = Field(default=60, ge=10, le=3600)
     security_csp: str = (
         "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; "

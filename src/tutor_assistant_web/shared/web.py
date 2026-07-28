@@ -151,3 +151,9 @@ class WebSupport:
         if not supplied or not secrets.compare_digest(supplied, expected):
             raise HTTPException(403, "Форма устарела. Обновите страницу и повторите действие.")
         return form
+
+    def validate_csrf_header(self, request: Request) -> None:
+        supplied = request.headers.get("x-csrf-token", "")
+        expected = str(request.session.get("csrf", ""))
+        if not supplied or not expected or not secrets.compare_digest(supplied, expected):
+            raise HTTPException(403, "CSRF-токен отсутствует или устарел")

@@ -25,7 +25,7 @@
 
 ## Rate limiting
 
-Redis хранит счётчики в общем окне `RATE_LIMIT_WINDOW_SECONDS` для четырёх классов:
+Redis хранит счётчики в общем окне `RATE_LIMIT_WINDOW_SECONDS` для шести классов:
 
 | Класс | Маршруты | Переменная |
 |---|---|---|
@@ -33,6 +33,8 @@ Redis хранит счётчики в общем окне `RATE_LIMIT_WINDOW_SE
 | invitations | создание, принятие и отзыв приглашений | `RATE_LIMIT_INVITATIONS` |
 | callbacks | `/webhooks/*` | `RATE_LIMIT_CALLBACKS` |
 | downloads | artifact/download/preview | `RATE_LIMIT_DOWNLOADS` |
+| board reads | чтение `/api/v1/boards/*` | `RATE_LIMIT_BOARD_READS` |
+| board writes | изменения `/api/v1/boards/*` и создание доски | `RATE_LIMIT_BOARD_WRITES` |
 
 После третьей login-попытки добавляется bounded delay; после лимита возвращается `429` и
 `Retry-After`. При кратком отказе Redis действует локальный ограничитель процесса, а readiness
@@ -68,8 +70,9 @@ correlation ID остаются; полное событие отправляе�
 `send_default_pii=false` и дополнительным scrubber. В production log sink также должен иметь
 ограниченный RBAC и retention.
 
-Audit log фиксирует скачивание и preview, публикацию, отзыв, создание/отзыв приглашения и изменение
-membership/access. Audit записи tenant-scoped и не заменяют access log ingress/S3.
+Audit log фиксирует скачивание и preview, публикацию, отзыв, создание/отзыв приглашения, изменение
+membership/access и значимые изменения доски. Audit записи tenant-scoped и не заменяют access log
+ingress/S3.
 
 ## Метрики и трассы
 

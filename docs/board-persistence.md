@@ -1,8 +1,7 @@
 # TutorBoard persistence
 
-The `boards` module owns server-side TutorBoard durability. It intentionally
-does not expose HTTP routes yet; authenticated REST and ACL handling are the
-next integration boundary.
+The `boards` module owns server-side TutorBoard durability. Its authenticated
+REST boundary and role policy are documented in `board-api.md`.
 
 ## Stored state
 

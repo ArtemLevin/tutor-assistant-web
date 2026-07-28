@@ -5,6 +5,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -99,6 +100,16 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
 
     @app.exception_handler(ApplicationError)
     async def handle_application_error(request: Request, exc: ApplicationError):
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": exc.__class__.__name__,
+                        "message": str(exc),
+                    }
+                },
+                status_code=exc.status_code,
+            )
         return templates.TemplateResponse(
             request=request,
             name="error.html",
