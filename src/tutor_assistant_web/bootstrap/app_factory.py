@@ -19,6 +19,7 @@ from tutor_assistant_web.config import Settings, get_settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.audit.module import MODULE as AUDIT_MODULE
 from tutor_assistant_web.modules.automation.module import MODULE as AUTOMATION_MODULE
+from tutor_assistant_web.modules.boards.module import MODULE as BOARDS_MODULE
 from tutor_assistant_web.modules.classroom.module import MODULE as CLASSROOM_MODULE
 from tutor_assistant_web.modules.dashboard.module import MODULE as DASHBOARD_MODULE
 from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
@@ -41,6 +42,7 @@ ALL_MODULES = (
     AUDIT_MODULE,
     STUDENTS_MODULE,
     SCHEDULING_MODULE,
+    BOARDS_MODULE,
     CLASSROOM_MODULE,
     MATERIALS_MODULE,
     AUTOMATION_MODULE,

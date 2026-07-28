@@ -2,14 +2,29 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import os
 import time
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 import boto3
 import pytest
 
+from tutor_assistant_web.config import Settings
+from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+from tutor_assistant_web.modules.identity.application import IdentityService
+from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
+from tutor_assistant_web.modules.scheduling.models import Lesson
+from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import S3ArtifactStorage
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot10
+
+BOARD_SNAPSHOT_FIXTURE = (
+    Path(__file__).parents[1] / "schemas" / "board" / "v1" / "fixtures" / "board-snapshot.json"
+)
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("TEST_S3_ENDPOINT_URL"), reason="TEST_S3_ENDPOINT_URL is not configured"
@@ -62,3 +77,49 @@ def test_minio_private_streaming_lifecycle_and_backup_restore():
         expected_sha256=stored.sha256,
     )
     assert restored.stat(stored.key).sha256 == checksum
+
+
+def test_board_snapshot_round_trip_through_minio(tmp_path):
+    target = storage()
+    target.ensure_private_bucket()
+    database = Database(f"sqlite:///{tmp_path / 'minio-board.db'}")
+    database.migrate()
+    IdentityService(database).bootstrap(
+        Settings(seed_demo_data=False, bootstrap_admin_password="admin-password")
+    )
+    with database.sessions() as session:
+        student = Student(
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            full_name="MinIO Board Student",
+        )
+        session.add(student)
+        session.flush()
+        lesson = Lesson(
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            student_id=student.id,
+            title="MinIO board",
+            starts_at=datetime.now(UTC),
+            ends_at=datetime.now(UTC) + timedelta(hours=1),
+            bbb_meeting_id=f"minio-board-{uuid4().hex}",
+            attendee_password="attendee",
+            moderator_password="moderator",
+        )
+        session.add(lesson)
+        session.commit()
+    service = BoardPersistenceService(
+        database,
+        target,
+        DEFAULT_ORGANIZATION_ID,
+    )
+    service.create_for_lesson(lesson.id, "document:lesson-01")
+    snapshot = BoardSnapshot10.model_validate(
+        json.loads(BOARD_SNAPSHOT_FIXTURE.read_text()) | {"revision": 0}
+    )
+
+    stored = service.save_snapshot(snapshot)
+    restored = service.load_latest_snapshot("document:lesson-01")
+
+    assert target.stat(stored.storage_key).sha256 == stored.sha256
+    assert restored is not None
+    assert restored.document_sha256 == snapshot.document_sha256
+    database.dispose()

@@ -304,21 +304,45 @@ def recover_expired_leases_task() -> int:
 
 @celery_app.task(name="tutor.verify_artifacts")
 def verify_artifacts_task() -> dict[str, int]:
+    from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+    from tutor_assistant_web.modules.boards.models import BoardDocument
     from tutor_assistant_web.modules.materials.retention import ArtifactLifecycleService
 
     database = _database()
     try:
-        return ArtifactLifecycleService(
+        storage = build_artifact_storage(settings)
+        result = ArtifactLifecycleService(
             database,
-            build_artifact_storage(settings),
+            storage,
             delete_grace_days=settings.artifact_delete_grace_days,
         ).verify_integrity(settings.artifact_integrity_batch_size)
+        with database.sessions() as session:
+            organization_ids = list(
+                session.scalars(select(BoardDocument.organization_id).distinct())
+            )
+        board_checked = board_quarantined = 0
+        for organization_id in organization_ids:
+            board_result = BoardPersistenceService(
+                database,
+                storage,
+                organization_id,
+                delete_grace_days=settings.board_delete_grace_days,
+            ).verify_integrity(limit=settings.artifact_integrity_batch_size)
+            board_checked += board_result["checked"]
+            board_quarantined += board_result["quarantined"]
+        return {
+            **result,
+            "board_checked": board_checked,
+            "board_quarantined": board_quarantined,
+        }
     finally:
         database.dispose()
 
 
 @celery_app.task(name="tutor.purge_artifacts")
 def purge_artifacts_task() -> int:
+    from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+    from tutor_assistant_web.modules.boards.models import BoardDocument
     from tutor_assistant_web.modules.materials.retention import ArtifactLifecycleService
 
     database = _database()
@@ -335,7 +359,24 @@ def purge_artifacts_task() -> int:
         cleanup = getattr(storage, "cleanup_incomplete_multipart_uploads", None)
         if cleanup:
             cleanup(settings.artifact_abort_multipart_days)
-        return lifecycle.purge_due(settings.artifact_integrity_batch_size)
+        purged = lifecycle.purge_due(settings.artifact_integrity_batch_size)
+        with database.sessions() as session:
+            organization_ids = list(
+                session.scalars(select(BoardDocument.organization_id).distinct())
+            )
+        for organization_id in organization_ids:
+            boards = BoardPersistenceService(
+                database,
+                storage,
+                organization_id,
+                delete_grace_days=settings.board_delete_grace_days,
+            )
+            boards.expire_retention(
+                settings.board_retention_days,
+                limit=settings.artifact_integrity_batch_size,
+            )
+            purged += boards.purge_due(limit=settings.artifact_integrity_batch_size)
+        return purged
     finally:
         database.dispose()
 

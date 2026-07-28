@@ -34,6 +34,12 @@ class Lesson(Base):
     __tablename__ = "lessons"
     __table_args__ = (
         UniqueConstraint("bbb_meeting_id"),
+        UniqueConstraint(
+            "organization_id",
+            "student_id",
+            "id",
+            name="uq_lessons_org_student_id",
+        ),
         Index("ix_lessons_org_starts_at", "organization_id", "starts_at"),
     )
 
