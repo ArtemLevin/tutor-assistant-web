@@ -1,0 +1,107 @@
+{
+  "createdAt": "2026-07-28T17:00:00.000Z",
+  "document": {
+    "schemaVersion": "1.0",
+    "id": "document:lesson-01",
+    "title": "Linear functions",
+    "createdAt": "2026-07-24T12:00:00.000Z",
+    "updatedAt": "2026-07-24T12:01:00.000Z",
+    "viewport": {
+      "offset": {
+        "x": 120,
+        "y": -40
+      },
+      "zoom": 1.25
+    },
+    "objects": {
+      "object:rectangle-01": {
+        "id": "object:rectangle-01",
+        "kind": "drawing.rectangle",
+        "groupId": "group:example-01",
+        "locked": false,
+        "position": {
+          "x": 80,
+          "y": 100
+        },
+        "rotation": 0,
+        "scale": {
+          "x": 1,
+          "y": 1
+        },
+        "source": {
+          "kind": "user"
+        },
+        "style": {
+          "fill": "#e8f0ff",
+          "opacity": 1,
+          "stroke": "#2457d6",
+          "strokeWidth": 2
+        },
+        "visible": true,
+        "size": {
+          "height": 120,
+          "width": 240
+        }
+      },
+      "object:line-01": {
+        "id": "object:line-01",
+        "kind": "drawing.line",
+        "groupId": "group:example-01",
+        "locked": false,
+        "position": {
+          "x": 100,
+          "y": 220
+        },
+        "rotation": 0,
+        "scale": {
+          "x": 1,
+          "y": 1
+        },
+        "source": {
+          "kind": "user"
+        },
+        "style": {
+          "fill": null,
+          "opacity": 0.9,
+          "stroke": "#1a1a1a",
+          "strokeWidth": 3
+        },
+        "visible": true,
+        "end": {
+          "x": 260,
+          "y": -80
+        }
+      }
+    },
+    "order": [
+      "object:line-01",
+      "object:rectangle-01"
+    ],
+    "groups": {
+      "group:example-01": {
+        "id": "group:example-01",
+        "locked": false,
+        "objectIds": [
+          "object:rectangle-01",
+          "object:line-01"
+        ],
+        "transform": {
+          "rotation": 0,
+          "scale": {
+            "x": 1,
+            "y": 1
+          },
+          "translation": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      }
+    },
+    "geometryImports": {}
+  },
+  "documentId": "document:lesson-01",
+  "documentSha256": "5ea2a9a564a5caeeae20f0725867dee80606358c751022dd0ded1f6a82af1407",
+  "revision": 7,
+  "schemaVersion": "1.0"
+}

@@ -1,0 +1,17 @@
+{
+  "actorId": "actor:tutor-01",
+  "baseRevision": 7,
+  "commands": [
+    {
+      "actorId": "actor:tutor-01",
+      "id": "command:rename-08",
+      "kind": "core.document.rename",
+      "timestamp": "2026-07-28T17:00:00.000Z",
+      "title": "Linear functions: lesson summary"
+    }
+  ],
+  "documentId": "document:lesson-01",
+  "expectedDocumentSha256": "5ea2a9a564a5caeeae20f0725867dee80606358c751022dd0ded1f6a82af1407",
+  "idempotencyKey": "client:tutor-01:batch-08",
+  "schemaVersion": "1.0"
+}
