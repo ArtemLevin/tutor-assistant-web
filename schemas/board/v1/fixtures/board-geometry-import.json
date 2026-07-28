@@ -1,0 +1,18 @@
+{
+  "baseRevision": 7,
+  "commandId": "command:geometry-import-08",
+  "createdAt": "2026-07-28T17:00:00.000Z",
+  "documentId": "document:lesson-01",
+  "geometryOs": {
+    "apiVersion": "1.0.0",
+    "girSchemaVersion": "0.2.0",
+    "girSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "layoutDocumentVersion": "0.1.0",
+    "layoutSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "requestId": "geometryos:request-08",
+    "serviceVersion": "0.3.0"
+  },
+  "importId": "import:geometry-08",
+  "prompt": "Постройте треугольник ABC.",
+  "schemaVersion": "1.0"
+}

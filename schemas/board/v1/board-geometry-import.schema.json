@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "Identifier": {
+      "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://contracts.tutorboard.dev/board/v1/board-geometry-import.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BoardGeometryImport 1.0",
+  "additionalProperties": false,
+  "properties": {
+    "baseRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "commandId": {
+      "$ref": "#/$defs/Identifier"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "documentId": {
+      "$ref": "#/$defs/Identifier"
+    },
+    "geometryOs": {
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": "1.0.0"
+        },
+        "girSchemaVersion": {
+          "const": "0.2.0"
+        },
+        "girSha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "layoutDocumentVersion": {
+          "const": "0.1.0"
+        },
+        "layoutSha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "requestId": {
+          "maxLength": 220,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9._:-]+$",
+          "type": "string"
+        },
+        "serviceVersion": {
+          "pattern": "^0\\.[0-9]+\\.[0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "girSchemaVersion",
+        "girSha256",
+        "layoutDocumentVersion",
+        "layoutSha256",
+        "requestId",
+        "serviceVersion"
+      ],
+      "type": "object"
+    },
+    "importId": {
+      "$ref": "#/$defs/Identifier"
+    },
+    "prompt": {
+      "maxLength": 100000,
+      "minLength": 1,
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  },
+  "required": [
+    "baseRevision",
+    "commandId",
+    "createdAt",
+    "documentId",
+    "geometryOs",
+    "importId",
+    "prompt",
+    "schemaVersion"
+  ],
+  "type": "object"
+}

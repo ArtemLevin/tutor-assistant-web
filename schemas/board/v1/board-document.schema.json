@@ -1,0 +1,902 @@
+{
+  "$defs": {
+    "BoardDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "geometryImports": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GeometryImportRecord"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "groups": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BoardGroup"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "objects": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "order": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "title": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "viewport": {
+          "$ref": "#/$defs/Viewport"
+        }
+      },
+      "required": [
+        "createdAt",
+        "geometryImports",
+        "groups",
+        "id",
+        "objects",
+        "order",
+        "schemaVersion",
+        "title",
+        "updatedAt",
+        "viewport"
+      ],
+      "type": "object"
+    },
+    "BoardGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform2D"
+        }
+      },
+      "required": [
+        "id",
+        "locked",
+        "objectIds",
+        "transform"
+      ],
+      "type": "object"
+    },
+    "BoardObject": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PenStrokeObject"
+        },
+        {
+          "$ref": "#/$defs/LineObject"
+        },
+        {
+          "$ref": "#/$defs/RectangleObject"
+        },
+        {
+          "$ref": "#/$defs/EllipseObject"
+        },
+        {
+          "$ref": "#/$defs/TextObject"
+        },
+        {
+          "$ref": "#/$defs/SvgObject"
+        }
+      ]
+    },
+    "EllipseObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.ellipse"
+        },
+        "radius": {
+          "$ref": "#/$defs/PositiveVec2"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "radius"
+      ],
+      "type": "object"
+    },
+    "GeometryImportRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "boardObjectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "canonicalGir": {},
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "geometryOsApiVersion": {
+          "const": "1.0.0"
+        },
+        "girSchemaVersion": {
+          "const": "0.2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "mapping": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "type": "object"
+        },
+        "prompt": {
+          "maxLength": 100000,
+          "type": "string"
+        },
+        "rawResponse": {},
+        "requestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9._:-]{1,220}$"
+        },
+        "rootGroupId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "visualOverrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/VisualOverride"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "visualTransform": {
+          "$ref": "#/$defs/Transform2D"
+        }
+      },
+      "required": [
+        "boardObjectIds",
+        "canonicalGir",
+        "createdAt",
+        "geometryOsApiVersion",
+        "girSchemaVersion",
+        "id",
+        "mapping",
+        "prompt",
+        "rawResponse",
+        "requestId",
+        "rootGroupId",
+        "visualOverrides",
+        "visualTransform"
+      ],
+      "type": "object"
+    },
+    "GeometryOsObjectSource": {
+      "additionalProperties": false,
+      "properties": {
+        "girEntityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "girEntityType": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "importId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "geometryos"
+        }
+      },
+      "required": [
+        "girEntityId",
+        "girEntityType",
+        "importId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Identifier": {
+      "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "type": "string"
+    },
+    "LineObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.line"
+        },
+        "end": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "lineStyle": {
+          "enum": [
+            "dashed",
+            "solid"
+          ]
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "end"
+      ],
+      "type": "object"
+    },
+    "ObjectStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "fill": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "opacity": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "stroke": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "strokeWidth": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "fill",
+        "opacity",
+        "stroke",
+        "strokeWidth"
+      ],
+      "type": "object"
+    },
+    "PenStrokeObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.pen-stroke"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/Vec2"
+          },
+          "type": "array",
+          "maxItems": 100000,
+          "minItems": 2
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "points"
+      ],
+      "type": "object"
+    },
+    "PositiveVec2": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "y": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "RectangleObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.rectangle"
+        },
+        "size": {
+          "$ref": "#/$defs/Size2"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "size"
+      ],
+      "type": "object"
+    },
+    "Size2": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "width"
+      ],
+      "type": "object"
+    },
+    "SvgObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "svg-import.svg"
+        },
+        "sanitizedSvg": {
+          "maxLength": 524288,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sanitizerPolicyVersion": {
+          "const": "tutorboard.svg-sanitizer/1"
+        },
+        "size": {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            },
+            "width": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "width"
+          ],
+          "type": "object"
+        },
+        "viewBox": {
+          "$ref": "#/$defs/SvgViewBox"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "sanitizedSvg",
+        "sanitizerPolicyVersion",
+        "size",
+        "viewBox"
+      ],
+      "type": "object"
+    },
+    "SvgViewBox": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 1000000,
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 1000000,
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "width",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "TextObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.text"
+        },
+        "text": {
+          "maxLength": 100000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Transform2D": {
+      "additionalProperties": false,
+      "properties": {
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "translation": {
+          "$ref": "#/$defs/Vec2"
+        }
+      },
+      "required": [
+        "rotation",
+        "scale",
+        "translation"
+      ],
+      "type": "object"
+    },
+    "UserObjectSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "user"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Vec2": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "Viewport": {
+      "additionalProperties": false,
+      "properties": {
+        "offset": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "zoom": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "offset",
+        "zoom"
+      ],
+      "type": "object"
+    },
+    "VisualOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "style": {
+          "$ref": "#/$defs/VisualStyleOverride"
+        },
+        "translation": {
+          "$ref": "#/$defs/Vec2"
+        }
+      },
+      "required": [
+        "rotation",
+        "scale",
+        "translation"
+      ],
+      "type": "object"
+    },
+    "VisualStyleOverride": {
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "fill": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "opacity": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "stroke": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "strokeWidth": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://contracts.tutorboard.dev/board/v1/board-document.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BoardDocument 1.0",
+  "$ref": "#/$defs/BoardDocument"
+}

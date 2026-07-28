@@ -1,0 +1,1760 @@
+{
+  "$defs": {
+    "BoardDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "geometryImports": {
+          "additionalProperties": {
+            "$ref": "#/$defs/GeometryImportRecord"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "groups": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BoardGroup"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "objects": {
+          "additionalProperties": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "order": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "title": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "viewport": {
+          "$ref": "#/$defs/Viewport"
+        }
+      },
+      "required": [
+        "createdAt",
+        "geometryImports",
+        "groups",
+        "id",
+        "objects",
+        "order",
+        "schemaVersion",
+        "title",
+        "updatedAt",
+        "viewport"
+      ],
+      "type": "object"
+    },
+    "BoardGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform2D"
+        }
+      },
+      "required": [
+        "id",
+        "locked",
+        "objectIds",
+        "transform"
+      ],
+      "type": "object"
+    },
+    "BoardObject": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PenStrokeObject"
+        },
+        {
+          "$ref": "#/$defs/LineObject"
+        },
+        {
+          "$ref": "#/$defs/RectangleObject"
+        },
+        {
+          "$ref": "#/$defs/EllipseObject"
+        },
+        {
+          "$ref": "#/$defs/TextObject"
+        },
+        {
+          "$ref": "#/$defs/SvgObject"
+        }
+      ]
+    },
+    "EllipseObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.ellipse"
+        },
+        "radius": {
+          "$ref": "#/$defs/PositiveVec2"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "radius"
+      ],
+      "type": "object"
+    },
+    "GeometryImportRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "boardObjectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "canonicalGir": {},
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "geometryOsApiVersion": {
+          "const": "1.0.0"
+        },
+        "girSchemaVersion": {
+          "const": "0.2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "mapping": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "type": "object"
+        },
+        "prompt": {
+          "maxLength": 100000,
+          "type": "string"
+        },
+        "rawResponse": {},
+        "requestId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[A-Za-z0-9._:-]{1,220}$"
+        },
+        "rootGroupId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "visualOverrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/VisualOverride"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "visualTransform": {
+          "$ref": "#/$defs/Transform2D"
+        }
+      },
+      "required": [
+        "boardObjectIds",
+        "canonicalGir",
+        "createdAt",
+        "geometryOsApiVersion",
+        "girSchemaVersion",
+        "id",
+        "mapping",
+        "prompt",
+        "rawResponse",
+        "requestId",
+        "rootGroupId",
+        "visualOverrides",
+        "visualTransform"
+      ],
+      "type": "object"
+    },
+    "GeometryOsObjectSource": {
+      "additionalProperties": false,
+      "properties": {
+        "girEntityId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "girEntityType": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "importId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "geometryos"
+        }
+      },
+      "required": [
+        "girEntityId",
+        "girEntityType",
+        "importId",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Identifier": {
+      "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "type": "string"
+    },
+    "LineObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.line"
+        },
+        "end": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "lineStyle": {
+          "enum": [
+            "dashed",
+            "solid"
+          ]
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "end"
+      ],
+      "type": "object"
+    },
+    "ObjectStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "fill": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "opacity": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "stroke": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "strokeWidth": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "fill",
+        "opacity",
+        "stroke",
+        "strokeWidth"
+      ],
+      "type": "object"
+    },
+    "PenStrokeObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.pen-stroke"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/Vec2"
+          },
+          "type": "array",
+          "maxItems": 100000,
+          "minItems": 2
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "points"
+      ],
+      "type": "object"
+    },
+    "PositiveVec2": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "y": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "RectangleObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.rectangle"
+        },
+        "size": {
+          "$ref": "#/$defs/Size2"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "size"
+      ],
+      "type": "object"
+    },
+    "Size2": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "width"
+      ],
+      "type": "object"
+    },
+    "SvgObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "svg-import.svg"
+        },
+        "sanitizedSvg": {
+          "maxLength": 524288,
+          "minLength": 1,
+          "type": "string"
+        },
+        "sanitizerPolicyVersion": {
+          "const": "tutorboard.svg-sanitizer/1"
+        },
+        "size": {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            },
+            "width": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "width"
+          ],
+          "type": "object"
+        },
+        "viewBox": {
+          "$ref": "#/$defs/SvgViewBox"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "sanitizedSvg",
+        "sanitizerPolicyVersion",
+        "size",
+        "viewBox"
+      ],
+      "type": "object"
+    },
+    "SvgViewBox": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 1000000,
+          "type": "number"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 1000000,
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "width",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "TextObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "drawing.text"
+        },
+        "text": {
+          "maxLength": 100000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Transform2D": {
+      "additionalProperties": false,
+      "properties": {
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "translation": {
+          "$ref": "#/$defs/Vec2"
+        }
+      },
+      "required": [
+        "rotation",
+        "scale",
+        "translation"
+      ],
+      "type": "object"
+    },
+    "UserObjectSource": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "user"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Vec2": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "Viewport": {
+      "additionalProperties": false,
+      "properties": {
+        "offset": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "zoom": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "offset",
+        "zoom"
+      ],
+      "type": "object"
+    },
+    "VisualOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "style": {
+          "$ref": "#/$defs/VisualStyleOverride"
+        },
+        "translation": {
+          "$ref": "#/$defs/Vec2"
+        }
+      },
+      "required": [
+        "rotation",
+        "scale",
+        "translation"
+      ],
+      "type": "object"
+    },
+    "VisualStyleOverride": {
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "fill": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "opacity": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "stroke": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "strokeWidth": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "AddGroupCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.groups.add"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "group": {
+          "$ref": "#/$defs/BoardGroup"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "group"
+      ],
+      "type": "object"
+    },
+    "AddObjectsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.objects.add"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "atIndex": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "objects"
+      ],
+      "type": "object"
+    },
+    "CutContentCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.clipboard.cut"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "geometryImportIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "groupIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "geometryImportIds",
+        "groupIds",
+        "objectIds"
+      ],
+      "type": "object"
+    },
+    "DeleteObjectsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.objects.delete"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "objectIds"
+      ],
+      "type": "object"
+    },
+    "ImportGeometryCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.geometry.import"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "group": {
+          "$ref": "#/$defs/BoardGroup"
+        },
+        "importRecord": {
+          "$ref": "#/$defs/GeometryImportRecord"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "group",
+        "importRecord",
+        "objects"
+      ],
+      "type": "object"
+    },
+    "MoveGroupCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.groups.move"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "delta": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "groupId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "delta",
+        "groupId"
+      ],
+      "type": "object"
+    },
+    "MoveObjectsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.objects.move"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "delta": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "delta",
+        "objectIds"
+      ],
+      "type": "object"
+    },
+    "MoveSelectionCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.selection.move"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "delta": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "groupIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "delta",
+        "groupIds",
+        "objectIds"
+      ],
+      "type": "object"
+    },
+    "OffsetGeometryLabelCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.geometry.label-offset"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "delta": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "importId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "delta",
+        "importId",
+        "objectId"
+      ],
+      "type": "object"
+    },
+    "PasteContentCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.clipboard.paste"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "geometryImports": {
+          "items": {
+            "$ref": "#/$defs/GeometryImportRecord"
+          },
+          "type": "array"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/BoardGroup"
+          },
+          "type": "array"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "geometryImports",
+        "groups",
+        "objects"
+      ],
+      "type": "object"
+    },
+    "RemoveGroupsCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.groups.remove"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "groupIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "groupIds"
+      ],
+      "type": "object"
+    },
+    "RenameDocumentCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.document.rename"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "title"
+      ],
+      "type": "object"
+    },
+    "ReorderLayersCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.layers.reorder"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "back",
+            "backward",
+            "forward",
+            "front"
+          ]
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "mode",
+        "objectIds"
+      ],
+      "type": "object"
+    },
+    "SetGeometryVisualStyleCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.geometry.style-override"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "importId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "style": {
+          "$ref": "#/$defs/VisualStyleOverride"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "importId",
+        "objectId",
+        "style"
+      ],
+      "type": "object"
+    },
+    "SetLayerVisibilityCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.layers.set-visibility"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "visible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "objectIds",
+        "visible"
+      ],
+      "type": "object"
+    },
+    "SetSelectionLockCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.selection.set-lock"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "groupIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "groupIds",
+        "locked",
+        "objectIds"
+      ],
+      "type": "object"
+    },
+    "SetSelectionStyleCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.selection.set-style"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "objectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "style": {
+          "$ref": "#/$defs/VisualStyleOverride"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "objectIds",
+        "style"
+      ],
+      "type": "object"
+    },
+    "SetViewportCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.viewport.set"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "viewport": {
+          "$ref": "#/$defs/Viewport"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "viewport"
+      ],
+      "type": "object"
+    },
+    "TranslateGeometryImportCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.geometry.translate"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "delta": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "importId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "delta",
+        "importId"
+      ],
+      "type": "object"
+    },
+    "UpdateTextCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.text.update"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "objectId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "text": {
+          "maxLength": 100000,
+          "type": "string"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "objectId",
+        "text"
+      ],
+      "type": "object"
+    },
+    "BoardCommand": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AddGroupCommand"
+        },
+        {
+          "$ref": "#/$defs/AddObjectsCommand"
+        },
+        {
+          "$ref": "#/$defs/CutContentCommand"
+        },
+        {
+          "$ref": "#/$defs/DeleteObjectsCommand"
+        },
+        {
+          "$ref": "#/$defs/ImportGeometryCommand"
+        },
+        {
+          "$ref": "#/$defs/MoveGroupCommand"
+        },
+        {
+          "$ref": "#/$defs/MoveObjectsCommand"
+        },
+        {
+          "$ref": "#/$defs/MoveSelectionCommand"
+        },
+        {
+          "$ref": "#/$defs/OffsetGeometryLabelCommand"
+        },
+        {
+          "$ref": "#/$defs/PasteContentCommand"
+        },
+        {
+          "$ref": "#/$defs/RemoveGroupsCommand"
+        },
+        {
+          "$ref": "#/$defs/RenameDocumentCommand"
+        },
+        {
+          "$ref": "#/$defs/ReorderLayersCommand"
+        },
+        {
+          "$ref": "#/$defs/SetGeometryVisualStyleCommand"
+        },
+        {
+          "$ref": "#/$defs/SetLayerVisibilityCommand"
+        },
+        {
+          "$ref": "#/$defs/SetSelectionLockCommand"
+        },
+        {
+          "$ref": "#/$defs/SetSelectionStyleCommand"
+        },
+        {
+          "$ref": "#/$defs/SetViewportCommand"
+        },
+        {
+          "$ref": "#/$defs/TranslateGeometryImportCommand"
+        },
+        {
+          "$ref": "#/$defs/UpdateTextCommand"
+        }
+      ]
+    }
+  },
+  "$id": "https://contracts.tutorboard.dev/board/v1/board-command-envelope.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BoardCommandEnvelope 1.0",
+  "additionalProperties": false,
+  "properties": {
+    "actorId": {
+      "$ref": "#/$defs/Identifier"
+    },
+    "baseRevision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "commands": {
+      "items": {
+        "$ref": "#/$defs/BoardCommand"
+      },
+      "type": "array",
+      "maxItems": 100,
+      "minItems": 1
+    },
+    "documentId": {
+      "$ref": "#/$defs/Identifier"
+    },
+    "expectedDocumentSha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "idempotencyKey": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9._:-]+$",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    }
+  },
+  "required": [
+    "actorId",
+    "baseRevision",
+    "commands",
+    "documentId",
+    "expectedDocumentSha256",
+    "idempotencyKey",
+    "schemaVersion"
+  ],
+  "type": "object"
+}

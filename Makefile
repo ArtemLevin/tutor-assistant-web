@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks artifacts-init artifacts-verify artifacts-migrate test test-postgres test-minio lint format security check schema-check diagnose docker-up docker-down production-init production-config production-deploy production-rollback production-backup production-restore-drill production-smoke load-http
+.PHONY: help sync sync-transcription migrate run worker worker-transcription worker-materials worker-delivery worker-maintenance beat outbox tasks artifacts-init artifacts-verify artifacts-migrate test test-postgres test-minio lint format security check schema-check board-contract-generate board-contract-check diagnose docker-up docker-down production-init production-config production-deploy production-rollback production-backup production-restore-drill production-smoke load-http
 
 help:
 	@echo "sync        Install all dependencies with uv"
@@ -15,6 +15,7 @@ help:
 	@echo "security    Run static and dependency security scans"
 	@echo "test-postgres Run PostgreSQL integration tests"
 	@echo "schema-check Validate the committed evidence schema contract"
+	@echo "board-contract-* Generate or verify the pinned TutorBoard DTO contract"
 	@echo "diagnose    Print runtime diagnostics"
 	@echo "docker-up   Start app, worker, PostgreSQL and Redis"
 	@echo "production-* Initialize, validate, deploy, rollback, backup and restore-drill"
@@ -84,10 +85,17 @@ security:
 	$(UV) run bandit -r src -ll
 	$(UV) run pip-audit --skip-editable
 
-check: lint security test
+check: board-contract-check lint security test
 
 schema-check:
 	$(UV) run pytest tests/test_materials_factory.py -k schema
+
+board-contract-generate:
+	$(UV) run python scripts/generate_board_contract_models.py
+
+board-contract-check:
+	$(UV) run python scripts/generate_board_contract_models.py --check
+	$(UV) run pytest tests/test_board_contracts.py
 
 diagnose:
 	@$(UV) --version

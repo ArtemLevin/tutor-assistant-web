@@ -1,0 +1,38 @@
+{
+  "artifacts": {
+    "board-command-envelope.schema.json": {
+      "sha256": "b10698d989086a4322ef07aa32af124b72d791b1a1df4c9cf5709cb05c94aa9e"
+    },
+    "board-document.schema.json": {
+      "sha256": "41ddc9564c02d09d9720940eb8678a6aa8748b531eaa8828682769ef55288901"
+    },
+    "board-geometry-import.schema.json": {
+      "sha256": "2cd193022d401e34f946cb7c194f97463b500563a9c7c1b0de5a0356a2c82aa8"
+    },
+    "board-snapshot.schema.json": {
+      "sha256": "af19d75131e8955fbe35fc070bceb3317cd7dc83e26852897cb538f3622d02e2"
+    },
+    "fixtures/board-command-envelope.json": {
+      "sha256": "ead2f66866194c5d413d8b0698b595d24d900c00bf57d5e31489dcdd67acb08f"
+    },
+    "fixtures/board-document.json": {
+      "sha256": "df5442a1e13e3af31b47091d83ddf12f8a083c38f8eed8046725363fe0a2ba76"
+    },
+    "fixtures/board-geometry-import.json": {
+      "sha256": "e8131807a14ed0b79dc501f6ce9d64930de82d3853ef97f24636feb2f316e808"
+    },
+    "fixtures/board-snapshot.json": {
+      "sha256": "1063c046140562425eb33e11a317359e2b0c8274a09ae04cde7aaa13de64032a"
+    },
+    "README.md": {
+      "sha256": "5f195bf96feb6ba8f046df40241d30ebb706e4f8e3e9edcb8ef7a0d47229e0b3"
+    }
+  },
+  "contract": "board/v1",
+  "schemas": {
+    "boardCommandEnvelope": "1.0",
+    "boardDocument": "1.0",
+    "boardGeometryImport": "1.0",
+    "boardSnapshot": "1.0"
+  }
+}
