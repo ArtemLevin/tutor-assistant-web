@@ -117,6 +117,27 @@ def test_materials_production_configuration_requires_real_document_engine():
         raise AssertionError("materials must require a real document engine in production")
 
 
+def test_boards_production_configuration_requires_s3_but_not_bbb_or_latex():
+    settings = Settings(
+        app_env="production",
+        app_secret_key=PRODUCTION_SECRET,
+        bootstrap_admin_password="a-secure-production-password",
+        database_url=PRODUCTION_DATABASE_URL,
+        auto_migrate=False,
+        enabled_modules="boards",
+        bbb_demo_mode=True,
+        public_base_url="https://tutor.example.test",
+        artifact_storage_provider="s3",
+        session_cookie_secure=True,
+        seed_demo_data=False,
+        bootstrap_admin_email="admin@example.test",
+        metrics_bearer_token="metrics-token-with-24-characters",
+    )
+
+    assert settings.enabled_modules == "boards"
+    assert settings.document_engine_provider == "local"
+
+
 def test_production_configuration_requires_postgresql_and_migration_job():
     common = {
         "app_env": "production",

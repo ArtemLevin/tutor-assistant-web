@@ -106,6 +106,12 @@ class Settings(BaseSettings):
     artifact_abort_multipart_days: int = Field(default=1, ge=1, le=30)
     artifact_integrity_batch_size: int = Field(default=100, ge=1, le=1000)
     artifact_maintenance_poll_seconds: int = Field(default=3600, ge=60, le=86400)
+    board_command_max_size_mb: int = Field(default=5, ge=1, le=50)
+    board_snapshot_max_size_mb: int = Field(default=50, ge=1, le=500)
+    board_snapshot_interval_commands: int = Field(default=100, ge=1, le=10_000)
+    board_snapshot_interval_mb: int = Field(default=5, ge=1, le=500)
+    board_retention_days: int = Field(default=365, ge=1, le=3650)
+    board_delete_grace_days: int = Field(default=30, ge=1, le=365)
 
     seed_demo_data: bool = True
     session_cookie_secure: bool = False
@@ -242,13 +248,16 @@ class Settings(BaseSettings):
             materials_enabled = not enabled or bool(
                 enabled & {"materials", "automation", "portal", "dashboard"}
             )
+            boards_enabled = not enabled or "boards" in enabled
             if materials_enabled and self.document_engine_provider.lower() == "local":
                 raise ValueError(
                     "DOCUMENT_ENGINE_PROVIDER must use a production compiler for materials"
                 )
             if automation_enabled and self.task_eager:
                 raise ValueError("TASK_EAGER must be false in production")
-            if materials_enabled and self.artifact_storage_provider.lower() != "s3":
+            if (
+                materials_enabled or boards_enabled
+            ) and self.artifact_storage_provider.lower() != "s3":
                 raise ValueError("ARTIFACT_STORAGE_PROVIDER must be s3 in production")
             if materials_enabled and not self.artifact_clamav_enabled:
                 raise ValueError("ARTIFACT_CLAMAV_ENABLED must be true in production")

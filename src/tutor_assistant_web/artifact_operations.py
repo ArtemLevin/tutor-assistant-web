@@ -37,7 +37,10 @@ def main() -> None:
                 raise SystemExit("S3 storage must be configured")
             storage.ensure_private_bucket()
             storage.configure_lifecycle(
-                settings.artifact_retention_days + settings.artifact_delete_grace_days,
+                max(
+                    settings.artifact_retention_days + settings.artifact_delete_grace_days,
+                    settings.board_retention_days + settings.board_delete_grace_days,
+                ),
                 settings.artifact_abort_multipart_days,
             )
             result = {"bucket": storage.bucket, "private": True}

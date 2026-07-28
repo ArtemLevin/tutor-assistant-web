@@ -9,6 +9,13 @@ from tutor_assistant_web.modules.automation.models import (
     OutboxEvent,
     WebhookReceipt,
 )
+from tutor_assistant_web.modules.boards.models import (
+    BoardCommandBatch,
+    BoardDocument,
+    BoardGeometryImport,
+    BoardSnapshot,
+    BoardSnapshotStatus,
+)
 from tutor_assistant_web.modules.classroom.models import RecordingAsset
 from tutor_assistant_web.modules.identity.models import (
     Invitation,
@@ -37,6 +44,11 @@ __all__ = [
     "JobStatus",
     "ArtifactStatus",
     "ArtifactVersion",
+    "BoardCommandBatch",
+    "BoardDocument",
+    "BoardGeometryImport",
+    "BoardSnapshot",
+    "BoardSnapshotStatus",
     "BuildLog",
     "EvidenceBundle",
     "GenerationRun",

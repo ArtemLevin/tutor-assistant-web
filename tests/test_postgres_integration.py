@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -19,6 +21,10 @@ from tutor_assistant_web.modules.audit.models import AuditEvent
 from tutor_assistant_web.modules.automation.application import OutboxService
 from tutor_assistant_web.modules.automation.durability import DurableJobService
 from tutor_assistant_web.modules.automation.models import OutboxEvent, OutboxStatus
+from tutor_assistant_web.modules.boards.application import (
+    BoardPersistenceService,
+    BoardRevisionConflict,
+)
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.modules.identity.models import (
     DEFAULT_ORGANIZATION_ID,
@@ -39,9 +45,14 @@ from tutor_assistant_web.modules.materials.models import (
 from tutor_assistant_web.modules.portal.application import PublicationService
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
+from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
+from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
+    BoardCommandEnvelope10,
+)
 from tutor_assistant_web.shared.errors import ValidationError
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
+BOARD_FIXTURES = Path(__file__).parents[1] / "schemas" / "board" / "v1" / "fixtures"
 pytestmark = pytest.mark.skipif(
     not TEST_DATABASE_URL,
     reason="TEST_DATABASE_URL is required for PostgreSQL integration tests",
@@ -361,3 +372,68 @@ def test_two_workers_cannot_claim_the_same_durable_job(database):
         stored = session.get(ProcessingJob, job.id)
         assert stored.status == JobStatus.running.value
         assert stored.attempt_count == 1
+
+
+def test_board_revision_lock_and_idempotency_are_atomic(database, tmp_path):
+    _, admin = bootstrap(database)
+    with database.sessions() as session:
+        student = Student(
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            full_name="Concurrent Board Student",
+        )
+        session.add(student)
+        session.flush()
+        lesson = Lesson(
+            organization_id=DEFAULT_ORGANIZATION_ID,
+            student_id=student.id,
+            title="Concurrent board",
+            starts_at=datetime.now(UTC),
+            ends_at=datetime.now(UTC) + timedelta(hours=1),
+            bbb_meeting_id=f"board-{uuid4().hex}",
+            attendee_password="attendee",
+            moderator_password="moderator",
+        )
+        session.add(lesson)
+        session.commit()
+    service = BoardPersistenceService(
+        database,
+        LocalArtifactStorage(tmp_path / "board-artifacts"),
+        DEFAULT_ORGANIZATION_ID,
+    )
+    service.create_for_lesson(lesson.id, "document:lesson-01")
+    fixture = json.loads((BOARD_FIXTURES / "board-command-envelope.json").read_text())
+    fixture["baseRevision"] = 0
+    barrier = threading.Barrier(2)
+
+    def append(index: int) -> str:
+        payload = dict(fixture)
+        payload["idempotencyKey"] = f"client:parallel:{index}"
+        barrier.wait()
+        try:
+            service.append_commands(
+                BoardCommandEnvelope10.model_validate(payload),
+                admin.user_id,
+            )
+        except BoardRevisionConflict:
+            return "conflict"
+        return "accepted"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(append, range(2)))
+
+    assert sorted(results) == ["accepted", "conflict"]
+
+    duplicate = dict(fixture)
+    duplicate["baseRevision"] = 1
+    duplicate["idempotencyKey"] = "client:duplicate"
+    envelope = BoardCommandEnvelope10.model_validate(duplicate)
+    duplicate_barrier = threading.Barrier(2)
+
+    def append_duplicate() -> str:
+        duplicate_barrier.wait()
+        return service.append_commands(envelope, admin.user_id).id
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        ids = list(executor.map(lambda _: append_duplicate(), range(2)))
+
+    assert ids[0] == ids[1]
