@@ -9,6 +9,7 @@ from fastapi.templating import Jinja2Templates
 from tutor_assistant_web.bbb import BigBlueButtonClient
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.boards.collaboration import CollaborationBroker
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.providers.artifacts import (
     ClamAVScanner,
@@ -63,6 +64,7 @@ class AppContainer:
     jobs: JobDispatcher
     document_engine: DocumentEngine
     artifact_storage: ArtifactStorage
+    collaboration: CollaborationBroker
 
     def classroom_service(self, organization_id: str | None):
         from tutor_assistant_web.modules.classroom.application import ClassroomService
@@ -105,6 +107,17 @@ class AppContainer:
             snapshot_interval_commands=self.settings.board_snapshot_interval_commands,
             snapshot_interval_bytes=self.settings.board_snapshot_interval_mb * 1024 * 1024,
             delete_grace_days=self.settings.board_delete_grace_days,
+        )
+
+    def board_evidence_service(self, organization_id: str):
+        from tutor_assistant_web.modules.boards.evidence import BoardEvidenceService
+
+        return BoardEvidenceService(
+            self.database,
+            self.artifact_storage,
+            organization_id,
+            max_svg_bytes=self.settings.board_evidence_svg_max_size_mb * 1024 * 1024,
+            max_png_bytes=self.settings.board_evidence_png_max_size_mb * 1024 * 1024,
         )
 
     def recording_ready_service(self):
@@ -281,6 +294,11 @@ def build_container(
     transcription = build_transcription_provider(settings)
     document_engine = build_document_engine(settings)
     artifact_storage = build_artifact_storage(settings)
+    collaboration = CollaborationBroker(
+        settings.redis_url,
+        distributed=not settings.task_eager,
+        ticket_ttl_seconds=settings.board_collaboration_ticket_ttl_seconds,
+    )
     identity = IdentityService(database)
     jobs: JobDispatcher
     if settings.task_eager:
@@ -308,4 +326,5 @@ def build_container(
         jobs=jobs,
         document_engine=document_engine,
         artifact_storage=artifact_storage,
+        collaboration=collaboration,
     )

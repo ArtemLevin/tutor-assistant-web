@@ -8,6 +8,25 @@
 <section class="lesson-layout">
   <div class="lesson-content">
     <article class="panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">Рабочее пространство</p><h2>TutorBoard</h2></div>
+        <a class="button primary small" href="/lessons/{{ lesson.id }}/board">Открыть отдельно</a>
+      </div>
+      <p class="caption">Доска связана с этим занятием, сохраняет изменения на сервере и продолжает работу при временной потере сети.</p>
+      <details>
+        <summary>Открыть доску внутри карточки занятия</summary>
+        <iframe
+          allow="clipboard-read; clipboard-write"
+          class="lesson-board-frame"
+          loading="lazy"
+          referrerpolicy="same-origin"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
+          src="{{ board_url }}"
+          title="TutorBoard занятия"
+        ></iframe>
+      </details>
+    </article>
+    <article class="panel">
       <div class="section-heading"><div><p class="eyebrow">Доступ</p><h2>Ссылка ученику</h2></div><button class="button secondary small" data-copy="{{ student_url }}">Копировать</button></div>
       <p class="share-url">{{ student_url }}</p>
       <p class="caption">Ссылка подписана и открывает роль участника только для этого занятия.</p>

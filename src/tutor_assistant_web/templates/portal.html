@@ -12,6 +12,21 @@
   {% else %}<article class="panel empty">К учётной записи пока не привязан ученик. Обратитесь к преподавателю.</article>{% endfor %}
 </section>
 
+{% if home.board_evidence %}
+<section class="section">
+  <div class="section-heading"><div><p class="eyebrow">Доски занятий</p><h2>Опубликованные снимки</h2></div><span class="count">{{ home.board_evidence|length }}</span></div>
+  <div class="delivery-grid">
+    {% for evidence in home.board_evidence %}
+    <a class="delivery-card" href="/api/v1/board-evidence/{{ evidence.id }}/svg" target="_blank" rel="noopener">
+      <div><span class="badge published">Доска</span><time>{{ evidence.published_at|local_dt('%d.%m.%Y') }}</time></div>
+      <h3>Занятие · версия {{ evidence.revision }}</h3>
+      <p>Сохранённый преподавателем итог доски</p><span class="delivery-arrow">→</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <section class="section">
   <div class="section-heading"><div><p class="eyebrow">Библиотека</p><h2>Доступные комплекты</h2></div><span class="count">{{ home.deliveries|length }}</span></div>
   <div class="delivery-grid">

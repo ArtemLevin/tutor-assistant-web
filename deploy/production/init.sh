@@ -100,11 +100,18 @@ CURRENT_RELEASE=${BLUE_RELEASE:-v1.0.0}
 PREVIOUS_RELEASE=
 SCHEDULER_RELEASE=${SCHEDULER_RELEASE:-v1.0.0}
 OPS_RELEASE=${OPS_RELEASE:-v1.0.0}
+TUTORBOARD_BLUE_RELEASE=${TUTORBOARD_BLUE_RELEASE:-v1.0.0}
+TUTORBOARD_GREEN_RELEASE=${TUTORBOARD_GREEN_RELEASE:-v1.0.0}
+CURRENT_TUTORBOARD_RELEASE=${TUTORBOARD_BLUE_RELEASE:-v1.0.0}
+PREVIOUS_TUTORBOARD_RELEASE=
 EOF
 fi
 . "$RUNTIME/deployment.env"
 slot=${ACTIVE_SLOT:-blue}
-sed "s/__WEB_UPSTREAM__/web-$slot/g" "$HERE/Caddyfile.template" > "$RUNTIME/Caddyfile"
+sed \
+  -e "s/__WEB_UPSTREAM__/web-$slot/g" \
+  -e "s/__TUTORBOARD_UPSTREAM__/tutorboard-$slot/g" \
+  "$HERE/Caddyfile.template" > "$RUNTIME/Caddyfile"
 printf '[{"targets":["web-%s:8000"],"labels":{"slot":"%s","release":"%s"}}]\n' \
   "$slot" "$slot" "$CURRENT_RELEASE" > "$RUNTIME/prometheus-targets.json"
 chmod 600 "$SECRETS"/* "$RUNTIME/deployment.env"

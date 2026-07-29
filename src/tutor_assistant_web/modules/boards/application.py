@@ -18,6 +18,7 @@ from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardDocument,
+    BoardEvidence,
     BoardGeometryImport,
     BoardSnapshot,
     BoardSnapshotStatus,
@@ -161,6 +162,22 @@ class BoardPersistenceService:
             if document.deleted_at is not None and not include_deleted:
                 raise GoneError("Доска удалена")
             return document
+
+    def list_for_lesson(
+        self,
+        lesson_id: str,
+        *,
+        include_archived: bool = True,
+    ) -> list[BoardDocument]:
+        with self.database.sessions() as session:
+            query = select(BoardDocument).where(
+                BoardDocument.organization_id == self.organization_id,
+                BoardDocument.lesson_id == lesson_id,
+                BoardDocument.deleted_at.is_(None),
+            )
+            if not include_archived:
+                query = query.where(BoardDocument.archived_at.is_(None))
+            return list(session.scalars(query.order_by(BoardDocument.updated_at.desc())))
 
     def append_commands(
         self,
@@ -378,7 +395,12 @@ class BoardPersistenceService:
                 return None
         return self._read_stored_snapshot(stored)
 
-    def recovery(self, document_id: str) -> BoardRecovery:
+    def recovery(
+        self,
+        document_id: str,
+        *,
+        target_revision: int | None = None,
+    ) -> BoardRecovery:
         with self.database.sessions() as session:
             document = session.scalar(
                 select(BoardDocument).where(
@@ -390,13 +412,17 @@ class BoardPersistenceService:
                 raise NotFoundError("Доска не найдена")
             if document.deleted_at is not None:
                 raise GoneError("Доска удалена")
-            target_revision = document.current_revision
+            resolved_revision = (
+                document.current_revision if target_revision is None else target_revision
+            )
+            if resolved_revision < 0 or resolved_revision > document.current_revision:
+                raise BoardRevisionConflict(resolved_revision, document.current_revision)
             stored = session.scalar(
                 select(BoardSnapshot)
                 .where(
                     BoardSnapshot.organization_id == self.organization_id,
                     BoardSnapshot.board_document_id == document_id,
-                    BoardSnapshot.revision <= target_revision,
+                    BoardSnapshot.revision <= resolved_revision,
                     BoardSnapshot.deleted_at.is_(None),
                     BoardSnapshot.storage_status == BoardSnapshotStatus.available.value,
                 )
@@ -411,7 +437,7 @@ class BoardPersistenceService:
                         BoardCommandBatch.organization_id == self.organization_id,
                         BoardCommandBatch.board_document_id == document_id,
                         BoardCommandBatch.revision > snapshot_revision,
-                        BoardCommandBatch.revision <= target_revision,
+                        BoardCommandBatch.revision <= resolved_revision,
                     )
                     .order_by(BoardCommandBatch.revision)
                 )
@@ -422,6 +448,74 @@ class BoardPersistenceService:
             snapshot=snapshot,
             command_batches=command_batches,
         )
+
+    def revision_history(self, document_id: str, *, limit: int = 500) -> list[dict]:
+        document = self.get(document_id)
+        with self.database.sessions() as session:
+            snapshots = {
+                item.revision: item
+                for item in session.scalars(
+                    select(BoardSnapshot).where(
+                        BoardSnapshot.organization_id == self.organization_id,
+                        BoardSnapshot.board_document_id == document_id,
+                        BoardSnapshot.storage_status == BoardSnapshotStatus.available.value,
+                        BoardSnapshot.deleted_at.is_(None),
+                    )
+                )
+            }
+            batches = list(
+                session.scalars(
+                    select(BoardCommandBatch)
+                    .where(
+                        BoardCommandBatch.organization_id == self.organization_id,
+                        BoardCommandBatch.board_document_id == document_id,
+                    )
+                    .order_by(BoardCommandBatch.revision.desc())
+                    .limit(limit)
+                )
+            )
+        rows = [
+            {
+                "revision": 0,
+                "actorUserId": None,
+                "createdAt": document.created_at,
+                "documentSha256": (snapshots[0].document_sha256 if 0 in snapshots else ""),
+                "snapshotAvailable": 0 in snapshots,
+            }
+        ]
+        rows.extend(
+            {
+                "revision": batch.revision,
+                "actorUserId": batch.actor_user_id,
+                "createdAt": batch.created_at,
+                "documentSha256": batch.expected_document_sha256,
+                "snapshotAvailable": batch.revision in snapshots,
+            }
+            for batch in reversed(batches)
+        )
+        return rows
+
+    def archive(self, document_id: str) -> BoardDocument:
+        with self.database.sessions() as session:
+            document = self._locked_document(
+                session,
+                document_id,
+                allow_archived=True,
+            )
+            document.archived_at = document.archived_at or datetime.now(UTC)
+            session.commit()
+            return document
+
+    def unarchive(self, document_id: str) -> BoardDocument:
+        with self.database.sessions() as session:
+            document = self._locked_document(
+                session,
+                document_id,
+                allow_archived=True,
+            )
+            document.archived_at = None
+            session.commit()
+            return document
 
     def record_geometry_import(
         self,
@@ -488,7 +582,12 @@ class BoardPersistenceService:
         now = datetime.now(UTC)
         purge_after = now + timedelta(days=self.delete_grace_days)
         with self.database.sessions() as session:
-            document = self._locked_document(session, document_id, allow_deleted=True)
+            document = self._locked_document(
+                session,
+                document_id,
+                allow_deleted=True,
+                allow_archived=True,
+            )
             if document.deleted_at is not None:
                 return document
             document.deleted_at = now
@@ -497,6 +596,12 @@ class BoardPersistenceService:
                 select(BoardSnapshot).where(
                     BoardSnapshot.organization_id == self.organization_id,
                     BoardSnapshot.board_document_id == document_id,
+                    ~select(BoardEvidence.id)
+                    .where(
+                        BoardEvidence.organization_id == self.organization_id,
+                        BoardEvidence.snapshot_id == BoardSnapshot.id,
+                    )
+                    .exists(),
                 )
             ):
                 snapshot.deleted_at = now
@@ -553,6 +658,12 @@ class BoardPersistenceService:
                         BoardDocument.organization_id == self.organization_id,
                         BoardDocument.deleted_at.is_not(None),
                         BoardDocument.purge_after <= now,
+                        ~select(BoardEvidence.id)
+                        .where(
+                            BoardEvidence.organization_id == self.organization_id,
+                            BoardEvidence.board_document_id == BoardDocument.id,
+                        )
+                        .exists(),
                     )
                     .order_by(BoardDocument.purge_after)
                     .limit(limit)
@@ -615,6 +726,7 @@ class BoardPersistenceService:
         document_id: str,
         *,
         allow_deleted: bool = False,
+        allow_archived: bool = False,
     ) -> BoardDocument:
         document = session.scalar(
             select(BoardDocument)
@@ -628,6 +740,8 @@ class BoardPersistenceService:
             raise NotFoundError("Доска не найдена")
         if document.deleted_at is not None and not allow_deleted:
             raise GoneError("Доска удалена")
+        if document.archived_at is not None and not allow_archived:
+            raise GoneError("Доска находится в архиве")
         return document
 
     def _document_for_lesson(
@@ -649,6 +763,8 @@ class BoardPersistenceService:
     ) -> BoardDocument:
         if existing.deleted_at is not None:
             raise GoneError("Доска удалена и ожидает очистки")
+        if existing.archived_at is not None:
+            raise GoneError("Доска находится в архиве")
         if existing.id != document_id:
             raise ConflictError("Для занятия уже создана другая доска")
         return existing

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, ge=1, le=65535)
     app_reload: bool = False
     public_base_url: str = "http://localhost:8000"
+    tutorboard_public_path: str = "/board/"
+    geometryos_base_url: str = "http://geometryos:8000"
+    geometryos_request_timeout: float = Field(default=20.0, ge=1, le=120)
     trusted_hosts: str = "localhost,127.0.0.1,testserver"
     trusted_proxy_ips: str = "127.0.0.1"
 
@@ -95,7 +98,7 @@ class Settings(BaseSettings):
     artifact_max_size_mb: int = Field(default=500, ge=1, le=4096)
     artifact_allowed_mime_types: str = (
         "application/pdf,application/json,application/x-tex,text/html,text/plain,"
-        "image/png,image/jpeg,audio/wav,audio/mpeg,audio/mp4,video/mp4"
+        "image/png,image/jpeg,image/svg+xml,audio/wav,audio/mpeg,audio/mp4,video/mp4"
     )
     artifact_clamav_enabled: bool = False
     artifact_clamav_host: str = "clamav"
@@ -112,6 +115,9 @@ class Settings(BaseSettings):
     board_snapshot_interval_mb: int = Field(default=5, ge=1, le=500)
     board_retention_days: int = Field(default=365, ge=1, le=3650)
     board_delete_grace_days: int = Field(default=30, ge=1, le=365)
+    board_collaboration_ticket_ttl_seconds: int = Field(default=30, ge=10, le=120)
+    board_evidence_svg_max_size_mb: int = Field(default=5, ge=1, le=50)
+    board_evidence_png_max_size_mb: int = Field(default=10, ge=1, le=100)
 
     seed_demo_data: bool = True
     session_cookie_secure: bool = False
@@ -128,9 +134,9 @@ class Settings(BaseSettings):
     rate_limit_board_writes: int = Field(default=300, ge=1, le=100_000)
     rate_limit_window_seconds: int = Field(default=60, ge=10, le=3600)
     security_csp: str = (
-        "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; "
+        "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; "
         "object-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-        "font-src 'self'; connect-src 'self'"
+        "font-src 'self'; connect-src 'self'; frame-src 'self'"
     )
 
     log_level: str = "INFO"
@@ -292,6 +298,15 @@ class Settings(BaseSettings):
                 raise ValueError("METRICS_BEARER_TOKEN must not use a placeholder value")
         if make_url(self.redis_url).get_backend_name() not in {"redis", "rediss"}:
             raise ValueError("REDIS_URL must use redis:// or rediss://")
+        if not self.tutorboard_public_path.startswith(
+            "/"
+        ) or not self.tutorboard_public_path.endswith("/"):
+            raise ValueError("TUTORBOARD_PUBLIC_PATH must be an absolute path ending with '/'")
+        geometryos = make_url(self.geometryos_base_url)
+        if geometryos.get_backend_name() not in {"http", "https"}:
+            raise ValueError("GEOMETRYOS_BASE_URL must use http:// or https://")
+        if geometryos.username or geometryos.password or geometryos.query:
+            raise ValueError("GEOMETRYOS_BASE_URL must not contain credentials or query parameters")
         if self.workflow_soft_time_limit >= self.workflow_hard_time_limit:
             raise ValueError("WORKFLOW_HARD_TIME_LIMIT must exceed WORKFLOW_SOFT_TIME_LIMIT")
         if self.celery_visibility_timeout <= self.workflow_hard_time_limit:

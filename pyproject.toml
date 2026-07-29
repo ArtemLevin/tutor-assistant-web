@@ -52,6 +52,7 @@ tutor-assistant-ops = "tutor_assistant_web.operations:main"
 tutor-assistant-artifacts = "tutor_assistant_web.artifact_operations:main"
 tutor-assistant-backup = "tutor_assistant_web.backup_operations:main"
 tutor-assistant-load-fixture = "tutor_assistant_web.load_operations:main"
+tutor-assistant-board-export = "tutor_assistant_web.board_evidence_export:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -41,8 +41,12 @@ def test_production_compose_has_separate_processes_and_private_network() -> None
         "worker-green",
         "scheduler",
         "migration",
+        "tutorboard-blue",
+        "tutorboard-green",
     } <= set(services)
     assert "ports" not in services["web-blue"]
+    assert services["tutorboard-blue"]["read_only"] is True
+    assert services["tutorboard-blue"]["cap_drop"] == ["ALL"]
     assert "ports" not in services["postgres"]
     assert document["networks"]["backend"]["internal"] is True
     assert services["migration"]["restart"] == "no"

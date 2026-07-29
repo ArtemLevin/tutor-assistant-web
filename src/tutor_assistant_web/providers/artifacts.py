@@ -64,6 +64,15 @@ def detected_mime(head: bytes, declared: str) -> str:
     stripped = head.lstrip().lower()
     if stripped.startswith((b"<!doctype html", b"<html")):
         return "text/html"
+    if base == "image/svg+xml" and (
+        stripped.startswith(b"<svg")
+        or (stripped.startswith(b"<?xml") and b"<svg" in stripped[:4096])
+    ):
+        try:
+            head.decode("utf-8")
+            return base
+        except UnicodeDecodeError:
+            return "application/octet-stream"
     if b"\\documentclass" in head[:4096]:
         return "application/x-tex"
     # Plain textual formats cannot be identified reliably from magic bytes.

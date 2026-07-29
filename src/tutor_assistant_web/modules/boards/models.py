@@ -32,6 +32,12 @@ class BoardSnapshotStatus(StrEnum):
     deleted = "deleted"
 
 
+class BoardEvidenceStatus(StrEnum):
+    uploading = "uploading"
+    available = "available"
+    quarantined = "quarantined"
+
+
 class BoardDocument(Base):
     __tablename__ = "board_documents"
     __table_args__ = (
@@ -91,6 +97,9 @@ class BoardDocument(Base):
         DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     purge_after: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
@@ -112,6 +121,12 @@ class BoardDocument(Base):
         "BoardGeometryImport",
         back_populates="document",
         cascade="all, delete-orphan",
+    )
+    evidence: Mapped[list[BoardEvidence]] = relationship(
+        "BoardEvidence",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="BoardEvidence.finalized_at",
     )
 
 
@@ -189,6 +204,11 @@ class BoardSnapshot(Base):
             name="uq_board_snapshots_org_document_revision",
         ),
         UniqueConstraint("storage_key", name="uq_board_snapshots_storage_key"),
+        UniqueConstraint(
+            "organization_id",
+            "id",
+            name="uq_board_snapshots_org_id",
+        ),
         CheckConstraint("revision >= 0", name="ck_board_snapshots_revision"),
         CheckConstraint("size > 0", name="ck_board_snapshots_size"),
         CheckConstraint(
@@ -227,6 +247,10 @@ class BoardSnapshot(Base):
     )
 
     document: Mapped[BoardDocument] = relationship("BoardDocument", back_populates="snapshots")
+    evidence: Mapped[list[BoardEvidence]] = relationship(
+        "BoardEvidence",
+        back_populates="snapshot",
+    )
 
 
 class BoardGeometryImport(Base):
@@ -280,3 +304,88 @@ class BoardGeometryImport(Base):
     document: Mapped[BoardDocument] = relationship(
         "BoardDocument", back_populates="geometry_imports"
     )
+
+
+class BoardEvidence(Base):
+    __tablename__ = "board_evidence"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "board_document_id"],
+            ["board_documents.organization_id", "board_documents.id"],
+            name="fk_board_evidence_org_document",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "snapshot_id"],
+            ["board_snapshots.organization_id", "board_snapshots.id"],
+            name="fk_board_evidence_org_snapshot",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "student_id", "lesson_id"],
+            ["lessons.organization_id", "lessons.student_id", "lessons.id"],
+            name="fk_board_evidence_org_student_lesson",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "organization_id",
+            "board_document_id",
+            "revision",
+            name="uq_board_evidence_org_document_revision",
+        ),
+        UniqueConstraint("manifest_storage_key", name="uq_board_evidence_manifest_key"),
+        CheckConstraint("revision >= 0", name="ck_board_evidence_revision"),
+        CheckConstraint(
+            "storage_status IN ('uploading', 'available', 'quarantined')",
+            name="ck_board_evidence_storage_status",
+        ),
+        Index(
+            "ix_board_evidence_org_lesson_finalized",
+            "organization_id",
+            "lesson_id",
+            "finalized_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(String(36), index=True)
+    student_id: Mapped[str] = mapped_column(String(36), index=True)
+    lesson_id: Mapped[str] = mapped_column(String(36), index=True)
+    board_document_id: Mapped[str] = mapped_column(String(128), index=True)
+    snapshot_id: Mapped[str] = mapped_column(String(36), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    schema_version: Mapped[str] = mapped_column(String(16), default="1.0")
+    document_schema_version: Mapped[str] = mapped_column(String(16))
+    document_sha256: Mapped[str] = mapped_column(String(64))
+    snapshot_sha256: Mapped[str] = mapped_column(String(64))
+    manifest_storage_key: Mapped[str] = mapped_column(String(1024))
+    manifest_sha256: Mapped[str] = mapped_column(String(64))
+    manifest_size: Mapped[int] = mapped_column(Integer)
+    svg_storage_key: Mapped[str] = mapped_column(String(1024))
+    svg_sha256: Mapped[str] = mapped_column(String(64))
+    svg_size: Mapped[int] = mapped_column(Integer)
+    png_storage_key: Mapped[str] = mapped_column(String(1024), default="")
+    png_sha256: Mapped[str] = mapped_column(String(64), default="")
+    png_size: Mapped[int] = mapped_column(Integer, default=0)
+    geometry_summary: Mapped[list] = mapped_column(JSON, default=list)
+    transcript_links: Mapped[list] = mapped_column(JSON, default=list)
+    participants: Mapped[list] = mapped_column(JSON, default=list)
+    operation_summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    storage_status: Mapped[str] = mapped_column(
+        String(24),
+        default=BoardEvidenceStatus.uploading.value,
+        index=True,
+    )
+    upload_error: Mapped[str] = mapped_column(Text, default="")
+    finalized_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    finalized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    document: Mapped[BoardDocument] = relationship("BoardDocument", back_populates="evidence")
+    snapshot: Mapped[BoardSnapshot] = relationship("BoardSnapshot", back_populates="evidence")
+    lesson: Mapped[Lesson] = relationship("Lesson", back_populates="board_evidence")
