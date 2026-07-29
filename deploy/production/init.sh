@@ -56,6 +56,12 @@ write_external backup_s3_secret_key BACKUP_S3_SECRET_KEY
 ALERT_WEBHOOK_OVERRIDE=${ALERT_WEBHOOK_URL:-}
 . "$ENV_FILE"
 [ -z "$ALERT_WEBHOOK_OVERRIDE" ] || ALERT_WEBHOOK_URL=$ALERT_WEBHOOK_OVERRIDE
+case "${GEOMETRYOS_IMAGE:-}" in
+  *@sha256:*) ;;
+  *)
+    echo "Set GEOMETRYOS_IMAGE to the published GeometryOS digest before deploy." >&2
+    ;;
+esac
 POSTGRES_PASSWORD=$(cat "$SECRETS/postgres_password")
 REDIS_PASSWORD=$(cat "$SECRETS/redis_password")
 printf 'postgresql+psycopg://%s:%s@postgres:5432/%s' \

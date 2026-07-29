@@ -17,6 +17,7 @@ data/artifacts/
 deploy/production/.env.production
 deploy/production/secrets/
 deploy/production/runtime/
+deploy/local/.env.local
 load/results/
 .idea
 .gigaide

@@ -48,6 +48,12 @@ jobs:
           docker compose -f compose.production.yml \
             --env-file deploy/production/.env.production \
             --env-file deploy/production/runtime/deployment.env config --quiet
+      - name: Validate unified local Compose rendering
+        run: >-
+          docker compose
+          --env-file deploy/local/.env.local.example
+          -f compose.local.yml
+          config --quiet
       - run: uv run bandit -r src -ll
       - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/audit.txt
       - run: uv run pip-audit --strict --requirement /tmp/audit.txt

@@ -692,7 +692,7 @@ def test_geometryos_gateway_is_authenticated_bounded_and_correlated(
         json={"schema_version": "1.0", "prompt": "triangle"},
     )
     assert generated.status_code == 200
-    assert captured[0][0:3] == ("GET", "/health/ready", b"")
+    assert captured[0][0:3] == ("GET", "/ready", b"")
     assert captured[1][0:2] == ("POST", "/api/v1/generate")
     assert captured[1][3]["X-Request-ID"] == generated.headers["x-request-id"]
 

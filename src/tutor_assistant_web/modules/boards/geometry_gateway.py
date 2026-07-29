@@ -78,7 +78,7 @@ def create_geometry_gateway_router(container: AppContainer) -> APIRouter:
 
     @router.get("/ready")
     async def geometry_ready(request: Request):
-        return await proxy(request, "GET", "/health/ready")
+        return await proxy(request, "GET", "/ready")
 
     @router.post("/api/v1/generate")
     async def geometry_generate(request: Request):
