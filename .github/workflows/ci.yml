@@ -25,6 +25,12 @@ jobs:
       - run: uv run bandit -r src -ll
       - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/requirements-audit.txt
       - run: uv run pip-audit --strict --requirement /tmp/requirements-audit.txt
+      - name: Validate unified local Compose rendering
+        run: >-
+          docker compose
+          --env-file deploy/local/.env.local.example
+          -f compose.local.yml
+          config --quiet
       - run: uv run pytest
 
   postgres:
@@ -72,3 +78,59 @@ jobs:
           minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
       - run: uv sync --extra dev
       - run: uv run pytest tests/test_postgres_integration.py tests/test_redis_integration.py tests/test_minio_integration.py
+
+  unified-local-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/tutorboard
+          ref: release/tutorboard-stack-v1.0.0-rc.1
+          path: integrations/tutorboard
+      - uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/geometryos
+          ref: release/tutorboard-stack-v1.0.0-rc.1
+          path: integrations/geometryos
+      - name: Build and start unified application
+        env:
+          TUTORBOARD_CONTEXT: ${{ github.workspace }}/integrations/tutorboard
+          GEOMETRYOS_CONTEXT: ${{ github.workspace }}/integrations/geometryos
+        run: >-
+          docker compose
+          --env-file deploy/local/.env.local.example
+          -f compose.local.yml
+          up --build --detach
+      - name: Run vertical smoke
+        env:
+          TUTORBOARD_CONTEXT: ${{ github.workspace }}/integrations/tutorboard
+          GEOMETRYOS_CONTEXT: ${{ github.workspace }}/integrations/geometryos
+        run: >-
+          docker compose
+          --env-file deploy/local/.env.local.example
+          -f compose.local.yml
+          --profile smoke
+          run --rm smoke
+      - name: Collect unified stack logs
+        if: failure()
+        env:
+          TUTORBOARD_CONTEXT: ${{ github.workspace }}/integrations/tutorboard
+          GEOMETRYOS_CONTEXT: ${{ github.workspace }}/integrations/geometryos
+        run: >-
+          docker compose
+          --env-file deploy/local/.env.local.example
+          -f compose.local.yml
+          logs --no-color --tail 200
+          gateway web tutorboard geometryos migration worker scheduler
+      - name: Stop unified application
+        if: always()
+        env:
+          TUTORBOARD_CONTEXT: ${{ github.workspace }}/integrations/tutorboard
+          GEOMETRYOS_CONTEXT: ${{ github.workspace }}/integrations/geometryos
+        run: >-
+          docker compose
+          --env-file deploy/local/.env.local.example
+          -f compose.local.yml
+          down --volumes --remove-orphans

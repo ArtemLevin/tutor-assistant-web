@@ -68,6 +68,7 @@ CMD ["celery", "-A", "tutor_assistant_web.worker.celery_app", "beat", "--logleve
 
 
 FROM runtime-base AS migration
+COPY --from=builder --chown=tutor:tutor /build/src/tutor_assistant_web/migrations ./src/tutor_assistant_web/migrations
 CMD ["alembic", "upgrade", "head"]
 
 

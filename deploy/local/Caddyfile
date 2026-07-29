@@ -1,0 +1,27 @@
+:8080 {
+	encode zstd gzip
+
+	route {
+		@board-root path /board
+		redir @board-root /board/ 308
+
+		handle_path /board/* {
+			reverse_proxy tutorboard:8080
+		}
+
+		handle {
+			reverse_proxy web:8000 {
+				header_up Host localhost:8080
+			}
+		}
+	}
+
+	header {
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
