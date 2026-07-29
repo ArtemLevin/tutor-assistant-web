@@ -1,0 +1,29 @@
+[Unit]
+Description=TutorBoard unified production stack
+Requires=docker.service
+Wants=network-online.target tutorboard-firewall.service
+After=docker.service network-online.target tutorboard-firewall.service
+ConditionPathExists=@INSTALL_DIR@/deploy/production/.env.production
+ConditionPathExists=@INSTALL_DIR@/deploy/production/runtime/deployment.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=@DEPLOY_USER@
+Group=docker
+WorkingDirectory=@INSTALL_DIR@
+UMask=0027
+ExecStart=@INSTALL_DIR@/deploy/ubuntu/stack-control.sh start
+ExecStop=@INSTALL_DIR@/deploy/ubuntu/stack-control.sh stop
+TimeoutStartSec=0
+TimeoutStopSec=150
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=@INSTALL_DIR@/deploy/production/runtime
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
+

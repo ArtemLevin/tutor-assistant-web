@@ -230,6 +230,7 @@ scheduler и migration job используют отдельные image targets
 make production-init
 # заполнить deploy/production/.env.production и пустые provider secrets
 make production-config
+make production-preflight RELEASE=v1.0.0
 make production-deploy RELEASE=v1.0.0
 ```
 
@@ -238,6 +239,10 @@ make production-deploy RELEASE=v1.0.0
 возвращает предыдущий application release. Schema rollback требует отдельного подтверждения и
 проверенного Alembic downgrade. GeometryOS работает только во внутренней Docker-сети; его
 `GEOMETRYOS_IMAGE` должен быть зафиксирован полным `@sha256` digest.
+
+Целевой host — Ubuntu Server 22.04/24.04 LTS x86_64. Bootstrap, systemd,
+firewall, resource limits, off-host backup boundary и reboot drill описаны в
+[Ubuntu production runbook](docs/runbooks/ubuntu-host.md).
 
 Workflow `Production release` собирает и сканирует пять images, разворачивает staging, выполняет
 smoke/load/restore/resilience gates и останавливается на GitHub Environment approval перед

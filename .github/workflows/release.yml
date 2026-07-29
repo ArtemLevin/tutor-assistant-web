@@ -255,11 +255,21 @@ jobs:
     needs: staging
     runs-on: [self-hosted, tutor-production]
     environment: production
+    env:
+      PRODUCTION_INSTALL_DIR: /opt/tutorboard-stack
     steps:
-      - uses: actions/checkout@v4
-        with: {clean: false}
-      - run: deploy/production/deploy.sh "${{ inputs.release_tag }}"
-      - run: deploy/production/smoke.sh
+      - name: Select the approved commit in the canonical checkout
+        run: |
+          test "$(id -un)" = tutor-deploy
+          git -C "$PRODUCTION_INSTALL_DIR" fetch origin "$GITHUB_SHA"
+          git -C "$PRODUCTION_INSTALL_DIR" switch --detach "$GITHUB_SHA"
+          test "$(git -C "$PRODUCTION_INSTALL_DIR" rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Deploy the approved immutable release
+        run: >-
+          "$PRODUCTION_INSTALL_DIR/deploy/production/deploy.sh"
+          "${{ inputs.release_tag }}"
+      - name: Verify Ubuntu host, application and off-host backup
+        run: "$PRODUCTION_INSTALL_DIR/deploy/ubuntu/host-smoke.sh --verify-backup"
 
   release:
     if: github.event_name == 'workflow_dispatch' && inputs.promote_production

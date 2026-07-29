@@ -51,7 +51,6 @@ write_external document_engine_token DOCUMENT_ENGINE_TOKEN
 write_external materials_webhook_token MATERIALS_WEBHOOK_TOKEN
 write_external sentry_dsn SENTRY_DSN
 write_external backup_s3_secret_key BACKUP_S3_SECRET_KEY
-[ -s "$SECRETS/backup_s3_secret_key" ] || cp "$SECRETS/artifact_s3_secret_key" "$SECRETS/backup_s3_secret_key"
 
 ALERT_WEBHOOK_OVERRIDE=${ALERT_WEBHOOK_URL:-}
 . "$ENV_FILE"
