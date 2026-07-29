@@ -93,6 +93,14 @@ def test_release_shell_scripts_are_syntactically_valid() -> None:
     assert "compose pull geometryos" in deploy
 
 
+def test_migration_image_contains_alembic_scripts() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    migration_stage = dockerfile.split("FROM runtime-base AS migration", maxsplit=1)[1]
+    migration_stage = migration_stage.split("FROM runtime-base AS ops", maxsplit=1)[0]
+    assert "/build/src/tutor_assistant_web/migrations" in migration_stage
+    assert "./src/tutor_assistant_web/migrations" in migration_stage
+
+
 def test_backup_sha256_is_streamed(tmp_path: Path) -> None:
     content = b"production-backup" * 100_000
     source = tmp_path / "database.dump"
