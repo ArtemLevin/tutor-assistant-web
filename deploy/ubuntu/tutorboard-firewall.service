@@ -1,0 +1,16 @@
+[Unit]
+Description=TutorBoard Docker ingress policy
+Before=docker.service tutorboard-stack.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@INSTALL_DIR@/deploy/ubuntu/firewall.sh
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

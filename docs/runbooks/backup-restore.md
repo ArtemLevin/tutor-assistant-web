@@ -2,7 +2,11 @@
 
 Backup стартует каждые 22 часа, оставляя запас для RPO 24 часа, и содержит PostgreSQL custom dump, копию private artifact bucket и JSON manifest с SHA-256 БД. При ошибке job повторяется через 15 минут. Bucket versioning и lifecycle дополняются явной очисткой наборов старше `BACKUP_RETENTION_DAYS`.
 
-Для production задайте `BACKUP_S3_ENDPOINT_URL`, region и отдельные credentials на off-host AWS S3/совместимое хранилище. Встроенный MinIO default предназначен для самодостаточного staging; backup в том же host/volume не защищает от потери узла.
+Для production задайте `BACKUP_S3_ENDPOINT_URL` с внешним HTTPS endpoint,
+region, отдельный bucket и отдельные credentials на off-host AWS
+S3/совместимое хранилище. Production preflight отклоняет встроенный MinIO,
+localhost, незашифрованный endpoint, общий artifact/backup bucket и пустой
+backup secret. Backup в том же host/volume не защищает от потери узла.
 
 Ручной backup: `make production-backup`. Успех подтверждают manifest в `tutor-backups`, метрика `tutor_backup_last_success_timestamp_seconds` и отсутствие ошибок job.
 

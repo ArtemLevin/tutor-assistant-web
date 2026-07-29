@@ -56,6 +56,13 @@ def test_production_compose_has_separate_processes_and_private_network() -> None
     assert "ports" not in services["postgres"]
     assert document["networks"]["backend"]["internal"] is True
     assert services["migration"]["restart"] == "no"
+    for service in services.values():
+        assert service["cpus"]
+        assert service["mem_limit"]
+        assert service["pids_limit"]
+        assert service["logging"]["driver"] == "json-file"
+        assert service["logging"]["options"]["max-size"]
+        assert service["logging"]["options"]["max-file"]
 
 
 @pytest.mark.parametrize(
@@ -86,11 +93,75 @@ def test_postgresql_unique_constraints_match_historical_indexes(
 
 
 def test_release_shell_scripts_are_syntactically_valid() -> None:
-    for script in (ROOT / "deploy" / "production").glob("*.sh"):
-        subprocess.run(["sh", "-n", str(script)], check=True)
+    script_directories = (ROOT / "deploy" / "production", ROOT / "deploy" / "ubuntu")
+    for script_directory in script_directories:
+        for script in script_directory.glob("*.sh"):
+            subprocess.run(["sh", "-n", str(script)], check=True)
     deploy = (ROOT / "deploy" / "production" / "deploy.sh").read_text(encoding="utf-8")
     assert "GEOMETRYOS_IMAGE must be pinned with @sha256:" in deploy
     assert "compose pull geometryos" in deploy
+    assert 'deploy/ubuntu/preflight.sh" "$RELEASE" "$TUTORBOARD_RELEASE"' in deploy
+
+
+def test_ubuntu_host_contract_is_hardened_and_rebootable() -> None:
+    ubuntu = ROOT / "deploy" / "ubuntu"
+    bootstrap = (ubuntu / "bootstrap.sh").read_text(encoding="utf-8")
+    preflight = (ubuntu / "preflight.sh").read_text(encoding="utf-8")
+    stack_unit = (ubuntu / "tutorboard-stack.service").read_text(encoding="utf-8")
+    firewall_unit = (ubuntu / "tutorboard-firewall.service").read_text(encoding="utf-8")
+    host_smoke = (ubuntu / "host-smoke.sh").read_text(encoding="utf-8")
+
+    assert "22.04|24.04" in bootstrap
+    assert "docker-ce" in bootstrap
+    assert "unattended-upgrades" in bootstrap
+    assert "timedatectl set-ntp true" in bootstrap
+    assert "PasswordAuthentication no" in bootstrap
+    assert "authorized_keys" in bootstrap
+    assert "ufw allow 443/udp" in bootstrap
+    assert "tutorboard-stack.service" in bootstrap
+    assert "tutorboard-firewall.service" in bootstrap
+
+    for marker in (
+        "Production host must run Ubuntu",
+        "x86_64/amd64",
+        "MINIMUM_HOST_MEMORY_MB",
+        "MINIMUM_HOST_DISK_GB",
+        "NTPSynchronized",
+        "BACKUP_S3_ENDPOINT_URL",
+        "must use off-host HTTPS S3",
+        "docker manifest inspect --verbose",
+        "compose config --quiet",
+    ):
+        assert marker in preflight
+
+    assert "After=docker.service network-online.target tutorboard-firewall.service" in stack_unit
+    assert "User=@DEPLOY_USER@" in stack_unit
+    assert "NoNewPrivileges=true" in stack_unit
+    assert "ProtectSystem=strict" in stack_unit
+    assert "WantedBy=multi-user.target" in stack_unit
+    assert "Before=docker.service tutorboard-stack.service" in firewall_unit
+    assert "--verify-backup" in host_smoke
+    assert "systemctl is-active --quiet tutorboard-stack.service" in host_smoke
+
+
+def test_production_backup_is_off_host_and_line_endings_are_pinned() -> None:
+    example = (ROOT / "deploy" / "production" / ".env.production.example").read_text(
+        encoding="utf-8"
+    )
+    init = (ROOT / "deploy" / "production" / "init.sh").read_text(encoding="utf-8")
+    attributes = (ROOT / ".gitattributes").read_text(encoding="utf-8")
+
+    assert "BACKUP_S3_ENDPOINT_URL=https://" in example
+    assert "BACKUP_S3_ENDPOINT_URL=http://minio:9000" not in example
+    assert 'cp "$SECRETS/artifact_s3_secret_key" "$SECRETS/backup_s3_secret_key"' not in init
+    for rule in (
+        "*.sh text eol=lf",
+        "*.service text eol=lf",
+        "*.yml text eol=lf",
+        "*.yaml text eol=lf",
+        "*.ps1 text eol=crlf",
+    ):
+        assert rule in attributes
 
 
 def test_migration_image_contains_alembic_scripts() -> None:

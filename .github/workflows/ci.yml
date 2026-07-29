@@ -9,6 +9,54 @@ permissions:
   contents: read
 
 jobs:
+  ubuntu-production-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate POSIX shell scripts
+        run: |
+          shellcheck --severity=warning deploy/ubuntu/*.sh
+          for script in deploy/production/*.sh deploy/ubuntu/*.sh; do
+            sh -n "$script"
+          done
+      - name: Reject CRLF in Linux deployment files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          paths = [
+              *Path("deploy").rglob("*.sh"),
+              *Path("deploy").rglob("*.service"),
+              *Path(".github").rglob("*.yml"),
+          ]
+          invalid = [str(path) for path in paths if b"\r\n" in path.read_bytes()]
+          if invalid:
+              raise SystemExit("CRLF found in Linux files: " + ", ".join(invalid))
+          PY
+      - name: Validate systemd units
+        run: |
+          cat > /tmp/docker.service <<'EOF'
+          [Unit]
+          Description=CI Docker service placeholder
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/true
+          EOF
+          sed \
+            -e "s|@INSTALL_DIR@|$GITHUB_WORKSPACE|g" \
+            -e "s|@DEPLOY_USER@|$USER|g" \
+            deploy/ubuntu/tutorboard-stack.service \
+            > /tmp/tutorboard-stack.service
+          sed \
+            -e "s|@INSTALL_DIR@|$GITHUB_WORKSPACE|g" \
+            -e "s|@DEPLOY_USER@|$USER|g" \
+            deploy/ubuntu/tutorboard-firewall.service \
+            > /tmp/tutorboard-firewall.service
+          systemd-analyze verify \
+            /tmp/docker.service \
+            /tmp/tutorboard-firewall.service \
+            /tmp/tutorboard-stack.service
+
   test:
     runs-on: ubuntu-latest
     steps:
