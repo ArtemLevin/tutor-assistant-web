@@ -27,6 +27,12 @@ A parent attempting to change an assigned board receives `403`.
 | `GET` | `/api/v1/boards/{document_id}/commands` | command batches after `afterRevision` |
 | `POST` | `/api/v1/boards/{document_id}/commands` | append one command envelope |
 | `POST` | `/api/v1/boards/{document_id}/snapshots` | store one canonical snapshot |
+| `GET` | `/api/v1/lessons/{lesson_id}/boards` | list active and archived lesson boards |
+| `GET` | `/api/v1/boards/{document_id}/revisions` | list revision history |
+| `POST` | `/api/v1/boards/{document_id}/archive` | archive without deleting evidence |
+| `WS` | `/api/v1/boards/{document_id}/collaboration` | revision signals and ephemeral presence |
+| `POST` | `/api/v1/boards/{document_id}/evidence` | finalize an exact immutable revision |
+| `GET` | `/api/v1/lessons/{lesson_id}/board-evidence` | list role-visible evidence |
 | `DELETE` | `/api/v1/boards/{document_id}` | soft-delete a board |
 
 Unsafe requests require `X-CSRF-Token` from the context or board response.
@@ -44,3 +50,18 @@ Rate limits use `RATE_LIMIT_BOARD_READS` and `RATE_LIMIT_BOARD_WRITES` in the
 shared `RATE_LIMIT_WINDOW_SECONDS` window. Audit details contain identifiers,
 revision counts, sizes, and digests; board command and snapshot content is not
 copied into the audit log.
+## Collaboration and evidence
+
+The HTTP command log remains authoritative. `POST
+/api/v1/boards/{document_id}/collaboration-ticket` returns a short-lived
+one-time ticket for the tenant/document-scoped WebSocket. The socket carries
+only revision notifications and ephemeral presence; clients recover through
+the normal pull/rebase API.
+
+Finalization at `POST /api/v1/boards/{document_id}/evidence` requires an
+available snapshot at the exact revision and matching document SHA-256.
+Manifest, SVG and optional PNG are immutable and verified on read. Student and
+parent routes expose only explicitly published, non-revoked evidence.
+
+GeometryOS browser traffic uses the authenticated same-origin
+`/api/v1/geometryos/` gateway. Direct production browser access is unsupported.

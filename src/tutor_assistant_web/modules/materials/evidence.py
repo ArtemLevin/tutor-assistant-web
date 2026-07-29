@@ -44,6 +44,22 @@ class TranscriptEvidence(EvidenceModel):
     segments: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class BoardEvidenceReference(EvidenceModel):
+    schema_version: Literal["1.0"] = "1.0"
+    evidence_id: str
+    document_id: str
+    revision: int
+    document_schema_version: str
+    content_hash: str
+    snapshot_hash: str
+    manifest_hash: str
+    finalized_at: str
+    geometry_imports: list[dict[str, Any]] = Field(default_factory=list)
+    participants: list[str] = Field(default_factory=list)
+    transcript_links: list[dict[str, Any]] = Field(default_factory=list)
+    artifacts: dict[str, str | None] = Field(default_factory=dict)
+
+
 class LessonEvidenceBundleV1(EvidenceModel):
     schema_version: Literal["1.0"] = "1.0"
     organization_id: str
@@ -51,6 +67,7 @@ class LessonEvidenceBundleV1(EvidenceModel):
     student: StudentEvidence
     recordings: list[RecordingEvidence]
     transcript: TranscriptEvidence | None
+    board_evidence: list[BoardEvidenceReference] = Field(default_factory=list)
     requested_artifacts: list[str]
 
     def canonical_json(self) -> str:
@@ -100,5 +117,35 @@ def build_evidence_bundle(lesson: Lesson) -> LessonEvidenceBundleV1:
             if lesson.transcript is not None
             else None
         ),
+        board_evidence=[
+            BoardEvidenceReference(
+                evidence_id=item.id,
+                document_id=item.board_document_id,
+                revision=item.revision,
+                document_schema_version=item.document_schema_version,
+                content_hash=item.document_sha256,
+                snapshot_hash=item.snapshot_sha256,
+                manifest_hash=item.manifest_sha256,
+                finalized_at=item.finalized_at.isoformat(),
+                geometry_imports=item.geometry_summary or [],
+                participants=item.participants or [],
+                transcript_links=item.transcript_links or [],
+                artifacts={
+                    "manifest": f"/api/v1/board-evidence/{item.id}/manifest",
+                    "svg": f"/api/v1/board-evidence/{item.id}/svg",
+                    "png": (
+                        f"/api/v1/board-evidence/{item.id}/png" if item.png_storage_key else None
+                    ),
+                },
+            )
+            for item in sorted(
+                (
+                    item
+                    for item in lesson.__dict__.get("board_evidence", [])
+                    if item.storage_status == "available"
+                ),
+                key=lambda evidence: (evidence.finalized_at, evidence.id),
+            )
+        ],
         requested_artifacts=["lesson_summary", "homework", "parent_report"],
     )

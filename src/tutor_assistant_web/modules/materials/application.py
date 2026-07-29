@@ -454,6 +454,7 @@ class MaterialsService:
                     selectinload(Lesson.student),
                     selectinload(Lesson.recordings),
                     selectinload(Lesson.transcript),
+                    selectinload(Lesson.board_evidence),
                 )
                 .where(
                     Lesson.id == lesson_id,

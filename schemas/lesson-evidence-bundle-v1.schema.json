@@ -71,6 +71,48 @@
         }
       ]
     },
+    "board_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schema_version",
+          "evidence_id",
+          "document_id",
+          "revision",
+          "document_schema_version",
+          "content_hash",
+          "snapshot_hash",
+          "manifest_hash",
+          "finalized_at",
+          "geometry_imports",
+          "participants",
+          "transcript_links",
+          "artifacts"
+        ],
+        "properties": {
+          "schema_version": {"const": "1.0"},
+          "evidence_id": {"type": "string"},
+          "document_id": {"type": "string"},
+          "revision": {"type": "integer", "minimum": 0},
+          "document_schema_version": {"type": "string"},
+          "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "snapshot_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "manifest_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "finalized_at": {"type": "string"},
+          "geometry_imports": {"type": "array", "items": {"type": "object"}},
+          "participants": {"type": "array", "items": {"type": "string"}},
+          "transcript_links": {"type": "array", "items": {"type": "object"}},
+          "artifacts": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [{"type": "string"}, {"type": "null"}]
+            }
+          }
+        }
+      }
+    },
     "requested_artifacts": {"type": "array", "items": {"type": "string"}, "minItems": 1}
   }
 }

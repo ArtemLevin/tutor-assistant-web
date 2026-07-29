@@ -8,8 +8,11 @@ STATE="$HERE/runtime/deployment.env"
 case "${1:-app}" in
   app)
     PREVIOUS_RELEASE=$(sed -n 's/^PREVIOUS_RELEASE=//p' "$STATE")
+    PREVIOUS_TUTORBOARD_RELEASE=$(sed -n 's/^PREVIOUS_TUTORBOARD_RELEASE=//p' "$STATE")
     [ -n "$PREVIOUS_RELEASE" ] || { echo "No previous release recorded." >&2; exit 1; }
-    SKIP_MIGRATIONS=true SKIP_PRE_DEPLOY_BACKUP=true "$HERE/deploy.sh" "$PREVIOUS_RELEASE"
+    [ -n "$PREVIOUS_TUTORBOARD_RELEASE" ] || PREVIOUS_TUTORBOARD_RELEASE=$PREVIOUS_RELEASE
+    SKIP_MIGRATIONS=true SKIP_PRE_DEPLOY_BACKUP=true \
+      "$HERE/deploy.sh" "$PREVIOUS_RELEASE" "$PREVIOUS_TUTORBOARD_RELEASE"
     ;;
   migration)
     revision=${2:-}

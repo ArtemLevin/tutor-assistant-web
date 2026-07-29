@@ -10,6 +10,10 @@
 | Успешная доставка опубликованных материалов | ≥ 99,9% | 0,1% попыток |
 | RPO PostgreSQL и S3 | ≤ 24 ч | последний успешный backup не старше 24 ч |
 | RTO полного сервиса | ≤ 4 ч | restore drill и переключение укладываются в 4 ч |
+| Успешная синхронизация TutorBoard | ≥ 99,9% | 0,1% серверных push/pull операций |
+| p95 подтверждения команды доски | ≤ 1 с | не более 5% подтверждений выше порога |
+| p95 повторного подключения WebSocket | ≤ 5 с | не более 5% reconnect выше порога |
+| Потерянные подтверждённые ревизии/evidence | 0 | бюджета нет; любое событие — P1 |
 
 HTTP SLI исключает `/health/*`, `/metrics` и ожидаемые 4xx. Доставка считается успешной только после идемпотентного подтверждения delivery worker. Повторённая, но успешно доставленная публикация считается успешной; dead-letter — неуспех.
 
@@ -24,6 +28,11 @@ histogram_quantile(0.95,
 
 sum(rate(tutor_workflow_duration_seconds_count{stage="delivery",outcome="success"}[30d]))
   / clamp_min(sum(rate(tutor_workflow_duration_seconds_count{stage="delivery"}[30d])), 0.001)
+
+sum(tutor_board_websocket_connections)
+
+histogram_quantile(0.95,
+  sum by (le) (rate(tutor_board_evidence_finalize_duration_seconds_bucket[10m])))
 ```
 
 Если израсходовано 50% месячного бюджета, разрешены только исправления надёжности и уже принятые обязательства. При 100% замораживаются feature-релизы до закрытия RCA и восстановления устойчивого окна.

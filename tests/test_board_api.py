@@ -5,18 +5,23 @@ import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
+from starlette.websockets import WebSocketDisconnect
 
 from tutor_assistant_web.app import create_app
+from tutor_assistant_web.board_evidence_export import export_public_board_evidence
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.audit.models import AuditEvent
+from tutor_assistant_web.modules.boards import geometry_gateway
 from tutor_assistant_web.modules.boards.application import (
     BoardPersistenceService,
     canonical_json,
 )
+from tutor_assistant_web.modules.boards.evidence import _utc_milliseconds
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.modules.identity.models import (
     DEFAULT_ORGANIZATION_ID,
@@ -420,3 +425,295 @@ def test_board_api_rejects_oversized_body_and_rate_limits_writes(tmp_path):
         assert limited.status_code == 429
         assert limited.headers["retry-after"] == str(settings.rate_limit_window_seconds)
     database.dispose()
+
+
+def test_board_archive_history_and_lesson_listing(board_api):
+    client, _, _, _, lesson_id, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    command = _command_payload(user_id)
+    command["expectedDocumentSha256"] = _snapshot_payload()["documentSha256"]
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=command,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 200
+    )
+
+    history = client.get(f"/api/v1/boards/{DOCUMENT_ID}/revisions")
+    assert history.status_code == 200
+    assert [item["revision"] for item in history.json()["items"]] == [0, 1]
+    assert history.json()["items"][1] == {
+        "revision": 1,
+        "documentSha256": command["expectedDocumentSha256"],
+        "actorUserId": user_id,
+        "createdAt": history.json()["items"][1]["createdAt"],
+        "snapshotAvailable": False,
+    }
+    historical = client.get(f"/api/v1/boards/{DOCUMENT_ID}/revisions/1")
+    assert historical.status_code == 200
+    assert historical.json()["board"]["requestedRevision"] == 1
+    assert historical.json()["commandBatches"][0]["revision"] == 1
+
+    archived = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/archive",
+        headers={"x-csrf-token": csrf},
+    )
+    assert archived.status_code == 200
+    assert archived.json()["archivedAt"]
+    active = client.get(
+        f"/api/v1/lessons/{lesson_id}/boards",
+        params={"includeArchived": "false"},
+    )
+    assert active.status_code == 200
+    assert active.json()["items"] == []
+    rejected = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        json=_command_payload(user_id, base_revision=1, key="archived:write"),
+        headers={"x-csrf-token": csrf},
+    )
+    assert rejected.status_code == 410
+
+    restored = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/unarchive",
+        headers={"x-csrf-token": csrf},
+    )
+    assert restored.status_code == 200
+    assert restored.json()["archivedAt"] is None
+
+
+def test_board_evidence_is_immutable_and_published_to_student(board_api):
+    client, database, settings, student_id, lesson_id, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    command = _command_payload(user_id)
+    snapshot = _snapshot_payload(revision=1)
+    command["expectedDocumentSha256"] = snapshot["documentSha256"]
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=command,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/snapshots",
+            json=snapshot,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 201
+    )
+    preview_svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">'
+        '<rect width="100" height="100" fill="#fff"/></svg>'
+    )
+    payload = {
+        "schemaVersion": "1.0",
+        "revision": 1,
+        "documentSha256": snapshot["documentSha256"],
+        "previewSvg": preview_svg,
+        "previewPngBase64": "",
+        "transcriptLinks": [{"label": "Разбор задачи", "startMs": 1200, "endMs": 4800}],
+    }
+    finalized = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/evidence",
+        json=payload,
+        headers={"x-csrf-token": csrf},
+    )
+    assert finalized.status_code == 201
+    evidence = finalized.json()
+    assert evidence["revision"] == 1
+    assert evidence["publishedAt"] is None
+    artifact = client.get(evidence["artifacts"]["svg"])
+    assert artifact.status_code == 200
+    assert artifact.content == preview_svg.encode()
+    assert artifact.headers["etag"].startswith('"sha256-')
+    manifest = client.get(evidence["artifacts"]["manifest"]).json()
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z", manifest["finalizedAt"])
+
+    repeated = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/evidence",
+        json=payload,
+        headers={"x-csrf-token": csrf},
+    )
+    assert repeated.status_code == 201
+    assert repeated.json()["evidenceId"] == evidence["evidenceId"]
+    changed = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/evidence",
+        json={**payload, "previewSvg": preview_svg.replace("#fff", "#000")},
+        headers={"x-csrf-token": csrf},
+    )
+    assert changed.status_code == 409
+
+    _add_recipient(
+        database,
+        student_id,
+        email="evidence-student@example.test",
+        role=MembershipRole.student,
+    )
+    client.cookies.clear()
+    _login(client, "evidence-student@example.test")
+    assert client.get(f"/api/v1/lessons/{lesson_id}/board-evidence").json()["items"] == []
+    assert client.get(evidence["artifacts"]["svg"]).status_code == 404
+
+    client.cookies.clear()
+    _login(client)
+    admin_context = _context(client)
+    published = client.post(
+        f"/api/v1/board-evidence/{evidence['evidenceId']}/publish",
+        headers={"x-csrf-token": admin_context["csrfToken"]},
+    )
+    assert published.status_code == 200
+    assert published.json()["publishedAt"]
+    repeated_publish = client.post(
+        f"/api/v1/board-evidence/{evidence['evidenceId']}/publish",
+        headers={"x-csrf-token": admin_context["csrfToken"]},
+    )
+    assert repeated_publish.status_code == 200
+    exported = export_public_board_evidence(
+        database,
+        LocalArtifactStorage(settings.artifact_storage_root),
+        DEFAULT_ORGANIZATION_ID,
+        evidence["evidenceId"],
+        Path(settings.artifact_storage_root).parent / "student-export",
+    )
+    public_manifest = json.loads((exported / "manifest.json").read_text())
+    assert public_manifest == {
+        "assets": {"preview": "preview.svg"},
+        "board": {"revision": 1, "title": "Итоговая доска занятия"},
+        "schemaVersion": "1.0",
+    }
+    assert (exported / "preview.svg").read_text() == preview_svg
+
+    client.cookies.clear()
+    _login(client, "evidence-student@example.test")
+    visible = client.get(f"/api/v1/lessons/{lesson_id}/board-evidence")
+    assert visible.status_code == 200
+    assert [item["evidenceId"] for item in visible.json()["items"]] == [evidence["evidenceId"]]
+    assert client.get(evidence["artifacts"]["svg"]).status_code == 200
+    with database.sessions() as session:
+        actions = list(session.scalars(select(AuditEvent.action)))
+    assert actions.count("board.evidence.finalized") == 1
+    assert actions.count("board.evidence.published") == 1
+
+
+def test_board_evidence_timestamp_is_stable_after_sqlite_timezone_round_trip():
+    instant = datetime(2026, 7, 28, 20, 0, 0, 123456, tzinfo=UTC)
+    assert _utc_milliseconds(instant) == "2026-07-28T20:00:00.123Z"
+    assert _utc_milliseconds(instant.replace(tzinfo=None)) == "2026-07-28T20:00:00.123Z"
+
+
+def test_collaboration_ticket_is_one_time_and_room_is_revision_only(board_api):
+    client, _, _, _, _, context = board_api
+    response = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/collaboration-ticket",
+        json={"clientId": "browser-a"},
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert response.status_code == 200
+    ticket = response.json()
+    assert ticket["protocolVersion"] == "1.0"
+    websocket_url = f"{ticket['websocketPath']}?ticket={ticket['ticket']}"
+
+    with client.websocket_connect(
+        websocket_url,
+        subprotocols=["tutorboard.v1"],
+    ) as websocket:
+        ready = websocket.receive_json()
+        assert ready == {
+            "type": "ready",
+            "protocolVersion": "1.0",
+            "documentId": DOCUMENT_ID,
+            "clientId": "browser-a",
+            "currentRevision": 0,
+            "heartbeatSeconds": 20,
+        }
+        websocket.send_json(
+            {
+                "type": "presence",
+                "sequence": 1,
+                "cursor": {"x": 10, "y": 20},
+                "viewport": {"x": 0, "y": 0, "zoom": 1},
+                "selectedObjectIds": [],
+            }
+        )
+        websocket.send_text('{"type":"heartbeat"}')
+        assert websocket.receive_json() == {"type": "heartbeat.ack"}
+
+    with (
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect(
+            websocket_url,
+            subprotocols=["tutorboard.v1"],
+        ) as websocket,
+    ):
+        websocket.receive_json()
+
+
+def test_geometryos_gateway_is_authenticated_bounded_and_correlated(
+    board_api,
+    monkeypatch,
+):
+    client, _, _, _, _, _ = board_api
+    captured: list[tuple[str, str, bytes, dict]] = []
+
+    class FakeAsyncClient:
+        def __init__(self, **kwargs):
+            assert kwargs["base_url"] == "http://geometryos:8000"
+            assert kwargs["follow_redirects"] is False
+            assert kwargs["trust_env"] is False
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def request(self, method, path, *, content, headers):
+            captured.append((method, path, content, headers))
+            return httpx.Response(
+                200,
+                json={"status": "ready" if method == "GET" else "ok"},
+                headers={
+                    "content-type": "application/json",
+                    "x-request-id": headers["X-Request-ID"],
+                },
+            )
+
+    monkeypatch.setattr(geometry_gateway.httpx, "AsyncClient", FakeAsyncClient)
+    ready = client.get("/api/v1/geometryos/ready")
+    assert ready.status_code == 200
+    generated = client.post(
+        "/api/v1/geometryos/api/v1/generate",
+        json={"schema_version": "1.0", "prompt": "triangle"},
+    )
+    assert generated.status_code == 200
+    assert captured[0][0:3] == ("GET", "/health/ready", b"")
+    assert captured[1][0:2] == ("POST", "/api/v1/generate")
+    assert captured[1][3]["X-Request-ID"] == generated.headers["x-request-id"]
+
+
+def test_board_client_telemetry_is_allowlisted_and_content_free(board_api):
+    client, _, _, _, _, context = board_api
+    accepted = client.post(
+        "/api/v1/boards/client-events",
+        json={
+            "name": "collaboration.connection",
+            "outcome": "recovered",
+            "durationMs": 1200,
+        },
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert accepted.status_code == 204
+    marker = "PRIVATE-BOARD-CONTENT"
+    rejected = client.post(
+        "/api/v1/boards/client-events",
+        json={"name": "custom", "outcome": "success", "content": marker},
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert rejected.status_code == 422
+    assert marker not in rejected.text

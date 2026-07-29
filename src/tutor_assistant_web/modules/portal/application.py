@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.audit.models import AuditEvent
 from tutor_assistant_web.modules.automation.models import OutboxEvent
+from tutor_assistant_web.modules.boards.models import BoardEvidence, BoardEvidenceStatus
 from tutor_assistant_web.modules.identity.application import Principal
 from tutor_assistant_web.modules.identity.models import StudentAccess
 from tutor_assistant_web.modules.materials.models import (
@@ -34,6 +35,7 @@ from tutor_assistant_web.shared.errors import ConflictError, NotFoundError
 class PortalHome:
     accesses: list[StudentAccess]
     deliveries: list[MaterialDelivery]
+    board_evidence: list[BoardEvidence]
     notifications: list[UserNotification]
     unread_count: int
 
@@ -364,6 +366,23 @@ class PortalService:
                 if student_ids
                 else []
             )
+            board_evidence = (
+                list(
+                    session.scalars(
+                        select(BoardEvidence)
+                        .where(
+                            BoardEvidence.organization_id == self.principal.organization_id,
+                            BoardEvidence.student_id.in_(student_ids),
+                            BoardEvidence.storage_status == BoardEvidenceStatus.available.value,
+                            BoardEvidence.published_at.is_not(None),
+                            BoardEvidence.revoked_at.is_(None),
+                        )
+                        .order_by(BoardEvidence.published_at.desc())
+                    )
+                )
+                if student_ids
+                else []
+            )
             unread_count = (
                 session.scalar(
                     select(func.count(UserNotification.id)).where(
@@ -376,7 +395,13 @@ class PortalService:
                 if student_ids
                 else 0
             )
-            return PortalHome(accesses, deliveries, notifications, unread_count or 0)
+            return PortalHome(
+                accesses,
+                deliveries,
+                board_evidence,
+                notifications,
+                unread_count or 0,
+            )
 
     def delivery(self, delivery_id: str) -> MaterialDelivery:
         with self.database.sessions() as session:

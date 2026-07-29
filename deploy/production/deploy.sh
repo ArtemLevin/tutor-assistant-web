@@ -1,13 +1,17 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <immutable-release-tag>" >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+  echo "Usage: $0 <backend-release-tag> [tutorboard-release-tag]" >&2
   exit 2
 fi
 RELEASE=$1
+TUTORBOARD_RELEASE=${2:-$1}
 case "$RELEASE" in
   latest|""|*[!A-Za-z0-9._-]*) echo "Use an immutable image tag, never 'latest'." >&2; exit 2 ;;
+esac
+case "$TUTORBOARD_RELEASE" in
+  latest|""|*[!A-Za-z0-9._-]*) echo "Use an immutable TutorBoard image tag." >&2; exit 2 ;;
 esac
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -21,13 +25,24 @@ cp "$STATE" "$STATE.before"
 set -a
 . "$STATE"
 set +a
+TUTORBOARD_BLUE_RELEASE=${TUTORBOARD_BLUE_RELEASE:-${BLUE_RELEASE:-$TUTORBOARD_RELEASE}}
+TUTORBOARD_GREEN_RELEASE=${TUTORBOARD_GREEN_RELEASE:-${GREEN_RELEASE:-$TUTORBOARD_RELEASE}}
+CURRENT_TUTORBOARD_RELEASE=${CURRENT_TUTORBOARD_RELEASE:-$TUTORBOARD_BLUE_RELEASE}
+PREVIOUS_TUTORBOARD_RELEASE=${PREVIOUS_TUTORBOARD_RELEASE:-}
 OLD_SLOT=${ACTIVE_SLOT:-blue}
 if [ "$OLD_SLOT" = blue ]; then NEW_SLOT=green; else NEW_SLOT=blue; fi
 OLD_RELEASE=${CURRENT_RELEASE:-}
+OLD_TUTORBOARD_RELEASE=${CURRENT_TUTORBOARD_RELEASE:-}
 
 case "$NEW_SLOT" in
-  blue) BLUE_RELEASE=$RELEASE ;;
-  green) GREEN_RELEASE=$RELEASE ;;
+  blue)
+    BLUE_RELEASE=$RELEASE
+    TUTORBOARD_BLUE_RELEASE=$TUTORBOARD_RELEASE
+    ;;
+  green)
+    GREEN_RELEASE=$RELEASE
+    TUTORBOARD_GREEN_RELEASE=$TUTORBOARD_RELEASE
+    ;;
 esac
 SCHEDULER_RELEASE=$RELEASE
 OPS_RELEASE=$RELEASE
@@ -39,16 +54,23 @@ CURRENT_RELEASE=$OLD_RELEASE
 PREVIOUS_RELEASE=${PREVIOUS_RELEASE:-}
 SCHEDULER_RELEASE=$SCHEDULER_RELEASE
 OPS_RELEASE=$OPS_RELEASE
+TUTORBOARD_BLUE_RELEASE=$TUTORBOARD_BLUE_RELEASE
+TUTORBOARD_GREEN_RELEASE=$TUTORBOARD_GREEN_RELEASE
+CURRENT_TUTORBOARD_RELEASE=$OLD_TUTORBOARD_RELEASE
+PREVIOUS_TUTORBOARD_RELEASE=${PREVIOUS_TUTORBOARD_RELEASE:-}
 EOF
 
 failed=true
 cleanup() {
   if [ "$failed" = true ]; then
     mv "$STATE.before" "$STATE"
-    sed "s/__WEB_UPSTREAM__/web-$OLD_SLOT/g" "$HERE/Caddyfile.template" > "$HERE/runtime/Caddyfile"
+    sed \
+      -e "s/__WEB_UPSTREAM__/web-$OLD_SLOT/g" \
+      -e "s/__TUTORBOARD_UPSTREAM__/tutorboard-$OLD_SLOT/g" \
+      "$HERE/Caddyfile.template" > "$HERE/runtime/Caddyfile"
     printf '[{"targets":["web-%s:8000"],"labels":{"slot":"%s","release":"%s"}}]\n' \
       "$OLD_SLOT" "$OLD_SLOT" "$OLD_RELEASE" > "$HERE/runtime/prometheus-targets.json"
-    compose --profile "$OLD_SLOT" up -d "web-$OLD_SLOT" "worker-$OLD_SLOT" scheduler backup || true
+    compose --profile "$OLD_SLOT" up -d "web-$OLD_SLOT" "worker-$OLD_SLOT" "tutorboard-$OLD_SLOT" scheduler backup || true
     compose up -d caddy prometheus || true
     compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile || true
     echo "Deployment failed; traffic and deployment state were returned to $OLD_SLOT." >&2
@@ -69,7 +91,7 @@ compose --profile jobs run --rm minio-init
 
 echo "Pulling immutable release $RELEASE..."
 compose --profile "$NEW_SLOT" --profile jobs pull \
-  "web-$NEW_SLOT" "worker-$NEW_SLOT" scheduler migration ops
+  "web-$NEW_SLOT" "worker-$NEW_SLOT" "tutorboard-$NEW_SLOT" scheduler migration ops
 
 if [ "${SKIP_PRE_DEPLOY_BACKUP:-false}" != true ]; then
   compose --profile jobs run --rm ops tutor-assistant-backup create
@@ -80,7 +102,7 @@ if [ "${SKIP_MIGRATIONS:-false}" != true ]; then
 fi
 
 echo "Starting inactive $NEW_SLOT slot..."
-compose --profile "$NEW_SLOT" up -d "web-$NEW_SLOT" "worker-$NEW_SLOT"
+compose --profile "$NEW_SLOT" up -d "web-$NEW_SLOT" "worker-$NEW_SLOT" "tutorboard-$NEW_SLOT"
 attempt=0
 until compose --profile "$NEW_SLOT" exec -T "web-$NEW_SLOT" python -c \
   "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"; do
@@ -91,8 +113,21 @@ until compose --profile "$NEW_SLOT" exec -T "web-$NEW_SLOT" python -c \
   fi
   sleep 4
 done
+attempt=0
+until compose --profile "$NEW_SLOT" exec -T "tutorboard-$NEW_SLOT" \
+  wget -q -O /dev/null http://127.0.0.1:8080/healthz; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 30 ]; then
+    compose --profile "$NEW_SLOT" logs --tail=100 "tutorboard-$NEW_SLOT"
+    exit 1
+  fi
+  sleep 2
+done
 
-sed "s/__WEB_UPSTREAM__/web-$NEW_SLOT/g" "$HERE/Caddyfile.template" > "$HERE/runtime/Caddyfile.next"
+sed \
+  -e "s/__WEB_UPSTREAM__/web-$NEW_SLOT/g" \
+  -e "s/__TUTORBOARD_UPSTREAM__/tutorboard-$NEW_SLOT/g" \
+  "$HERE/Caddyfile.template" > "$HERE/runtime/Caddyfile.next"
 mv "$HERE/runtime/Caddyfile.next" "$HERE/runtime/Caddyfile"
 printf '[{"targets":["web-%s:8000"],"labels":{"slot":"%s","release":"%s"}}]\n' \
   "$NEW_SLOT" "$NEW_SLOT" "$RELEASE" > "$HERE/runtime/prometheus-targets.json"
@@ -110,10 +145,14 @@ CURRENT_RELEASE=$RELEASE
 PREVIOUS_RELEASE=$OLD_RELEASE
 SCHEDULER_RELEASE=$SCHEDULER_RELEASE
 OPS_RELEASE=$OPS_RELEASE
+TUTORBOARD_BLUE_RELEASE=$TUTORBOARD_BLUE_RELEASE
+TUTORBOARD_GREEN_RELEASE=$TUTORBOARD_GREEN_RELEASE
+CURRENT_TUTORBOARD_RELEASE=$TUTORBOARD_RELEASE
+PREVIOUS_TUTORBOARD_RELEASE=$OLD_TUTORBOARD_RELEASE
 EOF
 failed=false
 
 if [ "$OLD_SLOT" != "$NEW_SLOT" ]; then
-  compose --profile "$OLD_SLOT" stop -t 90 "web-$OLD_SLOT" "worker-$OLD_SLOT" || true
+  compose --profile "$OLD_SLOT" stop -t 90 "web-$OLD_SLOT" "worker-$OLD_SLOT" "tutorboard-$OLD_SLOT" || true
 fi
-echo "Release $RELEASE is active in the $NEW_SLOT slot."
+echo "Backend $RELEASE and TutorBoard $TUTORBOARD_RELEASE are active in the $NEW_SLOT slot."

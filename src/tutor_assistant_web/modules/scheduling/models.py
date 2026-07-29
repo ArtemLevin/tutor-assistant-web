@@ -13,6 +13,7 @@ from tutor_assistant_web.shared.models import new_id, utcnow
 
 if TYPE_CHECKING:
     from tutor_assistant_web.modules.automation.models import LessonTranscript
+    from tutor_assistant_web.modules.boards.models import BoardEvidence
     from tutor_assistant_web.modules.classroom.models import RecordingAsset
     from tutor_assistant_web.modules.materials.models import (
         GenerationRun,
@@ -81,4 +82,9 @@ class Lesson(Base):
     )
     transcript: Mapped[LessonTranscript | None] = relationship(
         "LessonTranscript", back_populates="lesson", cascade="all, delete-orphan", uselist=False
+    )
+    board_evidence: Mapped[list[BoardEvidence]] = relationship(
+        "BoardEvidence",
+        back_populates="lesson",
+        order_by="BoardEvidence.finalized_at",
     )

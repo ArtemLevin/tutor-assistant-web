@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -18,6 +20,12 @@ def create_router(container: AppContainer) -> APIRouter:
             return blocked
         classroom = service(request)
         lesson = classroom.detail(lesson_id)
+        board_document_id = f"document:{lesson_id}"
+        board_url = (
+            f"{container.settings.tutorboard_public_path}?"
+            f"{urlencode({'lessonId': lesson_id, 'documentId': board_document_id})}"
+            "#/board"
+        )
         return container.templates.TemplateResponse(
             request=request,
             name="lesson_detail.html",
@@ -25,8 +33,34 @@ def create_router(container: AppContainer) -> APIRouter:
                 request,
                 lesson=lesson,
                 student_url=classroom.student_link(lesson),
+                board_url=board_url,
             ),
         )
+
+    @router.get("/lessons/{lesson_id}/board")
+    def open_lesson_board(request: Request, lesson_id: str):
+        blocked = web.require_tutor(request)
+        if blocked:
+            return blocked
+        principal = web.principal_required(request)
+        document_id = f"document:{lesson_id}"
+        document = container.boards_service(principal.organization_id).create_for_lesson(
+            lesson_id,
+            document_id,
+        )
+        container.audit_service(principal.organization_id).record(
+            principal.user_id,
+            "board.opened_from_lesson",
+            "board_document",
+            document.id,
+            {"lesson_id": lesson_id},
+        )
+        target = (
+            f"{container.settings.tutorboard_public_path}?"
+            f"{urlencode({'lessonId': lesson_id, 'documentId': document.id})}"
+            "#/board"
+        )
+        return RedirectResponse(target, status_code=303)
 
     @router.post("/lessons/{lesson_id}/notes")
     async def update_notes(request: Request, lesson_id: str):

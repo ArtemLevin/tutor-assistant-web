@@ -44,6 +44,30 @@ READINESS = Gauge("tutor_readiness_dependency", "Dependency readiness", ("depend
 CRITICAL_FAILURES = Counter(
     "tutor_critical_failures_total", "Critical failures suitable for alerting", ("component",)
 )
+BOARD_SYNC_EVENTS = Counter(
+    "tutor_board_sync_events_total",
+    "Board synchronization events",
+    ("event",),
+)
+BOARD_WEBSOCKET_CONNECTIONS = Gauge(
+    "tutor_board_websocket_connections",
+    "Active board collaboration WebSocket connections",
+    ("role",),
+)
+BOARD_EVIDENCE_DURATION = Histogram(
+    "tutor_board_evidence_finalize_duration_seconds",
+    "Board evidence finalization duration",
+)
+BOARD_CLIENT_EVENTS = Counter(
+    "tutor_board_client_events_total",
+    "Privacy-safe TutorBoard client events",
+    ("event", "outcome"),
+)
+BOARD_CLIENT_DURATION = Histogram(
+    "tutor_board_client_duration_seconds",
+    "TutorBoard client operation duration",
+    ("event", "outcome"),
+)
 
 _SENSITIVE_KEYS = re.compile(
     r"(password|secret|token|authorization|cookie|transcript|notes|phone|email|content|"

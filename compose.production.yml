@@ -41,6 +41,7 @@ x-app-environment: &app-environment
   BOARD_SNAPSHOT_INTERVAL_MB: ${BOARD_SNAPSHOT_INTERVAL_MB:-5}
   BOARD_RETENTION_DAYS: ${BOARD_RETENTION_DAYS:-365}
   BOARD_DELETE_GRACE_DAYS: ${BOARD_DELETE_GRACE_DAYS:-30}
+  GEOMETRYOS_BASE_URL: ${GEOMETRYOS_BASE_URL:?set GEOMETRYOS_BASE_URL}
   RATE_LIMIT_BOARD_READS: ${RATE_LIMIT_BOARD_READS:-600}
   RATE_LIMIT_BOARD_WRITES: ${RATE_LIMIT_BOARD_WRITES:-300}
   BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-tutor-backups}
@@ -123,6 +124,38 @@ services:
     <<: *web-common
     image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-web:${GREEN_RELEASE:?set GREEN_RELEASE}
     profiles: [green]
+
+  tutorboard-blue:
+    image: ${TUTORBOARD_IMAGE_REPOSITORY:?set TUTORBOARD_IMAGE_REPOSITORY}:${TUTORBOARD_BLUE_RELEASE:?set TUTORBOARD_BLUE_RELEASE}
+    profiles: [blue]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [frontend]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  tutorboard-green:
+    image: ${TUTORBOARD_IMAGE_REPOSITORY:?set TUTORBOARD_IMAGE_REPOSITORY}:${TUTORBOARD_GREEN_RELEASE:?set TUTORBOARD_GREEN_RELEASE}
+    profiles: [green]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [frontend]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
 
   worker-blue:
     <<: *worker-common

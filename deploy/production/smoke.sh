@@ -21,6 +21,9 @@ grep -q '"status":"ok"' /tmp/tutor-smoke.json
 retry "$BASE_URL/health/ready"
 grep -q '"status":"ready"' /tmp/tutor-smoke.json
 curl --fail --silent --show-error --max-time 10 "$BASE_URL/" >/dev/null
+retry "$BASE_URL/board/healthz"
+grep -q '"status":"ok"' /tmp/tutor-smoke.json
+curl --fail --silent --show-error --max-time 10 "$BASE_URL/board/" | grep -q '<div id="root">'
 headers=$(curl --silent --show-error --head --max-time 10 "$BASE_URL/")
 printf '%s' "$headers" | grep -qi '^strict-transport-security:'
 printf '%s' "$headers" | grep -qi '^content-security-policy:'

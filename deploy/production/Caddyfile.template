@@ -9,10 +9,19 @@
 
 {$APP_DOMAIN} {
 	encode zstd gzip
-	reverse_proxy __WEB_UPSTREAM__:8000 {
-		health_uri /health/live
-		health_interval 10s
-		health_timeout 3s
+	handle_path /board/* {
+		reverse_proxy __TUTORBOARD_UPSTREAM__:8080 {
+			health_uri /healthz
+			health_interval 10s
+			health_timeout 3s
+		}
+	}
+	handle {
+		reverse_proxy __WEB_UPSTREAM__:8000 {
+			health_uri /health/live
+			health_interval 10s
+			health_timeout 3s
+		}
 	}
 	header {
 		-Server
