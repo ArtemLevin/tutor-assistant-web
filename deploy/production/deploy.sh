@@ -21,10 +21,30 @@ STATE="$HERE/runtime/deployment.env"
 COMPOSE_FILE="$ROOT/compose.production.yml"
 
 [ -f "$STATE" ] || "$HERE/init.sh"
-cp "$STATE" "$STATE.before"
 set -a
+. "$ENV_FILE"
 . "$STATE"
 set +a
+case "${GEOMETRYOS_IMAGE:-}" in
+  *@sha256:*)
+    geometryos_digest=${GEOMETRYOS_IMAGE##*@sha256:}
+    if [ "${#geometryos_digest}" -ne 64 ]; then
+      echo "GEOMETRYOS_IMAGE must contain a complete sha256 digest." >&2
+      exit 2
+    fi
+    case "$geometryos_digest" in
+      *[!0-9a-fA-F]*)
+        echo "GEOMETRYOS_IMAGE digest must be hexadecimal." >&2
+        exit 2
+        ;;
+    esac
+    ;;
+  *)
+    echo "GEOMETRYOS_IMAGE must be pinned with @sha256:, never a mutable tag alone." >&2
+    exit 2
+    ;;
+esac
+cp "$STATE" "$STATE.before"
 TUTORBOARD_BLUE_RELEASE=${TUTORBOARD_BLUE_RELEASE:-${BLUE_RELEASE:-$TUTORBOARD_RELEASE}}
 TUTORBOARD_GREEN_RELEASE=${TUTORBOARD_GREEN_RELEASE:-${GREEN_RELEASE:-$TUTORBOARD_RELEASE}}
 CURRENT_TUTORBOARD_RELEASE=${CURRENT_TUTORBOARD_RELEASE:-$TUTORBOARD_BLUE_RELEASE}
@@ -86,7 +106,8 @@ compose() {
 }
 
 echo "Starting stable infrastructure..."
-compose up -d postgres redis minio clamav tempo otel-collector pushgateway
+compose pull geometryos
+compose up -d postgres redis minio clamav geometryos tempo otel-collector pushgateway
 compose --profile jobs run --rm minio-init
 
 echo "Pulling immutable release $RELEASE..."

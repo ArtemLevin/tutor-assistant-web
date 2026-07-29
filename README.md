@@ -90,6 +90,29 @@ uv run tutor-assistant-web
 
 Demo-данные создаются один раз при пустой базе. Для чистой базы установите `SEED_DEMO_DATA=false`.
 
+## Единый локальный запуск с TutorBoard и GeometryOS
+
+Если `tutor-assistant-web`, `tutorboard` и `geometryos` клонированы в соседние
+каталоги, полный контур запускается одной командой в Windows PowerShell:
+
+```powershell
+.\deploy\local\start-local.ps1
+```
+
+Приложение будет доступно на <http://localhost:8080>, а TutorBoard — на
+<http://localhost:8080/board/>. Скрипт автоматически применяет миграции,
+поднимает PostgreSQL, Redis, MinIO, ClamAV, worker и scheduler, а затем
+проверяет вертикаль от входа до публикации Lesson Evidence.
+
+Остановка без удаления данных:
+
+```powershell
+.\deploy\local\stop-local.ps1
+```
+
+Полная инструкция, ручной чек-лист и параметры:
+[docs/local-distribution.md](docs/local-distribution.md).
+
 ## Команды
 
 ```bash
@@ -213,7 +236,8 @@ make production-deploy RELEASE=v1.0.0
 `deploy.sh` принимает только immutable tag, делает backup, запускает migration отдельным job,
 ждёт readiness неактивного slot и лишь затем переключает Caddy. `make production-rollback`
 возвращает предыдущий application release. Schema rollback требует отдельного подтверждения и
-проверенного Alembic downgrade.
+проверенного Alembic downgrade. GeometryOS работает только во внутренней Docker-сети; его
+`GEOMETRYOS_IMAGE` должен быть зафиксирован полным `@sha256` digest.
 
 Workflow `Production release` собирает и сканирует пять images, разворачивает staging, выполняет
 smoke/load/restore/resilience gates и останавливается на GitHub Environment approval перед

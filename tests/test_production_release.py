@@ -43,10 +43,16 @@ def test_production_compose_has_separate_processes_and_private_network() -> None
         "migration",
         "tutorboard-blue",
         "tutorboard-green",
+        "geometryos",
     } <= set(services)
     assert "ports" not in services["web-blue"]
     assert services["tutorboard-blue"]["read_only"] is True
     assert services["tutorboard-blue"]["cap_drop"] == ["ALL"]
+    assert services["geometryos"]["read_only"] is True
+    assert services["geometryos"]["cap_drop"] == ["ALL"]
+    assert services["geometryos"]["image"].startswith("${GEOMETRYOS_IMAGE:")
+    assert "ports" not in services["geometryos"]
+    assert services["web-blue"]["depends_on"]["geometryos"]["condition"] == "service_healthy"
     assert "ports" not in services["postgres"]
     assert document["networks"]["backend"]["internal"] is True
     assert services["migration"]["restart"] == "no"
@@ -82,6 +88,9 @@ def test_postgresql_unique_constraints_match_historical_indexes(
 def test_release_shell_scripts_are_syntactically_valid() -> None:
     for script in (ROOT / "deploy" / "production").glob("*.sh"):
         subprocess.run(["sh", "-n", str(script)], check=True)
+    deploy = (ROOT / "deploy" / "production" / "deploy.sh").read_text(encoding="utf-8")
+    assert "GEOMETRYOS_IMAGE must be pinned with @sha256:" in deploy
+    assert "compose pull geometryos" in deploy
 
 
 def test_backup_sha256_is_streamed(tmp_path: Path) -> None:
