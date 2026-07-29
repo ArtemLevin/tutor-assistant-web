@@ -59,6 +59,7 @@ def test_local_gateway_and_scripts_expose_one_origin() -> None:
     assert "handle_path /board/*" in caddy
     assert "reverse_proxy tutorboard:8080" in caddy
     assert "reverse_proxy web:8000" in caddy
+    assert "header_up Host localhost:8080" in caddy
     assert "geometryos" not in caddy
 
     start = (ROOT / "deploy" / "local" / "start-local.ps1").read_text(encoding="utf-8")
