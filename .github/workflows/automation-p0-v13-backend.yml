@@ -1,0 +1,200 @@
+name: Apply Board ordering persistence
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.event.pull_request.head.ref == 'feature/p0-ordered-envelope-v13'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/p0-ordered-envelope-v13
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: Apply backend ordering integration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+
+          def replace(path, old, new, count=1):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'marker missing in {path}: {old[:100]!r}')
+              file.write_text(text.replace(old, new, count), encoding='utf-8')
+
+          # Model columns and constraints.
+          models = 'src/tutor_assistant_web/modules/boards/models.py'
+          replace(
+              models,
+              '        CheckConstraint("payload_size > 0", name="ck_board_commands_payload_size"),',
+              '        CheckConstraint("payload_size > 0", name="ck_board_commands_payload_size"),\n        CheckConstraint("lamport_min >= 0", name="ck_board_commands_lamport_min"),\n        CheckConstraint(\n            "lamport_max >= lamport_min",\n            name="ck_board_commands_lamport_range",\n        ),',
+          )
+          replace(
+              models,
+              '        Index(\n            "ix_board_commands_org_document_created",',
+              '        Index(\n            "ix_board_commands_actor_lamport",\n            "organization_id",\n            "board_document_id",\n            "contract_actor_id",\n            "lamport_max",\n        ),\n        Index(\n            "ix_board_commands_org_document_created",',
+          )
+          replace(
+              models,
+              '    schema_version: Mapped[str] = mapped_column(String(16), default="1.0")\n    expected_document_sha256:',
+              '    schema_version: Mapped[str] = mapped_column(String(16), default="1.0")\n    lamport_min: Mapped[int] = mapped_column(Integer, default=0)\n    lamport_max: Mapped[int] = mapped_column(Integer, default=0)\n    expected_document_sha256:',
+          )
+
+          # Persistence service consumes mixed-version contract and enforces Lamport.
+          app = Path('src/tutor_assistant_web/modules/boards/application.py')
+          text = app.read_text(encoding='utf-8')
+          text = text.replace(
+              'from tutor_assistant_web.modules.boards.models import (',
+              'from tutor_assistant_web.modules.boards.contracts import (\n    BoardCommandEnvelope,\n    envelope_lamport_range,\n)\nfrom tutor_assistant_web.modules.boards.models import (',
+              1,
+          )
+          old_import = '''from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (\n    BoardCommandEnvelope10,\n)\n'''
+          if old_import not in text:
+              raise SystemExit('legacy application import missing')
+          text = text.replace(old_import, '')
+          text = text.replace('        envelope: BoardCommandEnvelope10,', '        envelope: BoardCommandEnvelope,')
+          marker = '        contract_actor_id = envelope.actor_id.root\n'
+          replacement = '''        contract_actor_id = envelope.actor_id.root\n        try:\n            lamport_min, lamport_max = envelope_lamport_range(envelope)\n        except ValueError as exc:\n            raise ValidationError(str(exc)) from exc\n'''
+          if marker not in text:
+              raise SystemExit('actor marker missing')
+          text = text.replace(marker, replacement, 1)
+          revision_marker = '''            if envelope.base_revision != document.current_revision:\n                raise BoardRevisionConflict(\n                    envelope.base_revision,\n                    document.current_revision,\n                )\n            revision = document.current_revision + 1\n'''
+          revision_replacement = '''            if envelope.base_revision != document.current_revision:\n                raise BoardRevisionConflict(\n                    envelope.base_revision,\n                    document.current_revision,\n                )\n            if lamport_min > 0:\n                latest_lamport = session.scalar(\n                    select(func.max(BoardCommandBatch.lamport_max)).where(\n                        BoardCommandBatch.organization_id == self.organization_id,\n                        BoardCommandBatch.board_document_id == document.id,\n                        BoardCommandBatch.contract_actor_id == contract_actor_id,\n                    )\n                ) or 0\n                if lamport_min <= latest_lamport:\n                    raise ConflictError(\n                        "Lamport пакета должен возрастать для actor доски"\n                    )\n            revision = document.current_revision + 1\n'''
+          if revision_marker not in text:
+              raise SystemExit('revision marker missing')
+          text = text.replace(revision_marker, revision_replacement, 1)
+          text = text.replace(
+              '                schema_version=envelope.schema_version,\n                expected_document_sha256=',
+              '                schema_version=envelope.schema_version,\n                lamport_min=lamport_min,\n                lamport_max=lamport_max,\n                expected_document_sha256=',
+              1,
+          )
+          app.write_text(text, encoding='utf-8')
+
+          # Route validates compatibility wrapper and actor IDs in both shapes.
+          routes = Path('src/tutor_assistant_web/modules/boards/routes.py')
+          text = routes.read_text(encoding='utf-8')
+          text = text.replace(
+              'from tutor_assistant_web.modules.boards.evidence import FinalizeBoardEvidenceRequest\n',
+              'from tutor_assistant_web.modules.boards.contracts import (\n    BoardCommandEnvelope,\n    BoardCommandEnvelopeInput,\n    envelope_commands,\n)\nfrom tutor_assistant_web.modules.boards.evidence import FinalizeBoardEvidenceRequest\n',
+              1,
+          )
+          old_route_import = '''from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (\n    BoardCommandEnvelope10,\n)\n'''
+          if old_route_import not in text:
+              raise SystemExit('legacy route import missing')
+          text = text.replace(old_route_import, '')
+          old_parse = '''        envelope = await _validated_body(\n            request,\n            BoardCommandEnvelope10,\n            container.settings.board_command_max_size_mb * 1024 * 1024,\n        )\n'''
+          new_parse = '''        envelope_input = await _validated_body(\n            request,\n            BoardCommandEnvelopeInput,\n            container.settings.board_command_max_size_mb * 1024 * 1024,\n        )\n        envelope = envelope_input.root\n'''
+          if old_parse not in text:
+              raise SystemExit('command parse marker missing')
+          text = text.replace(old_parse, new_parse, 1)
+          old_validate = '''def _validate_actor(envelope: BoardCommandEnvelope10, principal: Principal) -> None:\n    if envelope.actor_id.root != principal.user_id:\n        raise HTTPException(403, "actorId не соответствует авторизованному пользователю")\n    if any(command.root.actor_id.root != principal.user_id for command in envelope.commands):\n        raise HTTPException(403, "actorId команды не соответствует авторизованному пользователю")\n'''
+          new_validate = '''def _validate_actor(envelope: BoardCommandEnvelope, principal: Principal) -> None:\n    if envelope.actor_id.root != principal.user_id:\n        raise HTTPException(403, "actorId не соответствует авторизованному пользователю")\n    if any(\n        command.root.actor_id.root != principal.user_id\n        for command in envelope_commands(envelope)\n    ):\n        raise HTTPException(403, "actorId команды не соответствует авторизованному пользователю")\n'''
+          if old_validate not in text:
+              raise SystemExit('actor validator missing')
+          routes.write_text(text.replace(old_validate, new_validate), encoding='utf-8')
+
+          # Generated contract tests target v1.3.
+          tests = Path('tests/test_board_contracts.py')
+          text = tests.read_text(encoding='utf-8')
+          text = text.replace('    BoardCommandEnvelope10,', '    BoardCommandEnvelope13,')
+          text = text.replace('BoardCommandEnvelope10', 'BoardCommandEnvelope13')
+          tests.write_text(text, encoding='utf-8')
+
+          # Refresh source metadata for the synchronized manifest.
+          source_path = Path('schemas/board/source.json')
+          source = json.loads(source_path.read_text(encoding='utf-8'))
+          source['sourceCommit'] = '8d19fd47001d98edf07a2a4f82c7ee257de45dfc'
+          source['manifestSha256'] = hashlib.sha256(\
+              Path('schemas/board/v1/manifest.json').read_bytes()\
+          ).hexdigest()
+          source_path.write_text(json.dumps(source, indent=2) + '\n', encoding='utf-8')
+          PY
+      - name: Add ordering contract tests
+        run: |
+          cat > tests/test_board_command_ordering.py <<'EOF'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          import pytest
+          from pydantic import ValidationError as PydanticValidationError
+
+          from tutor_assistant_web.modules.boards.contracts import (
+              BoardCommandEnvelopeInput,
+              envelope_commands,
+              envelope_lamport_range,
+          )
+
+          CONTRACT = Path(__file__).parents[1] / "schemas" / "board" / "v1" / "fixtures"
+
+
+          def payload() -> dict:
+              return json.loads((CONTRACT / "board-command-envelope.json").read_text())
+
+
+          def test_ordered_envelope_exposes_commands_and_lamport_range() -> None:
+              envelope = BoardCommandEnvelopeInput.model_validate(payload()).root
+              assert len(envelope_commands(envelope)) == 2
+              assert envelope_lamport_range(envelope) == (8, 9)
+
+
+          def test_ordered_envelope_rejects_non_monotonic_lamport() -> None:
+              value = payload()
+              value["commands"][1]["order"]["lamport"] = 8
+              envelope = BoardCommandEnvelopeInput.model_validate(value).root
+              with pytest.raises(ValueError, match="строго возрастать"):
+                  envelope_lamport_range(envelope)
+
+
+          def test_ordered_envelope_rejects_future_base_revision() -> None:
+              value = payload()
+              value["commands"][0]["order"]["baseRevisionAtCreation"] = 9
+              envelope = BoardCommandEnvelopeInput.model_validate(value).root
+              with pytest.raises(ValueError, match="превышает"):
+                  envelope_lamport_range(envelope)
+
+
+          def test_legacy_envelope_remains_readable() -> None:
+              value = payload()
+              value["schemaVersion"] = "1.2"
+              value["commands"] = [item["command"] for item in value["commands"]]
+              envelope = BoardCommandEnvelopeInput.model_validate(value).root
+              assert envelope.schema_version == "1.2"
+              assert envelope_lamport_range(envelope) == (0, 0)
+
+
+          def test_unknown_envelope_version_fails_closed() -> None:
+              value = payload()
+              value["schemaVersion"] = "2.0"
+              with pytest.raises(PydanticValidationError):
+                  BoardCommandEnvelopeInput.model_validate(value)
+          EOF
+      - run: uv run ruff format src/tutor_assistant_web/modules/boards tests/test_board_contracts.py tests/test_board_command_ordering.py
+      - run: uv run ruff check --fix src/tutor_assistant_web/modules/boards tests/test_board_contracts.py tests/test_board_command_ordering.py
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/automation-p0-v13-backend.yml
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat(boards): persist and enforce Lamport ordering"
+          git push origin HEAD:feature/p0-ordered-envelope-v13
+      - run: make board-contract-check
+      - run: uv run ruff check .
+      - run: uv run pytest tests/test_board_contracts.py tests/test_board_command_ordering.py tests/test_board_api.py
