@@ -26,7 +26,7 @@ class GeometryOs(BaseModel):
 Identifier = RootModel[str]
 
 
-class BoardGeometryImport10(BaseModel):
+class BoardGeometryImport11(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -37,4 +37,4 @@ class BoardGeometryImport10(BaseModel):
     geometry_os: GeometryOs = Field(..., alias="geometryOs")
     import_id: Identifier = Field(..., alias="importId")
     prompt: str = Field(..., max_length=100000, min_length=1)
-    schema_version: Literal["1.0"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.2"] = Field(..., alias="schemaVersion")
