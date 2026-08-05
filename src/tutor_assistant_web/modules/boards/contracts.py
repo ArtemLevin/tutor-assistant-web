@@ -77,9 +77,6 @@ def envelope_lamport_range(
         raise ValueError("baseRevisionAtCreation превышает baseRevision пакета")
 
     lamports = [item.lamport for item in orders]
-    if any(
-        current <= previous
-        for previous, current in zip(lamports, lamports[1:], strict=False)
-    ):
+    if any(current <= previous for previous, current in zip(lamports, lamports[1:], strict=False)):
         raise ValueError("Lamport должен строго возрастать внутри пакета")
     return lamports[0], lamports[-1]

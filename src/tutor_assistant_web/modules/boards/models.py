@@ -158,6 +158,18 @@ class BoardCommandBatch(Base):
             name="ck_board_commands_revision_sequence",
         ),
         CheckConstraint("payload_size > 0", name="ck_board_commands_payload_size"),
+        CheckConstraint("lamport_min >= 0", name="ck_board_commands_lamport_min"),
+        CheckConstraint(
+            "lamport_max >= lamport_min",
+            name="ck_board_commands_lamport_range",
+        ),
+        Index(
+            "ix_board_commands_actor_lamport",
+            "organization_id",
+            "board_document_id",
+            "contract_actor_id",
+            "lamport_max",
+        ),
         Index(
             "ix_board_commands_org_document_created",
             "organization_id",
@@ -177,6 +189,8 @@ class BoardCommandBatch(Base):
     )
     contract_actor_id: Mapped[str] = mapped_column(String(128))
     schema_version: Mapped[str] = mapped_column(String(16), default="1.0")
+    lamport_min: Mapped[int] = mapped_column(Integer, default=0)
+    lamport_max: Mapped[int] = mapped_column(Integer, default=0)
     expected_document_sha256: Mapped[str] = mapped_column(String(64))
     payload_sha256: Mapped[str] = mapped_column(String(64))
     payload_size: Mapped[int] = mapped_column(Integer)

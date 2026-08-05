@@ -18,6 +18,11 @@ from tutor_assistant_web.modules.boards.collaboration import (
     run_collaboration_socket,
     validate_websocket_origin,
 )
+from tutor_assistant_web.modules.boards.contracts import (
+    BoardCommandEnvelope,
+    BoardCommandEnvelopeInput,
+    envelope_commands,
+)
 from tutor_assistant_web.modules.boards.evidence import FinalizeBoardEvidenceRequest
 from tutor_assistant_web.modules.boards.geometry_gateway import (
     create_geometry_gateway_router,
@@ -33,9 +38,6 @@ from tutor_assistant_web.observability import (
     BOARD_CLIENT_EVENTS,
     BOARD_EVIDENCE_DURATION,
     BOARD_SYNC_EVENTS,
-)
-from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope10,
 )
 from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot10
 from tutor_assistant_web.shared.errors import NotFoundError
@@ -276,11 +278,12 @@ def create_router(container: AppContainer) -> APIRouter:
         boards, previous_document = document_for(actor, document_id, operation="write")
         previous_revision = previous_document.current_revision
         web.validate_csrf_header(request)
-        envelope = await _validated_body(
+        envelope_input = await _validated_body(
             request,
-            BoardCommandEnvelope10,
+            BoardCommandEnvelopeInput,
             container.settings.board_command_max_size_mb * 1024 * 1024,
         )
+        envelope = envelope_input.root
         if envelope.document_id.root != document_id:
             raise HTTPException(422, "documentId не совпадает с идентификатором маршрута")
         _validate_actor(envelope, actor)
@@ -647,10 +650,12 @@ async def _validated_body[ModelT: BaseModel](
         raise HTTPException(422, details) from exc
 
 
-def _validate_actor(envelope: BoardCommandEnvelope10, principal: Principal) -> None:
+def _validate_actor(envelope: BoardCommandEnvelope, principal: Principal) -> None:
     if envelope.actor_id.root != principal.user_id:
         raise HTTPException(403, "actorId не соответствует авторизованному пользователю")
-    if any(command.root.actor_id.root != principal.user_id for command in envelope.commands):
+    if any(
+        command.root.actor_id.root != principal.user_id for command in envelope_commands(envelope)
+    ):
         raise HTTPException(403, "actorId команды не соответствует авторизованному пользователю")
 
 

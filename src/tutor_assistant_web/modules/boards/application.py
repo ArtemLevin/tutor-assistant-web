@@ -15,6 +15,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.boards.contracts import (
+    BoardCommandEnvelope,
+    envelope_lamport_range,
+)
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardDocument,
@@ -25,9 +29,6 @@ from tutor_assistant_web.modules.boards.models import (
 )
 from tutor_assistant_web.modules.identity.models import Membership
 from tutor_assistant_web.modules.scheduling.models import Lesson
-from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope10,
-)
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
     BoardGeometryImport10,
 )
@@ -181,7 +182,7 @@ class BoardPersistenceService:
 
     def append_commands(
         self,
-        envelope: BoardCommandEnvelope10,
+        envelope: BoardCommandEnvelope,
         actor_user_id: str,
     ) -> BoardCommandBatch:
         payload, encoded, payload_sha256 = canonical_json(envelope)
@@ -189,6 +190,10 @@ class BoardPersistenceService:
             raise ValidationError("Пакет команд превышает допустимый размер")
         document_id = envelope.document_id.root
         contract_actor_id = envelope.actor_id.root
+        try:
+            lamport_min, lamport_max = envelope_lamport_range(envelope)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
         with self.database.sessions() as session:
             self._require_active_membership(session, actor_user_id)
             existing = session.scalar(
@@ -219,6 +224,19 @@ class BoardPersistenceService:
                     envelope.base_revision,
                     document.current_revision,
                 )
+            if lamport_min > 0:
+                latest_lamport = (
+                    session.scalar(
+                        select(func.max(BoardCommandBatch.lamport_max)).where(
+                            BoardCommandBatch.organization_id == self.organization_id,
+                            BoardCommandBatch.board_document_id == document.id,
+                            BoardCommandBatch.contract_actor_id == contract_actor_id,
+                        )
+                    )
+                    or 0
+                )
+                if lamport_min <= latest_lamport:
+                    raise ConflictError("Lamport пакета должен возрастать для actor доски")
             revision = document.current_revision + 1
             batch = BoardCommandBatch(
                 organization_id=self.organization_id,
@@ -229,6 +247,8 @@ class BoardPersistenceService:
                 actor_user_id=actor_user_id,
                 contract_actor_id=contract_actor_id,
                 schema_version=envelope.schema_version,
+                lamport_min=lamport_min,
+                lamport_max=lamport_max,
                 expected_document_sha256=envelope.expected_document_sha256,
                 payload_sha256=payload_sha256,
                 payload_size=len(encoded),
