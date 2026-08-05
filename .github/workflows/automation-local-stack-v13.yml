@@ -34,12 +34,25 @@ jobs:
       - run: python scripts/finalize_local_stack_v13.py
       - run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml config --quiet
       - name: Build and start local stack
-        run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml up --build --detach
+        run: |
+          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml up --build --detach > /tmp/local-stack-up.log 2>&1
       - name: Verify gateway and run unified smoke
         run: |
+          set +e
           curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 2 http://localhost:8080/health/live
+          health_status=$?
           curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 2 http://localhost:8080/board/build.json
-          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml --profile smoke run --rm smoke
+          board_status=$?
+          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml --profile smoke run --rm smoke > /tmp/unified-smoke.log 2>&1
+          smoke_status=$?
+          echo "health_status=${health_status}"
+          echo "board_status=${board_status}"
+          echo "smoke_status=${smoke_status}"
+          echo "--- smoke output ---"
+          tail -n 160 /tmp/unified-smoke.log
+          if [ "${health_status}" -ne 0 ] || [ "${board_status}" -ne 0 ] || [ "${smoke_status}" -ne 0 ]; then
+            exit 1
+          fi
       - name: Commit implementation
         run: |
           docker compose --env-file deploy/local/.env.local.example -f compose.local.yml down --volumes --remove-orphans
@@ -51,7 +64,13 @@ jobs:
           git push origin HEAD:feature/p0-ordered-envelope-v13
       - name: Logs on failure
         if: failure()
-        run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml logs --no-color --tail 250 gateway web tutorboard geometryos migration worker scheduler || true
+        run: |
+          echo "--- compose ps ---"
+          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml ps || true
+          echo "--- gateway tail ---"
+          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml logs --no-color --tail 40 gateway || true
+          echo "--- web tail ---"
+          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml logs --no-color --tail 40 web || true
       - name: Cleanup
         if: always()
-        run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml down --volumes --remove-orphans || true
+        run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml down --volumes --remove-orphans > /dev/null 2>&1 || true
