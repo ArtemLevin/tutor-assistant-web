@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from tutor_assistant_web.bootstrap.container import AppContainer
 from tutor_assistant_web.modules.boards.access import BoardAccessPolicy
 from tutor_assistant_web.modules.boards.application import (
+    BoardLamportConflict,
     BoardPersistenceService,
     BoardRevisionConflict,
     canonical_json,
@@ -39,7 +40,7 @@ from tutor_assistant_web.observability import (
     BOARD_EVIDENCE_DURATION,
     BOARD_SYNC_EVENTS,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot10
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
 from tutor_assistant_web.shared.errors import NotFoundError
 
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
@@ -284,11 +285,27 @@ def create_router(container: AppContainer) -> APIRouter:
             container.settings.board_command_max_size_mb * 1024 * 1024,
         )
         envelope = envelope_input.root
+        BOARD_SYNC_EVENTS.labels(event=f"envelope_{envelope.schema_version}_received").inc()
         if envelope.document_id.root != document_id:
             raise HTTPException(422, "documentId не совпадает с идентификатором маршрута")
         _validate_actor(envelope, actor)
         try:
             batch = boards.append_commands(envelope, actor.user_id)
+        except BoardLamportConflict as exc:
+            BOARD_SYNC_EVENTS.labels(event="lamport_conflict").inc()
+            return JSONResponse(
+                {
+                    "error": {
+                        "code": "board_lamport_conflict",
+                        "message": str(exc),
+                        "actorId": exc.actor_id,
+                        "previousLamport": exc.previous_lamport,
+                        "incomingLamport": exc.incoming_lamport,
+                    }
+                },
+                status_code=409,
+                headers={"ETag": _etag(previous_revision)},
+            )
         except BoardRevisionConflict as exc:
             missing = boards.commands_after(document_id, exc.expected_revision, limit=500)
             return JSONResponse(
@@ -314,7 +331,7 @@ def create_router(container: AppContainer) -> APIRouter:
                 document,
                 {
                     "revision": batch.revision,
-                    "command_count": len(envelope.commands),
+                    "command_count": len(envelope_commands(envelope)),
                     "payload_sha256": batch.payload_sha256,
                 },
             )
@@ -331,6 +348,8 @@ def create_router(container: AppContainer) -> APIRouter:
                     "actorId": actor.user_id,
                 },
             )
+        else:
+            BOARD_SYNC_EVENTS.labels(event="idempotent_retry").inc()
         return JSONResponse(
             {
                 "documentId": document.id,
@@ -566,7 +585,7 @@ def create_router(container: AppContainer) -> APIRouter:
         web.validate_csrf_header(request)
         snapshot = await _validated_body(
             request,
-            BoardSnapshot10,
+            BoardSnapshot11,
             container.settings.board_snapshot_max_size_mb * 1024 * 1024,
         )
         if snapshot.document_id.root != document_id:
@@ -726,6 +745,9 @@ def _command_payload(batch: BoardCommandBatch) -> dict:
         "baseRevision": batch.base_revision,
         "idempotencyKey": batch.idempotency_key,
         "actorUserId": batch.actor_user_id,
+        "schemaVersion": batch.schema_version,
+        "lamportMin": batch.lamport_min,
+        "lamportMax": batch.lamport_max,
         "payloadSha256": batch.payload_sha256,
         "envelope": batch.payload,
         "createdAt": batch.created_at.isoformat(),

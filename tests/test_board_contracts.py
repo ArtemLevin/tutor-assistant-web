@@ -8,11 +8,11 @@ from pathlib import Path
 from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
     BoardCommandEnvelope13,
 )
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument10
+from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument11
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
-    BoardGeometryImport10,
+    BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot10
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
 
 ROOT = Path(__file__).parents[1]
 CONTRACT_ROOT = ROOT / "schemas" / "board" / "v1"
@@ -40,10 +40,10 @@ def test_vendored_contract_manifest_is_complete_and_fresh() -> None:
 
 def test_generated_dtos_accept_canonical_tutorboard_fixtures() -> None:
     pairs = (
-        (BoardDocument10, "fixtures/board-document.json"),
+        (BoardDocument11, "fixtures/board-document.json"),
         (BoardCommandEnvelope13, "fixtures/board-command-envelope.json"),
-        (BoardSnapshot10, "fixtures/board-snapshot.json"),
-        (BoardGeometryImport10, "fixtures/board-geometry-import.json"),
+        (BoardSnapshot11, "fixtures/board-snapshot.json"),
+        (BoardGeometryImport11, "fixtures/board-geometry-import.json"),
     )
     for model, fixture in pairs:
         parsed = model.model_validate(_json(fixture))

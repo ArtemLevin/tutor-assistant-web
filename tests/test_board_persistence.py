@@ -35,9 +35,9 @@ from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema im
     BoardCommandEnvelope10,
 )
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
-    BoardGeometryImport10,
+    BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot10
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
 from tutor_assistant_web.shared.errors import (
     ConflictError,
     GoneError,
@@ -104,16 +104,16 @@ def load_command(**changes) -> BoardCommandEnvelope10:
     return BoardCommandEnvelope10.model_validate(payload)
 
 
-def load_snapshot(**changes) -> BoardSnapshot10:
+def load_snapshot(**changes) -> BoardSnapshot11:
     payload = json.loads((FIXTURES / "board-snapshot.json").read_text())
     payload.update(changes)
-    return BoardSnapshot10.model_validate(payload)
+    return BoardSnapshot11.model_validate(payload)
 
 
-def load_geometry_import(**changes) -> BoardGeometryImport10:
+def load_geometry_import(**changes) -> BoardGeometryImport11:
     payload = json.loads((FIXTURES / "board-geometry-import.json").read_text())
     payload.update({"baseRevision": 0, **changes})
-    return BoardGeometryImport10.model_validate(payload)
+    return BoardGeometryImport11.model_validate(payload)
 
 
 def test_migration_exposes_board_tables_and_tenant_constraints(board_context):
@@ -261,7 +261,7 @@ def test_geometry_import_keeps_prompt_out_of_provenance(board_context):
     changed_payload["baseRevision"] = 0
     changed_payload["prompt"] = "Другое построение"
     with pytest.raises(ConflictError, match="Import ID"):
-        service.record_geometry_import(BoardGeometryImport10.model_validate(changed_payload))
+        service.record_geometry_import(BoardGeometryImport11.model_validate(changed_payload))
 
 
 def test_soft_delete_and_purge_remove_snapshot_objects(board_context):
