@@ -1,0 +1,38 @@
+name: Migrate Board envelope test consumers
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-validate:
+    if: github.event.pull_request.head.ref == 'feature/p0-ordered-envelope-v13'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/p0-ordered-envelope-v13
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - run: uv run python scripts/fix_board_envelope_test_consumers.py
+      - run: uv run ruff format tests/test_board_persistence.py tests/test_postgres_integration.py tests/test_minio_integration.py
+      - run: uv run ruff check --fix tests/test_board_persistence.py tests/test_postgres_integration.py tests/test_minio_integration.py
+      - run: uv run ruff check tests/test_board_persistence.py tests/test_postgres_integration.py tests/test_minio_integration.py
+      - run: '! grep -R "BoardCommandEnvelope10" --include="*.py" src tests'
+      - run: uv run pytest tests/test_board_persistence.py tests/test_board_contracts.py tests/test_board_command_ordering.py tests/test_board_api.py
+      - name: Commit migration
+        run: |
+          rm -f .github/workflows/automation-board-test-consumers.yml scripts/fix_board_envelope_test_consumers.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test(boards): migrate envelope consumers to compatibility boundary"
+          git push origin HEAD:feature/p0-ordered-envelope-v13
