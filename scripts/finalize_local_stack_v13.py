@@ -51,8 +51,10 @@ def main() -> None:
             item["actorId"] = user_id
             item["title"] = "Проверка единого локального приложения"''',
         '''        for index, item in enumerate(command["commands"]):
-            item["command"]["actorId"] = user_id
-            item["command"]["title"] = "Проверка единого локального приложения"
+            payload = item["command"]
+            payload["actorId"] = user_id
+            if payload.get("kind") == "core.document.rename":
+                payload["title"] = "Проверка единого локального приложения"
             item["order"]["baseRevisionAtCreation"] = 0
             item["order"]["lamport"] = index + 1''',
         "ordered smoke commands",
