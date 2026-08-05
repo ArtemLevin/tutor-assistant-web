@@ -13,6 +13,7 @@ from tutor_assistant_web.modules.boards.application import (
     BoardPersistenceService,
     BoardRevisionConflict,
 )
+from tutor_assistant_web.modules.boards.contracts import BoardCommandEnvelopeInput
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardDocument,
@@ -31,9 +32,6 @@ from tutor_assistant_web.modules.identity.models import (
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
-from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope10,
-)
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
     BoardGeometryImport11,
 )
@@ -92,7 +90,7 @@ def board_context(tmp_path):
     database.dispose()
 
 
-def load_command(**changes) -> BoardCommandEnvelope10:
+def load_command(**changes):
     payload = json.loads((FIXTURES / "board-command-envelope.json").read_text())
     payload.update(
         {
@@ -101,7 +99,10 @@ def load_command(**changes) -> BoardCommandEnvelope10:
             **changes,
         }
     )
-    return BoardCommandEnvelope10.model_validate(payload)
+    for index, item in enumerate(payload["commands"]):
+        item["order"]["baseRevisionAtCreation"] = payload["baseRevision"]
+        item["order"]["lamport"] = payload["baseRevision"] * len(payload["commands"]) + index + 1
+    return BoardCommandEnvelopeInput.model_validate(payload).root
 
 
 def load_snapshot(**changes) -> BoardSnapshot11:
