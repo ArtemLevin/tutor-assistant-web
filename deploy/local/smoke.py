@@ -12,7 +12,7 @@ import httpx
 import websockets
 
 from tutor_assistant_web.modules.boards.application import canonical_json
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument10
+from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument11
 
 BASE_URL = os.getenv("LOCAL_BASE_URL", "http://gateway:8080").rstrip("/")
 PUBLIC_ORIGIN = os.getenv("LOCAL_PUBLIC_ORIGIN", "http://localhost:8080").rstrip("/")
@@ -98,7 +98,7 @@ def fixture_document(revision: int) -> tuple[dict, str]:
     snapshot["revision"] = revision
     snapshot["document"]["id"] = DOCUMENT_ID
     snapshot["document"]["title"] = "Проверка единого локального приложения"
-    document = BoardDocument10.model_validate(snapshot["document"])
+    document = BoardDocument11.model_validate(snapshot["document"])
     digest = canonical_json(document)[2]
     snapshot["documentSha256"] = digest
     return snapshot, digest
@@ -128,9 +128,13 @@ def ensure_revision_and_snapshot(
                 "actorId": user_id,
             }
         )
-        for item in command["commands"]:
-            item["actorId"] = user_id
-            item["title"] = "Проверка единого локального приложения"
+        for index, item in enumerate(command["commands"]):
+            payload = item["command"]
+            payload["actorId"] = user_id
+            if payload.get("kind") == "core.document.rename":
+                payload["title"] = "Проверка единого локального приложения"
+            item["order"]["baseRevisionAtCreation"] = 0
+            item["order"]["lamport"] = index + 1
         appended = require(
             client.post(
                 f"/api/v1/boards/{DOCUMENT_ID}/commands",

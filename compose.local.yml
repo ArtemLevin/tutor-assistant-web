@@ -64,9 +64,13 @@ services:
     restart: unless-stopped
     networks: [frontend]
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health/live"]
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O /dev/null http://127.0.0.1:8080/health/live &&
+          wget -q -O /dev/null http://127.0.0.1:8080/board/build.json
       interval: 5s
-      timeout: 3s
+      timeout: 8s
       retries: 20
       start_period: 5s
 
