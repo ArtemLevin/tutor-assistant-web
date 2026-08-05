@@ -25,11 +25,14 @@ jobs:
       - run: uv run python scripts/finalize_board_v13.py
       - name: Refresh generated DTO references
         run: |
-          sed -i \
-            -e 's/BoardDocument10/BoardDocument11/g' \
-            -e 's/BoardSnapshot10/BoardSnapshot11/g' \
-            -e 's/BoardGeometryImport10/BoardGeometryImport11/g' \
-            tests/test_board_contracts.py
+          grep -RIl --include='*.py' \
+            -e 'BoardDocument10' \
+            -e 'BoardSnapshot10' \
+            -e 'BoardGeometryImport10' \
+            src tests | xargs -r sed -i \
+              -e 's/BoardDocument10/BoardDocument11/g' \
+              -e 's/BoardSnapshot10/BoardSnapshot11/g' \
+              -e 's/BoardGeometryImport10/BoardGeometryImport11/g'
       - run: uv run ruff format src/tutor_assistant_web/modules/boards tests/test_board_contracts.py tests/test_board_command_ordering.py tests/test_board_api.py
       - run: uv run ruff check --fix src/tutor_assistant_web/modules/boards tests/test_board_contracts.py tests/test_board_command_ordering.py tests/test_board_api.py
       - run: uv run ruff check src/tutor_assistant_web/modules/boards tests/test_board_contracts.py tests/test_board_command_ordering.py tests/test_board_api.py
