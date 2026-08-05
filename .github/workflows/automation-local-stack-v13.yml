@@ -1,0 +1,57 @@
+name: Finalize ordered local stack smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-smoke:
+    if: github.event.pull_request.head.ref == 'feature/p0-ordered-envelope-v13'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TUTORBOARD_CONTEXT: ${{ github.workspace }}/integrations/tutorboard
+      GEOMETRYOS_CONTEXT: ${{ github.workspace }}/integrations/geometryos
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/p0-ordered-envelope-v13
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/tutorboard
+          ref: release/tutorboard-stack-v1.0.0-rc.1
+          path: integrations/tutorboard
+      - uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/geometryos
+          ref: release/tutorboard-stack-v1.0.0-rc.1
+          path: integrations/geometryos
+      - run: python scripts/finalize_local_stack_v13.py
+      - run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml config --quiet
+      - name: Build and start local stack
+        run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml up --build --detach
+      - name: Verify gateway and run unified smoke
+        run: |
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 2 http://localhost:8080/health/live
+          curl --fail --silent --show-error --retry 12 --retry-all-errors --retry-delay 2 http://localhost:8080/board/build.json
+          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml --profile smoke run --rm smoke
+      - name: Commit implementation
+        run: |
+          docker compose --env-file deploy/local/.env.local.example -f compose.local.yml down --volumes --remove-orphans
+          rm -rf integrations .github/workflows/automation-local-stack-v13.yml scripts/finalize_local_stack_v13.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(local): gate gateway readiness on TutorBoard"
+          git push origin HEAD:feature/p0-ordered-envelope-v13
+      - name: Logs on failure
+        if: failure()
+        run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml logs --no-color --tail 250 gateway web tutorboard geometryos migration worker scheduler || true
+      - name: Cleanup
+        if: always()
+        run: docker compose --env-file deploy/local/.env.local.example -f compose.local.yml down --volumes --remove-orphans || true
