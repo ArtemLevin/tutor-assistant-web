@@ -45,7 +45,7 @@
           "uniqueItems": true
         },
         "schemaVersion": {
-          "const": "1.0"
+          "const": "1.2"
         },
         "title": {
           "maxLength": 256,
@@ -121,9 +121,255 @@
           "$ref": "#/$defs/TextObject"
         },
         {
+          "$ref": "#/$defs/EmbeddedImageObject"
+        },
+        {
           "$ref": "#/$defs/SvgObject"
+        },
+        {
+          "$ref": "#/$defs/CoordinatePlotObject"
         }
       ]
+    },
+    "CoordinatePlotDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "axes": {
+          "additionalProperties": false,
+          "properties": {
+            "showArrows": {
+              "type": "boolean"
+            },
+            "showLabels": {
+              "type": "boolean"
+            },
+            "showXAxis": {
+              "type": "boolean"
+            },
+            "showYAxis": {
+              "type": "boolean"
+            },
+            "xLabel": {
+              "maxLength": 32,
+              "type": "string"
+            },
+            "yLabel": {
+              "maxLength": 32,
+              "type": "string"
+            }
+          },
+          "required": [
+            "showArrows",
+            "showLabels",
+            "showXAxis",
+            "showYAxis",
+            "xLabel",
+            "yLabel"
+          ],
+          "type": "object"
+        },
+        "coordinateViewport": {
+          "additionalProperties": false,
+          "properties": {
+            "equalScale": {
+              "type": "boolean"
+            },
+            "xMax": {
+              "type": "number"
+            },
+            "xMin": {
+              "type": "number"
+            },
+            "yMax": {
+              "type": "number"
+            },
+            "yMin": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "equalScale",
+            "xMax",
+            "xMin",
+            "yMax",
+            "yMin"
+          ],
+          "type": "object"
+        },
+        "expressionLanguage": {
+          "const": "tutorboard-expression/1"
+        },
+        "grid": {
+          "additionalProperties": false,
+          "properties": {
+            "automaticStep": {
+              "type": "boolean"
+            },
+            "majorVisible": {
+              "type": "boolean"
+            },
+            "minorVisible": {
+              "type": "boolean"
+            },
+            "visible": {
+              "type": "boolean"
+            },
+            "xStep": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "yStep": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "automaticStep",
+            "majorVisible",
+            "minorVisible",
+            "visible",
+            "xStep",
+            "yStep"
+          ],
+          "type": "object"
+        },
+        "legend": {
+          "additionalProperties": false,
+          "properties": {
+            "position": {
+              "enum": [
+                "top-left",
+                "top-right",
+                "bottom-left",
+                "bottom-right"
+              ]
+            },
+            "visible": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "position",
+            "visible"
+          ],
+          "type": "object"
+        },
+        "parameters": {
+          "items": {
+            "$ref": "#/$defs/PlotParameter"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "series": {
+          "items": {
+            "$ref": "#/$defs/PlotSeries"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "size": {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "maximum": 16384,
+              "minimum": 100,
+              "type": "number"
+            },
+            "width": {
+              "maximum": 16384,
+              "minimum": 120,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "width"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "axes",
+        "coordinateViewport",
+        "expressionLanguage",
+        "grid",
+        "legend",
+        "parameters",
+        "series",
+        "size"
+      ],
+      "type": "object"
+    },
+    "CoordinatePlotObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "math.coordinate-plot"
+        },
+        "definition": {
+          "$ref": "#/$defs/CoordinatePlotDefinition"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "definition"
+      ],
+      "type": "object"
     },
     "EllipseObject": {
       "additionalProperties": false,
@@ -188,6 +434,137 @@
         "visible",
         "kind",
         "radius"
+      ],
+      "type": "object"
+    },
+    "EmbeddedImageObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "image.embedded"
+        },
+        "contentSha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "dataUrl": {
+          "maxLength": 12582912,
+          "minLength": 1,
+          "pattern": "^data:image/(?:png|jpeg|gif|svg\\+xml);base64,[A-Za-z0-9+/=]+$",
+          "type": "string"
+        },
+        "fileName": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "intrinsicSize": {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            },
+            "width": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "width"
+          ],
+          "type": "object"
+        },
+        "mimeType": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/svg+xml",
+            "image/gif"
+          ]
+        },
+        "size": {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            },
+            "width": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "width"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "contentSha256",
+        "dataUrl",
+        "fileName",
+        "intrinsicSize",
+        "mimeType",
+        "size"
       ],
       "type": "object"
     },
@@ -411,6 +788,280 @@
       ],
       "type": "object"
     },
+    "ExplicitPlotSeries": {
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "additionalProperties": false,
+          "properties": {
+            "maxExpression": {
+              "anyOf": [
+                {
+                  "maxLength": 2000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "minExpression": {
+              "anyOf": [
+                {
+                  "maxLength": 2000,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "maxExpression",
+            "minExpression"
+          ],
+          "type": "object"
+        },
+        "expression": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "explicit"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "style": {
+          "$ref": "#/$defs/PlotSeriesStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "domain",
+        "expression",
+        "id",
+        "kind",
+        "name",
+        "style",
+        "visible"
+      ],
+      "type": "object"
+    },
+    "ParametricPlotSeries": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "parametric"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "parameterName": {
+          "const": "t"
+        },
+        "range": {
+          "additionalProperties": false,
+          "properties": {
+            "maxExpression": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            },
+            "minExpression": {
+              "maxLength": 2000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "maxExpression",
+            "minExpression"
+          ],
+          "type": "object"
+        },
+        "style": {
+          "$ref": "#/$defs/PlotSeriesStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "xExpression": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "yExpression": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "closed",
+        "id",
+        "kind",
+        "name",
+        "parameterName",
+        "range",
+        "style",
+        "visible",
+        "xExpression",
+        "yExpression"
+      ],
+      "type": "object"
+    },
+    "RelationPlotSeries": {
+      "additionalProperties": false,
+      "properties": {
+        "expression": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "fillOpacity": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "relation"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "style": {
+          "$ref": "#/$defs/PlotSeriesStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "expression",
+        "fillOpacity",
+        "id",
+        "kind",
+        "name",
+        "style",
+        "visible"
+      ],
+      "type": "object"
+    },
+    "PlotParameter": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "name": {
+          "maxLength": 32,
+          "minLength": 1,
+          "type": "string"
+        },
+        "step": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "max",
+        "min",
+        "name",
+        "step",
+        "value"
+      ],
+      "type": "object"
+    },
+    "PlotSeries": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ExplicitPlotSeries"
+        },
+        {
+          "$ref": "#/$defs/ParametricPlotSeries"
+        },
+        {
+          "$ref": "#/$defs/RelationPlotSeries"
+        }
+      ]
+    },
+    "PlotSeriesStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "lineStyle": {
+          "enum": [
+            "solid",
+            "dashed",
+            "dash-dot"
+          ]
+        },
+        "opacity": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "stroke": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "strokeWidth": {
+          "maximum": 32,
+          "minimum": 0.25,
+          "type": "number"
+        }
+      },
+      "required": [
+        "lineStyle",
+        "opacity",
+        "stroke",
+        "strokeWidth"
+      ],
+      "type": "object"
+    },
     "PenStrokeObject": {
       "additionalProperties": false,
       "properties": {
@@ -458,6 +1109,9 @@
         "kind": {
           "const": "drawing.pen-stroke"
         },
+        "ink": {
+          "$ref": "#/$defs/VectorInkData"
+        },
         "points": {
           "items": {
             "$ref": "#/$defs/Vec2"
@@ -478,7 +1132,89 @@
         "style",
         "visible",
         "kind",
+        "ink",
         "points"
+      ],
+      "type": "object"
+    },
+    "CubicBezierSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "control1": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "control2": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "end": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "start": {
+          "$ref": "#/$defs/Vec2"
+        }
+      },
+      "required": [
+        "control1",
+        "control2",
+        "end",
+        "start"
+      ],
+      "type": "object"
+    },
+    "VectorInkData": {
+      "additionalProperties": false,
+      "properties": {
+        "centerline": {
+          "items": {
+            "$ref": "#/$defs/CubicBezierSegment"
+          },
+          "type": "array",
+          "maxItems": 100000,
+          "minItems": 1
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "samples": {
+          "items": {
+            "$ref": "#/$defs/VectorInkSample"
+          },
+          "type": "array",
+          "maxItems": 100000,
+          "minItems": 2
+        },
+        "version": {
+          "const": "1.0"
+        }
+      },
+      "required": [
+        "centerline",
+        "closed",
+        "samples",
+        "version"
+      ],
+      "type": "object"
+    },
+    "VectorInkSample": {
+      "additionalProperties": false,
+      "properties": {
+        "point": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "pressure": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "timestampMs": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "point",
+        "pressure",
+        "timestampMs"
       ],
       "type": "object"
     },
@@ -897,7 +1633,7 @@
   },
   "$id": "https://contracts.tutorboard.dev/board/v1/board-snapshot.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "BoardSnapshot 1.0",
+  "title": "BoardSnapshot 1.1",
   "additionalProperties": false,
   "properties": {
     "createdAt": {
@@ -919,7 +1655,7 @@
       "type": "integer"
     },
     "schemaVersion": {
-      "const": "1.0"
+      "const": "1.2"
     }
   },
   "required": [

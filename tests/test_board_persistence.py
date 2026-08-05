@@ -13,6 +13,7 @@ from tutor_assistant_web.modules.boards.application import (
     BoardPersistenceService,
     BoardRevisionConflict,
 )
+from tutor_assistant_web.modules.boards.contracts import BoardCommandEnvelopeInput
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardDocument,
@@ -31,13 +32,10 @@ from tutor_assistant_web.modules.identity.models import (
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
-from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope10,
-)
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
-    BoardGeometryImport10,
+    BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot10
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
 from tutor_assistant_web.shared.errors import (
     ConflictError,
     GoneError,
@@ -92,7 +90,7 @@ def board_context(tmp_path):
     database.dispose()
 
 
-def load_command(**changes) -> BoardCommandEnvelope10:
+def load_command(**changes):
     payload = json.loads((FIXTURES / "board-command-envelope.json").read_text())
     payload.update(
         {
@@ -101,19 +99,22 @@ def load_command(**changes) -> BoardCommandEnvelope10:
             **changes,
         }
     )
-    return BoardCommandEnvelope10.model_validate(payload)
+    for index, item in enumerate(payload["commands"]):
+        item["order"]["baseRevisionAtCreation"] = payload["baseRevision"]
+        item["order"]["lamport"] = payload["baseRevision"] * len(payload["commands"]) + index + 1
+    return BoardCommandEnvelopeInput.model_validate(payload).root
 
 
-def load_snapshot(**changes) -> BoardSnapshot10:
+def load_snapshot(**changes) -> BoardSnapshot11:
     payload = json.loads((FIXTURES / "board-snapshot.json").read_text())
     payload.update(changes)
-    return BoardSnapshot10.model_validate(payload)
+    return BoardSnapshot11.model_validate(payload)
 
 
-def load_geometry_import(**changes) -> BoardGeometryImport10:
+def load_geometry_import(**changes) -> BoardGeometryImport11:
     payload = json.loads((FIXTURES / "board-geometry-import.json").read_text())
     payload.update({"baseRevision": 0, **changes})
-    return BoardGeometryImport10.model_validate(payload)
+    return BoardGeometryImport11.model_validate(payload)
 
 
 def test_migration_exposes_board_tables_and_tenant_constraints(board_context):
@@ -261,7 +262,7 @@ def test_geometry_import_keeps_prompt_out_of_provenance(board_context):
     changed_payload["baseRevision"] = 0
     changed_payload["prompt"] = "Другое построение"
     with pytest.raises(ConflictError, match="Import ID"):
-        service.record_geometry_import(BoardGeometryImport10.model_validate(changed_payload))
+        service.record_geometry_import(BoardGeometryImport11.model_validate(changed_payload))
 
 
 def test_soft_delete_and_purge_remove_snapshot_objects(board_context):

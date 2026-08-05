@@ -25,6 +25,7 @@ from tutor_assistant_web.modules.boards.application import (
     BoardPersistenceService,
     BoardRevisionConflict,
 )
+from tutor_assistant_web.modules.boards.contracts import BoardCommandEnvelopeInput
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.modules.identity.models import (
     DEFAULT_ORGANIZATION_ID,
@@ -46,9 +47,6 @@ from tutor_assistant_web.modules.portal.application import PublicationService
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
-from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope10,
-)
 from tutor_assistant_web.shared.errors import ValidationError
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "")
@@ -403,6 +401,9 @@ def test_board_revision_lock_and_idempotency_are_atomic(database, tmp_path):
     service.create_for_lesson(lesson.id, "document:lesson-01")
     fixture = json.loads((BOARD_FIXTURES / "board-command-envelope.json").read_text())
     fixture["baseRevision"] = 0
+    for index, item in enumerate(fixture["commands"]):
+        item["order"]["baseRevisionAtCreation"] = 0
+        item["order"]["lamport"] = index + 1
     barrier = threading.Barrier(2)
 
     def append(index: int) -> str:
@@ -411,7 +412,7 @@ def test_board_revision_lock_and_idempotency_are_atomic(database, tmp_path):
         barrier.wait()
         try:
             service.append_commands(
-                BoardCommandEnvelope10.model_validate(payload),
+                BoardCommandEnvelopeInput.model_validate(payload).root,
                 admin.user_id,
             )
         except BoardRevisionConflict:
@@ -423,10 +424,13 @@ def test_board_revision_lock_and_idempotency_are_atomic(database, tmp_path):
 
     assert sorted(results) == ["accepted", "conflict"]
 
-    duplicate = dict(fixture)
+    duplicate = json.loads(json.dumps(fixture))
     duplicate["baseRevision"] = 1
     duplicate["idempotencyKey"] = "client:duplicate"
-    envelope = BoardCommandEnvelope10.model_validate(duplicate)
+    for index, item in enumerate(duplicate["commands"]):
+        item["order"]["baseRevisionAtCreation"] = 1
+        item["order"]["lamport"] = len(duplicate["commands"]) + index + 1
+    envelope = BoardCommandEnvelopeInput.model_validate(duplicate).root
     duplicate_barrier = threading.Barrier(2)
 
     def append_duplicate() -> str:

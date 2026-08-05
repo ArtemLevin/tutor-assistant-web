@@ -8,6 +8,88 @@ from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel, constr
 
+
+class Axes(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    show_arrows: bool = Field(..., alias="showArrows")
+    show_labels: bool = Field(..., alias="showLabels")
+    show_x_axis: bool = Field(..., alias="showXAxis")
+    show_y_axis: bool = Field(..., alias="showYAxis")
+    x_label: str = Field(..., alias="xLabel", max_length=32)
+    y_label: str = Field(..., alias="yLabel", max_length=32)
+
+
+class CoordinateViewport(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    equal_scale: bool = Field(..., alias="equalScale")
+    x_max: float = Field(..., alias="xMax")
+    x_min: float = Field(..., alias="xMin")
+    y_max: float = Field(..., alias="yMax")
+    y_min: float = Field(..., alias="yMin")
+
+
+class Grid(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    automatic_step: bool = Field(..., alias="automaticStep")
+    major_visible: bool = Field(..., alias="majorVisible")
+    minor_visible: bool = Field(..., alias="minorVisible")
+    visible: bool
+    x_step: float | None = Field(..., alias="xStep")
+    y_step: float | None = Field(..., alias="yStep")
+
+
+class Position(Enum):
+    top_left = "top-left"
+    top_right = "top-right"
+    bottom_left = "bottom-left"
+    bottom_right = "bottom-right"
+
+
+class Legend(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    position: Position
+    visible: bool
+
+
+class Size(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    height: float = Field(..., ge=100.0, le=16384.0)
+    width: float = Field(..., ge=120.0, le=16384.0)
+
+
+class IntrinsicSize(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    height: float = Field(..., gt=0.0, le=16384.0)
+    width: float = Field(..., gt=0.0, le=16384.0)
+
+
+class MimeType(Enum):
+    image_png = "image/png"
+    image_jpeg = "image/jpeg"
+    image_svg_xml = "image/svg+xml"
+    image_gif = "image/gif"
+
+
+class Size5(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    height: float = Field(..., gt=0.0, le=16384.0)
+    width: float = Field(..., gt=0.0, le=16384.0)
+
+
 Identifier = RootModel[str]
 
 
@@ -26,6 +108,56 @@ class ObjectStyle(BaseModel):
     stroke_width: float = Field(..., alias="strokeWidth", ge=0.0)
 
 
+MaxExpression = RootModel[str]
+
+
+MinExpression = RootModel[str]
+
+
+class Domain(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    max_expression: MaxExpression | None = Field(..., alias="maxExpression")
+    min_expression: MinExpression | None = Field(..., alias="minExpression")
+
+
+class Range(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    max_expression: str = Field(..., alias="maxExpression", max_length=2000, min_length=1)
+    min_expression: str = Field(..., alias="minExpression", max_length=2000, min_length=1)
+
+
+class PlotParameter(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    max: float | None
+    min: float | None
+    name: str = Field(..., max_length=32, min_length=1)
+    step: float | None
+    value: float
+
+
+class LineStyle3(Enum):
+    solid = "solid"
+    dashed = "dashed"
+    dash_dot = "dash-dot"
+
+
+class PlotSeriesStyle(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    line_style: LineStyle3 = Field(..., alias="lineStyle")
+    opacity: float = Field(..., ge=0.0, le=1.0)
+    stroke: str = Field(..., max_length=256, min_length=1)
+    stroke_width: float = Field(..., alias="strokeWidth", ge=0.25, le=32.0)
+
+
 class PositiveVec2(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -40,14 +172,6 @@ class Size2(BaseModel):
     )
     height: float = Field(..., gt=0.0)
     width: float = Field(..., gt=0.0)
-
-
-class Size(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    height: float = Field(..., gt=0.0, le=16384.0)
-    width: float = Field(..., gt=0.0, le=16384.0)
 
 
 class SvgViewBox(BaseModel):
@@ -121,21 +245,68 @@ class LineObject(BaseModel):
     line_style: LineStyle | None = Field(None, alias="lineStyle")
 
 
-class PenStrokeObject(BaseModel):
+class ExplicitPlotSeries(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    group_id: Identifier | None = Field(..., alias="groupId")
+    domain: Domain
+    expression: str = Field(..., max_length=2000, min_length=1)
     id: Identifier
-    locked: bool
-    position: Vec2
-    rotation: float
-    scale: PositiveVec2
-    source: UserObjectSource | GeometryOsObjectSource
-    style: ObjectStyle
+    kind: Literal["explicit"]
+    name: str = Field(..., max_length=128, min_length=1)
+    style: PlotSeriesStyle
     visible: bool
-    kind: Literal["drawing.pen-stroke"]
-    points: list[Vec2] = Field(..., max_length=100000, min_length=2)
+
+
+class ParametricPlotSeries(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    closed: bool
+    id: Identifier
+    kind: Literal["parametric"]
+    name: str = Field(..., max_length=128, min_length=1)
+    parameter_name: Literal["t"] = Field(..., alias="parameterName")
+    range: Range
+    style: PlotSeriesStyle
+    visible: bool
+    x_expression: str = Field(..., alias="xExpression", max_length=2000, min_length=1)
+    y_expression: str = Field(..., alias="yExpression", max_length=2000, min_length=1)
+
+
+class RelationPlotSeries(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    expression: str = Field(..., max_length=2000, min_length=1)
+    fill_opacity: float = Field(..., alias="fillOpacity", ge=0.0, le=1.0)
+    id: Identifier
+    kind: Literal["relation"]
+    name: str = Field(..., max_length=128, min_length=1)
+    style: PlotSeriesStyle
+    visible: bool
+
+
+PlotSeries = RootModel[ExplicitPlotSeries | ParametricPlotSeries | RelationPlotSeries]
+
+
+class CubicBezierSegment(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    control1: Vec2
+    control2: Vec2
+    end: Vec2
+    start: Vec2
+
+
+class VectorInkSample(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    point: Vec2
+    pressure: float = Field(..., ge=0.0, le=1.0)
+    timestamp_ms: float = Field(..., alias="timestampMs", ge=0.0)
 
 
 class RectangleObject(BaseModel):
@@ -173,7 +344,7 @@ class SvgObject(BaseModel):
     sanitizer_policy_version: Literal["tutorboard.svg-sanitizer/1"] = Field(
         ..., alias="sanitizerPolicyVersion"
     )
-    size: Size
+    size: Size5
     view_box: SvgViewBox = Field(..., alias="viewBox")
 
 
@@ -223,6 +394,37 @@ class BoardGroup(BaseModel):
     transform: Transform2D
 
 
+class CoordinatePlotDefinition(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    axes: Axes
+    coordinate_viewport: CoordinateViewport = Field(..., alias="coordinateViewport")
+    expression_language: Literal["tutorboard-expression/1"] = Field(..., alias="expressionLanguage")
+    grid: Grid
+    legend: Legend
+    parameters: list[PlotParameter] = Field(..., max_length=32)
+    series: list[PlotSeries] = Field(..., max_length=32)
+    size: Size
+
+
+class CoordinatePlotObject(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    group_id: Identifier | None = Field(..., alias="groupId")
+    id: Identifier
+    locked: bool
+    position: Vec2
+    rotation: float
+    scale: PositiveVec2
+    source: UserObjectSource | GeometryOsObjectSource
+    style: ObjectStyle
+    visible: bool
+    kind: Literal["math.coordinate-plot"]
+    definition: CoordinatePlotDefinition
+
+
 class EllipseObject(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -238,6 +440,34 @@ class EllipseObject(BaseModel):
     visible: bool
     kind: Literal["drawing.ellipse"]
     radius: PositiveVec2
+
+
+class EmbeddedImageObject(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    group_id: Identifier | None = Field(..., alias="groupId")
+    id: Identifier
+    locked: bool
+    position: Vec2
+    rotation: float
+    scale: PositiveVec2
+    source: UserObjectSource | GeometryOsObjectSource
+    style: ObjectStyle
+    visible: bool
+    kind: Literal["image.embedded"]
+    content_sha256: str = Field(..., alias="contentSha256", pattern="^[a-f0-9]{64}$")
+    data_url: str = Field(
+        ...,
+        alias="dataUrl",
+        max_length=12582912,
+        min_length=1,
+        pattern="^data:image/(?:png|jpeg|gif|svg\\+xml);base64,[A-Za-z0-9+/=]+$",
+    )
+    file_name: str = Field(..., alias="fileName", max_length=256, min_length=1)
+    intrinsic_size: IntrinsicSize = Field(..., alias="intrinsicSize")
+    mime_type: MimeType = Field(..., alias="mimeType")
+    size: Size5
 
 
 class GeometryImportRecord(BaseModel):
@@ -265,8 +495,43 @@ class GeometryImportRecord(BaseModel):
     visual_transform: Transform2D = Field(..., alias="visualTransform")
 
 
+class VectorInkData(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    centerline: list[CubicBezierSegment] = Field(..., max_length=100000, min_length=1)
+    closed: bool
+    samples: list[VectorInkSample] = Field(..., max_length=100000, min_length=2)
+    version: Literal["1.0"]
+
+
+class PenStrokeObject(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    group_id: Identifier | None = Field(..., alias="groupId")
+    id: Identifier
+    locked: bool
+    position: Vec2
+    rotation: float
+    scale: PositiveVec2
+    source: UserObjectSource | GeometryOsObjectSource
+    style: ObjectStyle
+    visible: bool
+    kind: Literal["drawing.pen-stroke"]
+    ink: VectorInkData
+    points: list[Vec2] = Field(..., max_length=100000, min_length=2)
+
+
 BoardObject = RootModel[
-    PenStrokeObject | LineObject | RectangleObject | EllipseObject | TextObject | SvgObject
+    PenStrokeObject
+    | LineObject
+    | RectangleObject
+    | EllipseObject
+    | TextObject
+    | EmbeddedImageObject
+    | SvgObject
+    | CoordinatePlotObject
 ]
 
 
@@ -296,10 +561,10 @@ class BoardDocument(BaseModel):
         BoardObject,
     ]
     order: list[Identifier]
-    schema_version: Literal["1.0"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.2"] = Field(..., alias="schemaVersion")
     title: str = Field(..., max_length=256, min_length=1)
     updated_at: AwareDatetime = Field(..., alias="updatedAt")
     viewport: Viewport
 
 
-BoardDocument10 = RootModel[BoardDocument]
+BoardDocument11 = RootModel[BoardDocument]

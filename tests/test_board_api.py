@@ -22,6 +22,7 @@ from tutor_assistant_web.modules.boards.application import (
     canonical_json,
 )
 from tutor_assistant_web.modules.boards.evidence import _utc_milliseconds
+from tutor_assistant_web.modules.boards.models import BoardCommandBatch
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.modules.identity.models import (
     DEFAULT_ORGANIZATION_ID,
@@ -34,7 +35,7 @@ from tutor_assistant_web.modules.identity.models import (
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument10
+from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument11
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "schemas" / "board" / "v1" / "fixtures"
@@ -92,7 +93,13 @@ def _create_board(client: TestClient, lesson_id: str, csrf: str):
     )
 
 
-def _command_payload(user_id: str, *, base_revision: int = 0, key: str = "api:batch-1"):
+def _command_payload(
+    user_id: str,
+    *,
+    base_revision: int = 0,
+    key: str = "api:batch-1",
+    lamport_start: int = 1,
+):
     payload = json.loads((FIXTURES / "board-command-envelope.json").read_text())
     payload.update(
         {
@@ -102,8 +109,29 @@ def _command_payload(user_id: str, *, base_revision: int = 0, key: str = "api:ba
             "actorId": user_id,
         }
     )
-    for command in payload["commands"]:
+    for index, item in enumerate(payload["commands"]):
+        command = item.get("command", item)
         command["actorId"] = user_id
+        order = item.get("order")
+        if order is not None:
+            order["baseRevisionAtCreation"] = base_revision
+            order["lamport"] = lamport_start + index
+    return payload
+
+
+def _legacy_command_payload(
+    user_id: str,
+    *,
+    base_revision: int = 0,
+    key: str = "api:legacy-batch",
+):
+    payload = _command_payload(
+        user_id,
+        base_revision=base_revision,
+        key=key,
+    )
+    payload["schemaVersion"] = "1.2"
+    payload["commands"] = [item["command"] for item in payload["commands"]]
     return payload
 
 
@@ -112,7 +140,7 @@ def _snapshot_payload(*, revision: int = 0):
     payload["documentId"] = DOCUMENT_ID
     payload["revision"] = revision
     payload["document"]["id"] = DOCUMENT_ID
-    document = BoardDocument10.model_validate(payload["document"])
+    document = BoardDocument11.model_validate(payload["document"])
     payload["documentSha256"] = canonical_json(document)[2]
     return payload
 
@@ -274,6 +302,172 @@ def test_teacher_board_flow_revision_conflict_snapshot_and_audit(board_api):
     }.issubset(set(actions))
     assert actions.count("board.created") == 1
     assert actions.count("board.commands.appended") == 1
+
+
+def test_ordered_lamport_range_is_persisted_and_replay_is_rejected(board_api):
+    client, database, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    expected_sha = _snapshot_payload()["documentSha256"]
+
+    first = _command_payload(user_id, lamport_start=1)
+    first["expectedDocumentSha256"] = expected_sha
+    response = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        json=first,
+        headers={"x-csrf-token": csrf},
+    )
+    assert response.status_code == 200
+
+    with database.sessions() as session:
+        stored = session.scalar(
+            select(BoardCommandBatch).where(
+                BoardCommandBatch.board_document_id == DOCUMENT_ID,
+                BoardCommandBatch.revision == 1,
+            )
+        )
+        assert stored is not None
+        assert (stored.lamport_min, stored.lamport_max) == (1, 2)
+
+    replay = _command_payload(
+        user_id,
+        base_revision=1,
+        key="api:batch-lamport-replay",
+        lamport_start=2,
+    )
+    replay["expectedDocumentSha256"] = expected_sha
+    rejected = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        json=replay,
+        headers={"x-csrf-token": csrf},
+    )
+    assert rejected.status_code == 409
+    assert rejected.json()["error"] == {
+        "code": "board_lamport_conflict",
+        "message": "Lamport пакета должен возрастать для actor доски",
+        "actorId": user_id,
+        "previousLamport": 2,
+        "incomingLamport": 2,
+    }
+
+
+def test_mixed_legacy_and_ordered_journal_remains_recoverable(board_api):
+    client, database, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    expected_sha = _snapshot_payload()["documentSha256"]
+
+    legacy = _legacy_command_payload(user_id)
+    legacy["expectedDocumentSha256"] = expected_sha
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=legacy,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 200
+    )
+
+    ordered = _command_payload(
+        user_id,
+        base_revision=1,
+        key="api:ordered-after-legacy",
+        lamport_start=1,
+    )
+    ordered["expectedDocumentSha256"] = expected_sha
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=ordered,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 200
+    )
+
+    recovered = client.get(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        params={"afterRevision": 0},
+    )
+    assert recovered.status_code == 200
+    items = recovered.json()["items"]
+    assert [item["revision"] for item in items] == [1, 2]
+    assert [item["schemaVersion"] for item in items] == ["1.2", "1.3"]
+    assert items[0]["lamportMin"] is None
+    assert items[1]["lamportMin"] == 1
+
+    with database.sessions() as session:
+        batches = list(
+            session.scalars(
+                select(BoardCommandBatch)
+                .where(BoardCommandBatch.board_document_id == DOCUMENT_ID)
+                .order_by(BoardCommandBatch.revision)
+            )
+        )
+    assert batches[0].lamport_min is None
+    assert batches[0].lamport_max is None
+    assert (batches[1].lamport_min, batches[1].lamport_max) == (1, 2)
+
+
+def test_client_clock_skew_does_not_control_command_acceptance(board_api):
+    client, _, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    expected_sha = _snapshot_payload()["documentSha256"]
+
+    past = _command_payload(user_id, lamport_start=1)
+    for item in past["commands"]:
+        item["command"]["timestamp"] = "2000-01-01T00:00:00.000Z"
+    past["expectedDocumentSha256"] = expected_sha
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=past,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 200
+    )
+
+    future = _command_payload(
+        user_id,
+        base_revision=1,
+        key="api:future-clock",
+        lamport_start=3,
+    )
+    for item in future["commands"]:
+        item["command"]["timestamp"] = "2099-01-01T00:00:00.000Z"
+    future["expectedDocumentSha256"] = expected_sha
+    response = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        json=future,
+        headers={"x-csrf-token": csrf},
+    )
+    assert response.status_code == 200
+    assert response.json()["revision"] == 2
+
+
+def test_idempotency_key_rejects_a_different_payload(board_api):
+    client, _, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    payload = _command_payload(user_id)
+    payload["expectedDocumentSha256"] = _snapshot_payload()["documentSha256"]
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=payload,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 200
+    )
+
+    changed = json.loads(json.dumps(payload))
+    changed["commands"][0]["command"]["title"] = "Different payload"
+    rejected = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        json=changed,
+        headers={"x-csrf-token": csrf},
+    )
+    assert rejected.status_code == 409
 
 
 def test_actor_id_is_bound_to_authenticated_user(board_api):

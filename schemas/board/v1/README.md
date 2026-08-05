@@ -7,16 +7,17 @@ camelCase field names. Every schema is self-contained and targets JSON Schema
 
 ## Artifacts
 
-- `BoardDocument 1.0` is the canonical persisted board state.
-- `BoardCommandEnvelope 1.0` carries one atomic, idempotent command batch
+- `BoardDocument 1.1` is the canonical persisted board state.
+- `BoardCommandEnvelope 1.1` carries one atomic, idempotent command batch
   against a known base revision.
-- `BoardSnapshot 1.0` binds a canonical document to a server revision and
+- `BoardSnapshot 1.1` binds a canonical document to a server revision and
   SHA-256 digest.
-- `BoardGeometryImport 1.0` records GeometryOS GIR/Layout provenance without
+- `BoardGeometryImport 1.1` records GeometryOS GIR/Layout provenance without
   adding transport state to `BoardDocument`.
 
 The manifest hashes every schema and canonical fixture. Run
 `npm run board-contract:check` to verify freshness and executable validation.
+The supported command matrix is recorded in `COMPATIBILITY.md`.
 
 ## Compatibility policy
 

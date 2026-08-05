@@ -3,15 +3,233 @@
   "baseRevision": 7,
   "commands": [
     {
-      "actorId": "actor:tutor-01",
-      "id": "command:rename-08",
-      "kind": "core.document.rename",
-      "timestamp": "2026-07-28T17:00:00.000Z",
-      "title": "Linear functions: lesson summary"
+      "command": {
+        "actorId": "actor:tutor-01",
+        "id": "command:rename-08",
+        "kind": "core.document.rename",
+        "timestamp": "2026-07-28T17:00:00.000Z",
+        "title": "Linear functions: lesson summary"
+      },
+      "order": {
+        "baseRevisionAtCreation": 7,
+        "lamport": 8
+      }
+    },
+    {
+      "command": {
+        "actorId": "actor:tutor-01",
+        "id": "command:smart-ink-09",
+        "kind": "core.objects.replace",
+        "originals": [
+          {
+            "groupId": null,
+            "id": "object:smart-ink-01",
+            "kind": "drawing.pen-stroke",
+            "ink": {
+              "centerline": [
+                {
+                  "start": {
+                    "x": 10,
+                    "y": 40
+                  },
+                  "control1": {
+                    "x": 10,
+                    "y": 30
+                  },
+                  "control2": {
+                    "x": 30,
+                    "y": 10
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 10
+                  }
+                },
+                {
+                  "start": {
+                    "x": 40,
+                    "y": 10
+                  },
+                  "control1": {
+                    "x": 50,
+                    "y": 10
+                  },
+                  "control2": {
+                    "x": 70,
+                    "y": 30
+                  },
+                  "end": {
+                    "x": 70,
+                    "y": 40
+                  }
+                },
+                {
+                  "start": {
+                    "x": 70,
+                    "y": 40
+                  },
+                  "control1": {
+                    "x": 70,
+                    "y": 50
+                  },
+                  "control2": {
+                    "x": 50,
+                    "y": 70
+                  },
+                  "end": {
+                    "x": 40,
+                    "y": 70
+                  }
+                },
+                {
+                  "start": {
+                    "x": 40,
+                    "y": 70
+                  },
+                  "control1": {
+                    "x": 30,
+                    "y": 70
+                  },
+                  "control2": {
+                    "x": 10,
+                    "y": 50
+                  },
+                  "end": {
+                    "x": 10,
+                    "y": 40
+                  }
+                }
+              ],
+              "closed": true,
+              "samples": [
+                {
+                  "point": {
+                    "x": 10,
+                    "y": 40
+                  },
+                  "pressure": 0.5,
+                  "timestampMs": 0
+                },
+                {
+                  "point": {
+                    "x": 40,
+                    "y": 10
+                  },
+                  "pressure": 0.5,
+                  "timestampMs": 8
+                },
+                {
+                  "point": {
+                    "x": 70,
+                    "y": 40
+                  },
+                  "pressure": 0.5,
+                  "timestampMs": 16
+                },
+                {
+                  "point": {
+                    "x": 40,
+                    "y": 70
+                  },
+                  "pressure": 0.5,
+                  "timestampMs": 24
+                },
+                {
+                  "point": {
+                    "x": 10,
+                    "y": 40
+                  },
+                  "pressure": 0.5,
+                  "timestampMs": 32
+                }
+              ],
+              "version": "1.0"
+            },
+            "locked": false,
+            "points": [
+              {
+                "x": 10,
+                "y": 40
+              },
+              {
+                "x": 40,
+                "y": 10
+              },
+              {
+                "x": 70,
+                "y": 40
+              },
+              {
+                "x": 40,
+                "y": 70
+              },
+              {
+                "x": 10,
+                "y": 40
+              }
+            ],
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "rotation": 0,
+            "scale": {
+              "x": 1,
+              "y": 1
+            },
+            "source": {
+              "kind": "user"
+            },
+            "style": {
+              "fill": null,
+              "opacity": 1,
+              "stroke": "#245d6b",
+              "strokeWidth": 3
+            },
+            "visible": true
+          }
+        ],
+        "replacements": [
+          {
+            "groupId": null,
+            "id": "object:smart-ink-01",
+            "kind": "drawing.ellipse",
+            "locked": false,
+            "position": {
+              "x": 40,
+              "y": 40
+            },
+            "rotation": 0,
+            "scale": {
+              "x": 1,
+              "y": 1
+            },
+            "source": {
+              "kind": "user"
+            },
+            "style": {
+              "fill": null,
+              "opacity": 1,
+              "stroke": "#245d6b",
+              "strokeWidth": 3
+            },
+            "visible": true,
+            "radius": {
+              "x": 30,
+              "y": 30
+            }
+          }
+        ],
+        "timestamp": "2026-07-28T17:00:01.000Z"
+      },
+      "order": {
+        "baseRevisionAtCreation": 7,
+        "lamport": 9
+      }
     }
   ],
   "documentId": "document:lesson-01",
-  "expectedDocumentSha256": "5ea2a9a564a5caeeae20f0725867dee80606358c751022dd0ded1f6a82af1407",
+  "expectedDocumentSha256": "0bcfa599419a4af17ad38ec9b05f1ad95e05f75e3024cfc0ffe1cf8572de4ab5",
   "idempotencyKey": "client:tutor-01:batch-08",
-  "schemaVersion": "1.0"
+  "schemaVersion": "1.3"
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -15,6 +16,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.boards.contracts import (
+    BoardCommandEnvelope,
+    envelope_lamport_range,
+)
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardDocument,
@@ -25,13 +30,10 @@ from tutor_assistant_web.modules.boards.models import (
 )
 from tutor_assistant_web.modules.identity.models import Membership
 from tutor_assistant_web.modules.scheduling.models import Lesson
-from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope10,
-)
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
-    BoardGeometryImport10,
+    BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot10
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
 from tutor_assistant_web.shared.contracts import ArtifactStorage
 from tutor_assistant_web.shared.errors import (
     ConflictError,
@@ -42,6 +44,7 @@ from tutor_assistant_web.shared.errors import (
 
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _UNSAFE_IDENTIFIERS = {"__proto__", "constructor", "prototype"}
+_LOGGER = logging.getLogger(__name__)
 
 
 class BoardRevisionConflict(ConflictError):
@@ -54,10 +57,23 @@ class BoardRevisionConflict(ConflictError):
         self.current_revision = current_revision
 
 
+class BoardLamportConflict(ConflictError):
+    def __init__(
+        self,
+        actor_id: str,
+        previous_lamport: int,
+        incoming_lamport: int,
+    ) -> None:
+        super().__init__("Lamport пакета должен возрастать для actor доски")
+        self.actor_id = actor_id
+        self.previous_lamport = previous_lamport
+        self.incoming_lamport = incoming_lamport
+
+
 @dataclass(frozen=True)
 class BoardRecovery:
     document: BoardDocument
-    snapshot: BoardSnapshot10 | None
+    snapshot: BoardSnapshot11 | None
     command_batches: list[BoardCommandBatch]
 
 
@@ -181,7 +197,7 @@ class BoardPersistenceService:
 
     def append_commands(
         self,
-        envelope: BoardCommandEnvelope10,
+        envelope: BoardCommandEnvelope,
         actor_user_id: str,
     ) -> BoardCommandBatch:
         payload, encoded, payload_sha256 = canonical_json(envelope)
@@ -189,6 +205,15 @@ class BoardPersistenceService:
             raise ValidationError("Пакет команд превышает допустимый размер")
         document_id = envelope.document_id.root
         contract_actor_id = envelope.actor_id.root
+        try:
+            lamport_range = envelope_lamport_range(envelope)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        if lamport_range is None:
+            lamport_min = None
+            lamport_max = None
+        else:
+            lamport_min, lamport_max = lamport_range
         with self.database.sessions() as session:
             self._require_active_membership(session, actor_user_id)
             existing = session.scalar(
@@ -219,6 +244,23 @@ class BoardPersistenceService:
                     envelope.base_revision,
                     document.current_revision,
                 )
+            if lamport_min is not None:
+                latest_lamport = (
+                    session.scalar(
+                        select(func.max(BoardCommandBatch.lamport_max)).where(
+                            BoardCommandBatch.organization_id == self.organization_id,
+                            BoardCommandBatch.board_document_id == document.id,
+                            BoardCommandBatch.contract_actor_id == contract_actor_id,
+                        )
+                    )
+                    or 0
+                )
+                if lamport_min <= latest_lamport:
+                    raise BoardLamportConflict(
+                        contract_actor_id,
+                        latest_lamport,
+                        lamport_min,
+                    )
             revision = document.current_revision + 1
             batch = BoardCommandBatch(
                 organization_id=self.organization_id,
@@ -229,6 +271,8 @@ class BoardPersistenceService:
                 actor_user_id=actor_user_id,
                 contract_actor_id=contract_actor_id,
                 schema_version=envelope.schema_version,
+                lamport_min=lamport_min,
+                lamport_max=lamport_max,
                 expected_document_sha256=envelope.expected_document_sha256,
                 payload_sha256=payload_sha256,
                 payload_size=len(encoded),
@@ -240,6 +284,21 @@ class BoardPersistenceService:
             document.bytes_since_snapshot += len(encoded)
             session.add(batch)
             session.commit()
+            _LOGGER.info(
+                "Board command batch committed",
+                extra={
+                    "event": "board.command_batch.committed",
+                    "document_id": document.id,
+                    "actor_id": contract_actor_id,
+                    "schema_version": envelope.schema_version,
+                    "base_revision": envelope.base_revision,
+                    "revision": revision,
+                    "lamport_min": lamport_min,
+                    "lamport_max": lamport_max,
+                    "command_count": len(envelope.commands),
+                    "payload_sha256": payload_sha256,
+                },
+            )
             return batch
 
     def commands_after(
@@ -275,7 +334,7 @@ class BoardPersistenceService:
             or document.bytes_since_snapshot >= self.snapshot_interval_bytes
         )
 
-    def save_snapshot(self, snapshot: BoardSnapshot10) -> BoardSnapshot:
+    def save_snapshot(self, snapshot: BoardSnapshot11) -> BoardSnapshot:
         document_id = snapshot.document_id.root
         if snapshot.document.id.root != document_id:
             raise ValidationError("Snapshot содержит документ с другим идентификатором")
@@ -377,7 +436,7 @@ class BoardPersistenceService:
             session.commit()
             return stored_snapshot
 
-    def load_latest_snapshot(self, document_id: str) -> BoardSnapshot10 | None:
+    def load_latest_snapshot(self, document_id: str) -> BoardSnapshot11 | None:
         self.get(document_id)
         with self.database.sessions() as session:
             stored = session.scalar(
@@ -519,7 +578,7 @@ class BoardPersistenceService:
 
     def record_geometry_import(
         self,
-        geometry_import: BoardGeometryImport10,
+        geometry_import: BoardGeometryImport11,
     ) -> BoardGeometryImport:
         payload, _, contract_sha256 = canonical_json(geometry_import)
         document_id = geometry_import.document_id.root
@@ -825,13 +884,13 @@ class BoardPersistenceService:
             snapshot.upload_error = str(exc)[:2000]
             session.commit()
 
-    def _read_stored_snapshot(self, stored: BoardSnapshot) -> BoardSnapshot10:
+    def _read_stored_snapshot(self, stored: BoardSnapshot) -> BoardSnapshot11:
         content = self.storage.read(stored.storage_key)
         if len(content) != stored.size or hashlib.sha256(content).hexdigest() != stored.sha256:
             self._quarantine_snapshot(stored.id, "Stored size or SHA-256 differs from database")
             raise ConflictError("Сохранённый snapshot повреждён")
         try:
-            return BoardSnapshot10.model_validate_json(content)
+            return BoardSnapshot11.model_validate_json(content)
         except ValueError as exc:
             self._quarantine_snapshot(stored.id, "Snapshot does not match board/v1")
             raise ConflictError("Сохранённый snapshot не соответствует контракту") from exc
