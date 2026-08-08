@@ -1,41 +1,41 @@
 {
   "artifacts": {
     "board-command-envelope.schema.json": {
-      "sha256": "86aed66b975f6746d1ca98f8aa0280bf63d4fa2f93bb0ca5ecee59d26e6cf0d3"
+      "sha256": "9cbd1006f2f1fb1c42f693455d6e9fe8d27d637bafd238408a9c90c8f3424a83"
     },
     "board-document.schema.json": {
-      "sha256": "250e3a6d6fd1d5289464745ca7e254dbad5ad342a027b96b1d10b57d725a91d2"
+      "sha256": "58be00ebcf7a06bffa055fdf9586027a8301fddb9ead118d02de8e05fa93486c"
     },
     "board-geometry-import.schema.json": {
       "sha256": "30eaf6badb2fae8eb55bb8416c3d55a8c6476e59c130ad6657fb0db10370b599"
     },
     "board-snapshot.schema.json": {
-      "sha256": "d586c4ca572847f7b3455981989ba02ec728721fe94c6b7a539a4dfc3c4fc60e"
+      "sha256": "fbbe3454fc35f8664882aba82fe9f5017a9514159204588a82e7f6c48cc99baa"
     },
     "COMPATIBILITY.md": {
-      "sha256": "d9439b47991d6dbd36783948c81ffb01cfae0adef9d7084faf84d7eaac6c3ae2"
+      "sha256": "6db59871736afea5ebe97bc11995b4765d1bdd5e78333634e0776bc778be59f6"
     },
     "fixtures/board-command-envelope.json": {
-      "sha256": "6024a4939aba5a2e0fe7b6724aea31b502f7d9de249a6ef49ae0625919d01e13"
+      "sha256": "7b3b52a949ef1105f6773deb52a4f1a62507a4cb925a1a6e00f4b48471fc79c7"
     },
     "fixtures/board-document.json": {
-      "sha256": "d189fbd0c01c3fd6332ab6697c07c97a0624cf428dc5e543b6e7e0f1904775c9"
+      "sha256": "5e708ccb2f1f3e49400094d9fa99f759df25a68a0f562f8f9b9c4ba1c5dd7c0f"
     },
     "fixtures/board-geometry-import.json": {
       "sha256": "7021fc5907b91f22fd24fd7fe7a9d31613a974a08c8cb28e4208d0f295e2cfd4"
     },
     "fixtures/board-snapshot.json": {
-      "sha256": "ab4be345da171f0a2878669c05873afca02a584fc48b4d4e42a348489c6c1866"
+      "sha256": "922662b7e872ec7f1eb1e3ad02bc0f28e27fdba0c3a977e60316a12b329a75b9"
     },
     "README.md": {
-      "sha256": "18ced188140e8ff72758b1b8875422c03a3d2f2d94ffb69a79d376c9dc9340e8"
+      "sha256": "f4387e2b48329dc3ef509de9d6b5416c59cde133de738d45b4d013d9b76f21bf"
     }
   },
   "contract": "board/v1",
   "schemas": {
-    "boardCommandEnvelope": "1.3",
-    "boardDocument": "1.0",
+    "boardCommandEnvelope": "1.4",
+    "boardDocument": "1.4",
     "boardGeometryImport": "1.0",
-    "boardSnapshot": "1.0"
+    "boardSnapshot": "1.4"
   }
 }

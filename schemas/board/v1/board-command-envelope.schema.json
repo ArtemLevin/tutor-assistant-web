@@ -45,7 +45,25 @@
           "uniqueItems": true
         },
         "schemaVersion": {
-          "const": "1.2"
+          "const": "1.4"
+        },
+        "solidLearningAttempts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Solid3DLearningAttempt"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "solidModels": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Solid3DRecord"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
         },
         "title": {
           "maxLength": 256,
@@ -68,6 +86,8 @@
         "objects",
         "order",
         "schemaVersion",
+        "solidLearningAttempts",
+        "solidModels",
         "title",
         "updatedAt",
         "viewport"
@@ -1445,6 +1465,1672 @@
       ],
       "type": "object"
     },
+    "Solid3DBoardProjection": {
+      "additionalProperties": false,
+      "properties": {
+        "hiddenEdgePolicy": {
+          "enum": [
+            "dashed",
+            "hidden"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "oblique",
+            "orthographic",
+            "perspective"
+          ]
+        },
+        "matrix": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array",
+          "maxItems": 16,
+          "minItems": 6
+        },
+        "origin": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "viewportScale": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "hiddenEdgePolicy",
+        "kind",
+        "matrix",
+        "origin",
+        "viewportScale"
+      ],
+      "type": "object"
+    },
+    "Solid3DDefinition": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edgeLength": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "cube"
+            }
+          },
+          "required": [
+            "edgeLength",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "cuboid"
+            },
+            "size": {
+              "$ref": "#/$defs/Vec3"
+            }
+          },
+          "required": [
+            "kind",
+            "size"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edgeLength": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "tetrahedron"
+            }
+          },
+          "required": [
+            "edgeLength",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "base": {
+              "items": {
+                "$ref": "#/$defs/Vec2"
+              },
+              "type": "array",
+              "maxItems": 256,
+              "minItems": 3
+            },
+            "height": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "prism"
+            }
+          },
+          "required": [
+            "base",
+            "height",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "apex": {
+              "$ref": "#/$defs/Vec3"
+            },
+            "base": {
+              "items": {
+                "$ref": "#/$defs/Vec2"
+              },
+              "type": "array",
+              "maxItems": 256,
+              "minItems": 3
+            },
+            "kind": {
+              "const": "pyramid"
+            }
+          },
+          "required": [
+            "apex",
+            "base",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "cylinder"
+            },
+            "radius": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "kind",
+            "radius"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "cone"
+            },
+            "radius": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "kind",
+            "radius"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "bottomRadius": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "height": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            "kind": {
+              "const": "truncated-cone"
+            },
+            "topRadius": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "bottomRadius",
+            "height",
+            "kind",
+            "topRadius"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "sphere"
+            },
+            "radius": {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "radius"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Solid3DPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "$ref": "#/$defs/SolidPointAnchor"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "label": {
+          "maxLength": 32,
+          "minLength": 1,
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        }
+      },
+      "required": [
+        "anchor",
+        "id",
+        "label",
+        "position"
+      ],
+      "type": "object"
+    },
+    "Solid3DRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "boardObjectIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "maxItems": 5000
+        },
+        "definition": {
+          "$ref": "#/$defs/Solid3DDefinition"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/Solid3DPoint"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "projection": {
+          "$ref": "#/$defs/Solid3DBoardProjection"
+        },
+        "rootGroupId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "sections": {
+          "items": {
+            "$ref": "#/$defs/Solid3DSectionDefinition"
+          },
+          "type": "array",
+          "maxItems": 8
+        },
+        "source": {
+          "$ref": "#/$defs/Solid3DSource"
+        }
+      },
+      "required": [
+        "boardObjectIds",
+        "definition",
+        "id",
+        "points",
+        "projection",
+        "rootGroupId",
+        "schemaVersion",
+        "sections",
+        "source"
+      ],
+      "type": "object"
+    },
+    "Solid3DSectionDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithmVersion": {
+          "enum": [
+            "analytic-plane/1",
+            "polyhedron-plane/1"
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "pointIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "visible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "algorithmVersion",
+        "id",
+        "pointIds",
+        "visible"
+      ],
+      "type": "object"
+    },
+    "Solid3DSource": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "text-template"
+            },
+            "templateId": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "templateId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "smart-ink"
+            },
+            "recognizerVersion": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "recognizerVersion"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "importId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "geometryos"
+            }
+          },
+          "required": [
+            "importId",
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SolidPointAnchor": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "vertex"
+            },
+            "vertexId": {
+              "$ref": "#/$defs/Identifier"
+            }
+          },
+          "required": [
+            "kind",
+            "vertexId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edgeId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "edge"
+            },
+            "parameter": {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "edgeId",
+            "kind",
+            "parameter"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "faceId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "face"
+            },
+            "localCoordinates": {
+              "$ref": "#/$defs/Vec2"
+            }
+          },
+          "required": [
+            "faceId",
+            "kind",
+            "localCoordinates"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "analytic-surface"
+            },
+            "parameters": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array",
+              "maxItems": 8
+            },
+            "surfaceId": {
+              "$ref": "#/$defs/Identifier"
+            }
+          },
+          "required": [
+            "kind",
+            "parameters",
+            "surfaceId"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ExactValue": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "denominator": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "rational"
+            },
+            "numerator": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "denominator",
+            "kind",
+            "numerator"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "coefficientDenominator": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "coefficientNumerator": {
+              "type": "integer"
+            },
+            "kind": {
+              "const": "radical"
+            },
+            "radicand": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "coefficientDenominator",
+            "coefficientNumerator",
+            "kind",
+            "radicand"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "decimal"
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SolidConstructionAction": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "faceId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "select-face"
+            }
+          },
+          "required": [
+            "faceId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "edgeId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "add-derived-point"
+            },
+            "parameter": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "edgeId",
+            "kind",
+            "parameter"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "faceId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "fromPointId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "add-trace-segment"
+            },
+            "toPointId": {
+              "$ref": "#/$defs/Identifier"
+            }
+          },
+          "required": [
+            "faceId",
+            "fromPointId",
+            "kind",
+            "toPointId"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "close-contour"
+            },
+            "orderedPointIds": {
+              "items": {
+                "$ref": "#/$defs/Identifier"
+              },
+              "type": "array",
+              "maxItems": 32,
+              "minItems": 3
+            }
+          },
+          "required": [
+            "kind",
+            "orderedPointIds"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SolidConstructionTraceEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        },
+        "action": {
+          "$ref": "#/$defs/SolidConstructionAction"
+        },
+        "diagnosticCode": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SolidLearningDiagnosticCode"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "explanation": {
+          "maxLength": 1000,
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "accepted",
+        "action",
+        "diagnosticCode",
+        "explanation",
+        "id",
+        "timestamp"
+      ],
+      "type": "object"
+    },
+    "SolidElementRef": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "vertex"
+            }
+          },
+          "required": [
+            "id",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "edge"
+            }
+          },
+          "required": [
+            "id",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "face"
+            }
+          },
+          "required": [
+            "id",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "point"
+            }
+          },
+          "required": [
+            "id",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "section-segment"
+            }
+          },
+          "required": [
+            "id",
+            "kind"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SolidLearningAttemptAction": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "set-phase"
+            },
+            "phase": {
+              "enum": [
+                "intro",
+                "prediction",
+                "construction",
+                "reasoning",
+                "measurement",
+                "reflection",
+                "completed"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "phase"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "submit-prediction"
+            },
+            "prediction": {
+              "additionalProperties": false,
+              "properties": {
+                "confidence": {
+                  "enum": [
+                    "confident",
+                    "unsure",
+                    "stuck"
+                  ]
+                },
+                "edgeIds": {
+                  "items": {
+                    "$ref": "#/$defs/Identifier"
+                  },
+                  "type": "array",
+                  "maxItems": 64
+                },
+                "parallelSidePairs": {
+                  "items": {
+                    "items": {
+                      "$ref": "#/$defs/Identifier"
+                    },
+                    "type": "array",
+                    "maxItems": 2,
+                    "minItems": 2
+                  },
+                  "type": "array",
+                  "maxItems": 32
+                },
+                "polygonKind": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "score": {
+                  "oneOf": [
+                    {
+                      "maximum": 1,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "submitted": {
+                  "type": "boolean"
+                },
+                "vertexCount": {
+                  "oneOf": [
+                    {
+                      "maximum": 64,
+                      "minimum": 3,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "confidence",
+                "edgeIds",
+                "parallelSidePairs",
+                "polygonKind",
+                "score",
+                "submitted",
+                "vertexCount"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "prediction"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "entry": {
+              "$ref": "#/$defs/SolidConstructionTraceEntry"
+            },
+            "kind": {
+              "const": "construction-step"
+            }
+          },
+          "required": [
+            "entry",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "add-reasoning"
+            },
+            "step": {
+              "additionalProperties": false,
+              "properties": {
+                "accepted": {
+                  "type": "boolean"
+                },
+                "premiseIds": {
+                  "items": {
+                    "$ref": "#/$defs/Identifier"
+                  },
+                  "type": "array",
+                  "maxItems": 16
+                },
+                "ruleId": {
+                  "$ref": "#/$defs/Identifier"
+                },
+                "statementId": {
+                  "$ref": "#/$defs/Identifier"
+                }
+              },
+              "required": [
+                "accepted",
+                "premiseIds",
+                "ruleId",
+                "statementId"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "kind",
+            "step"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "answer": {
+              "additionalProperties": false,
+              "properties": {
+                "correct": {
+                  "type": "boolean"
+                },
+                "formulaId": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/Identifier"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "parsed": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/ExactValue"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "raw": {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                "taskId": {
+                  "$ref": "#/$defs/Identifier"
+                },
+                "timestamp": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "unit": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "correct",
+                "formulaId",
+                "parsed",
+                "raw",
+                "taskId",
+                "timestamp",
+                "unit"
+              ],
+              "type": "object"
+            },
+            "kind": {
+              "const": "submit-answer"
+            }
+          },
+          "required": [
+            "answer",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "hint": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "$ref": "#/$defs/Identifier"
+                },
+                "ladderId": {
+                  "$ref": "#/$defs/Identifier"
+                },
+                "level": {
+                  "enum": [
+                    1,
+                    2,
+                    3
+                  ]
+                },
+                "relatedElement": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/SolidElementRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "timestamp": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "ladderId",
+                "level",
+                "relatedElement",
+                "timestamp"
+              ],
+              "type": "object"
+            },
+            "kind": {
+              "const": "use-hint"
+            }
+          },
+          "required": [
+            "hint",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "diagnostic": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "$ref": "#/$defs/SolidLearningDiagnosticCode"
+                },
+                "element": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/SolidElementRef"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "id": {
+                  "$ref": "#/$defs/Identifier"
+                },
+                "message": {
+                  "maxLength": 1000,
+                  "type": "string"
+                },
+                "timestamp": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "element",
+                "id",
+                "message",
+                "timestamp"
+              ],
+              "type": "object"
+            },
+            "kind": {
+              "const": "add-diagnostic"
+            }
+          },
+          "required": [
+            "diagnostic",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "checkpoint": {
+              "additionalProperties": false,
+              "properties": {
+                "area": {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "parameter": {
+                  "type": "number"
+                },
+                "perimeter": {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "timestamp": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "vertexCount": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "area",
+                "parameter",
+                "perimeter",
+                "timestamp",
+                "vertexCount"
+              ],
+              "type": "object"
+            },
+            "kind": {
+              "const": "add-checkpoint"
+            }
+          },
+          "required": [
+            "checkpoint",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "answer": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "itemId": {
+              "$ref": "#/$defs/Identifier"
+            },
+            "kind": {
+              "const": "answer-quiz"
+            }
+          },
+          "required": [
+            "answer",
+            "itemId",
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "restore"
+            },
+            "snapshot": {
+              "$ref": "#/$defs/Solid3DLearningAttempt"
+            }
+          },
+          "required": [
+            "kind",
+            "snapshot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "SolidLearningDiagnosticCode": {
+      "enum": [
+        "points-on-different-faces",
+        "missed-edge-intersection",
+        "wrong-contour-order",
+        "self-intersection",
+        "point-outside-edge",
+        "segment-outside-section-plane",
+        "duplicate-or-collinear-seeds",
+        "invalid-proof-premises",
+        "incorrect-formula",
+        "incorrect-unit"
+      ]
+    },
+    "Solid3DLearningAttempt": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "answers": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "correct": {
+                "type": "boolean"
+              },
+              "formulaId": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/Identifier"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "parsed": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/ExactValue"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "raw": {
+                "maxLength": 256,
+                "type": "string"
+              },
+              "taskId": {
+                "$ref": "#/$defs/Identifier"
+              },
+              "timestamp": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "unit": {
+                "maxLength": 32,
+                "type": "string"
+              }
+            },
+            "required": [
+              "correct",
+              "formulaId",
+              "parsed",
+              "raw",
+              "taskId",
+              "timestamp",
+              "unit"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "maxItems": 128
+        },
+        "checkpoints": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "area": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "parameter": {
+                "type": "number"
+              },
+              "perimeter": {
+                "minimum": 0,
+                "type": "number"
+              },
+              "timestamp": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "vertexCount": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "area",
+              "parameter",
+              "perimeter",
+              "timestamp",
+              "vertexCount"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "maxItems": 32
+        },
+        "construction": {
+          "additionalProperties": false,
+          "properties": {
+            "completed": {
+              "type": "boolean"
+            },
+            "trace": {
+              "items": {
+                "$ref": "#/$defs/SolidConstructionTraceEntry"
+              },
+              "type": "array",
+              "maxItems": 128
+            }
+          },
+          "required": [
+            "completed",
+            "trace"
+          ],
+          "type": "object"
+        },
+        "diagnostics": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "$ref": "#/$defs/SolidLearningDiagnosticCode"
+              },
+              "element": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/SolidElementRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/$defs/Identifier"
+              },
+              "message": {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              "timestamp": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "element",
+              "id",
+              "message",
+              "timestamp"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "maxItems": 64
+        },
+        "hints": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/Identifier"
+              },
+              "ladderId": {
+                "$ref": "#/$defs/Identifier"
+              },
+              "level": {
+                "enum": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "relatedElement": {
+                "oneOf": [
+                  {
+                    "$ref": "#/$defs/SolidElementRef"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timestamp": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "ladderId",
+              "level",
+              "relatedElement",
+              "timestamp"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "maxItems": 24
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "mode": {
+          "enum": [
+            "guided",
+            "assessment",
+            "teacher-demo"
+          ]
+        },
+        "phase": {
+          "enum": [
+            "intro",
+            "prediction",
+            "construction",
+            "reasoning",
+            "measurement",
+            "reflection",
+            "completed"
+          ]
+        },
+        "prediction": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "confidence": {
+                  "enum": [
+                    "confident",
+                    "unsure",
+                    "stuck"
+                  ]
+                },
+                "edgeIds": {
+                  "items": {
+                    "$ref": "#/$defs/Identifier"
+                  },
+                  "type": "array",
+                  "maxItems": 64
+                },
+                "parallelSidePairs": {
+                  "items": {
+                    "items": {
+                      "$ref": "#/$defs/Identifier"
+                    },
+                    "type": "array",
+                    "maxItems": 2,
+                    "minItems": 2
+                  },
+                  "type": "array",
+                  "maxItems": 32
+                },
+                "polygonKind": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "score": {
+                  "oneOf": [
+                    {
+                      "maximum": 1,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "submitted": {
+                  "type": "boolean"
+                },
+                "vertexCount": {
+                  "oneOf": [
+                    {
+                      "maximum": 64,
+                      "minimum": 3,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "confidence",
+                "edgeIds",
+                "parallelSidePairs",
+                "polygonKind",
+                "score",
+                "submitted",
+                "vertexCount"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quizAnswers": {
+          "additionalProperties": {
+            "maxLength": 512,
+            "type": "string"
+          },
+          "propertyNames": {
+            "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+          },
+          "type": "object"
+        },
+        "reasoning": {
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "accepted": {
+                "type": "boolean"
+              },
+              "premiseIds": {
+                "items": {
+                  "$ref": "#/$defs/Identifier"
+                },
+                "type": "array",
+                "maxItems": 16
+              },
+              "ruleId": {
+                "$ref": "#/$defs/Identifier"
+              },
+              "statementId": {
+                "$ref": "#/$defs/Identifier"
+              }
+            },
+            "required": [
+              "accepted",
+              "premiseIds",
+              "ruleId",
+              "statementId"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "maxItems": 128
+        },
+        "result": {
+          "oneOf": [
+            {
+              "additionalProperties": false,
+              "properties": {
+                "completed": {
+                  "type": "boolean"
+                },
+                "constructionAccuracy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "maximumHintLevel": {
+                  "maximum": 3,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "measurementAccuracy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "predictionScore": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "quizScore": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "reasoningAccuracy": {
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "skillScores": {
+                  "additionalProperties": {
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "propertyNames": {
+                    "pattern": "^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "completed",
+                "constructionAccuracy",
+                "maximumHintLevel",
+                "measurementAccuracy",
+                "predictionScore",
+                "quizScore",
+                "reasoningAccuracy",
+                "skillScores"
+              ],
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scenarioId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "scenarioVersion": {
+          "maxLength": 32,
+          "minLength": 1,
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "solidId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "startedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actorId",
+        "answers",
+        "checkpoints",
+        "construction",
+        "diagnostics",
+        "hints",
+        "id",
+        "mode",
+        "phase",
+        "prediction",
+        "quizAnswers",
+        "reasoning",
+        "result",
+        "revision",
+        "scenarioId",
+        "scenarioVersion",
+        "schemaVersion",
+        "solidId",
+        "startedAt",
+        "updatedAt"
+      ],
+      "type": "object"
+    },
     "TextObject": {
       "additionalProperties": false,
       "properties": {
@@ -1557,6 +3243,26 @@
       "required": [
         "x",
         "y"
+      ],
+      "type": "object"
+    },
+    "Vec3": {
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "z": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
       ],
       "type": "object"
     },
@@ -1732,6 +3438,13 @@
           },
           "type": "array",
           "uniqueItems": true
+        },
+        "solidIds": {
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          },
+          "type": "array",
+          "uniqueItems": true
         }
       },
       "required": [
@@ -1742,6 +3455,216 @@
         "geometryImportIds",
         "groupIds",
         "objectIds"
+      ],
+      "type": "object"
+    },
+    "CreateSolid3DCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d.create"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "group": {
+          "$ref": "#/$defs/BoardGroup"
+        },
+        "model": {
+          "$ref": "#/$defs/Solid3DRecord"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "type": "array",
+          "minItems": 1
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "group",
+        "model",
+        "objects"
+      ],
+      "type": "object"
+    },
+    "StartSolid3DLearningCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d-learning.start"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "attempt": {
+          "$ref": "#/$defs/Solid3DLearningAttempt"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "attempt"
+      ],
+      "type": "object"
+    },
+    "ActSolid3DLearningCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d-learning.act"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/SolidLearningAttemptAction"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "expectedRevision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "action",
+        "attemptId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    "ResetSolid3DLearningCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d-learning.reset"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "expectedRevision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "attemptId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    "CompleteSolid3DLearningCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d-learning.complete"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "expectedRevision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "attemptId",
+        "expectedRevision"
+      ],
+      "type": "object"
+    },
+    "RemoveSolid3DLearningCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d-learning.remove"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "attemptId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "expectedRevision": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "attemptId",
+        "expectedRevision"
       ],
       "type": "object"
     },
@@ -2039,6 +3962,12 @@
             "$ref": "#/$defs/BoardObject"
           },
           "type": "array"
+        },
+        "solidModels": {
+          "items": {
+            "$ref": "#/$defs/Solid3DRecord"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -2049,6 +3978,51 @@
         "geometryImports",
         "groups",
         "objects"
+      ],
+      "type": "object"
+    },
+    "ProjectSolid3DSectionCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d.project-section"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "group": {
+          "$ref": "#/$defs/BoardGroup"
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "type": "array",
+          "minItems": 1
+        },
+        "sectionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "solidId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "group",
+        "objects",
+        "sectionId",
+        "solidId"
       ],
       "type": "object"
     },
@@ -2458,6 +4432,43 @@
       ],
       "type": "object"
     },
+    "UpdateSolid3DCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.solid-3d.update"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "expected": {
+          "$ref": "#/$defs/Solid3DRecord"
+        },
+        "replacement": {
+          "$ref": "#/$defs/Solid3DRecord"
+        },
+        "solidId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "expected",
+        "replacement",
+        "solidId"
+      ],
+      "type": "object"
+    },
     "UpdateTextCommand": {
       "additionalProperties": false,
       "properties": {
@@ -2495,10 +4506,19 @@
     "BoardCommand": {
       "oneOf": [
         {
+          "$ref": "#/$defs/ActSolid3DLearningCommand"
+        },
+        {
           "$ref": "#/$defs/AddGroupCommand"
         },
         {
           "$ref": "#/$defs/AddObjectsCommand"
+        },
+        {
+          "$ref": "#/$defs/CompleteSolid3DLearningCommand"
+        },
+        {
+          "$ref": "#/$defs/CreateSolid3DCommand"
         },
         {
           "$ref": "#/$defs/CutContentCommand"
@@ -2525,7 +4545,13 @@
           "$ref": "#/$defs/PasteContentCommand"
         },
         {
+          "$ref": "#/$defs/ProjectSolid3DSectionCommand"
+        },
+        {
           "$ref": "#/$defs/RemoveGroupsCommand"
+        },
+        {
+          "$ref": "#/$defs/RemoveSolid3DLearningCommand"
         },
         {
           "$ref": "#/$defs/RenameDocumentCommand"
@@ -2535,6 +4561,9 @@
         },
         {
           "$ref": "#/$defs/ReplaceObjectsCommand"
+        },
+        {
+          "$ref": "#/$defs/ResetSolid3DLearningCommand"
         },
         {
           "$ref": "#/$defs/SetGeometryVisualStyleCommand"
@@ -2555,10 +4584,16 @@
           "$ref": "#/$defs/SetViewportCommand"
         },
         {
+          "$ref": "#/$defs/StartSolid3DLearningCommand"
+        },
+        {
           "$ref": "#/$defs/TranslateGeometryImportCommand"
         },
         {
           "$ref": "#/$defs/UpdateCoordinatePlotCommand"
+        },
+        {
+          "$ref": "#/$defs/UpdateSolid3DCommand"
         },
         {
           "$ref": "#/$defs/UpdateTextCommand"
@@ -2602,7 +4637,7 @@
   },
   "$id": "https://contracts.tutorboard.dev/board/v1/board-command-envelope.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "BoardCommandEnvelope 1.3",
+  "title": "BoardCommandEnvelope 1.4",
   "additionalProperties": false,
   "properties": {
     "actorId": {
@@ -2634,7 +4669,7 @@
       "type": "string"
     },
     "schemaVersion": {
-      "const": "1.3"
+      "const": "1.4"
     }
   },
   "required": [

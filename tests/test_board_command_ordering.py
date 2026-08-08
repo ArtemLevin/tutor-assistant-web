@@ -23,6 +23,7 @@ def payload() -> dict:
 
 def test_ordered_envelope_exposes_commands_and_order_metadata() -> None:
     envelope = BoardCommandEnvelopeInput.model_validate(payload()).root
+    assert envelope.schema_version == "1.4"
     assert len(envelope_commands(envelope)) == 2
     assert envelope_actor_ids(envelope) == ["actor:tutor-01", "actor:tutor-01"]
     assert envelope_base_revisions(envelope) == [7, 7]
@@ -53,6 +54,29 @@ def test_legacy_envelopes_remain_readable(version: str) -> None:
     envelope = BoardCommandEnvelopeInput.model_validate(value).root
     assert envelope.schema_version == version
     assert envelope_lamport_range(envelope) is None
+
+
+def test_version_13_ordered_envelopes_remain_readable() -> None:
+    value = payload()
+    value["schemaVersion"] = "1.3"
+    envelope = BoardCommandEnvelopeInput.model_validate(value).root
+    assert envelope.schema_version == "1.3"
+    assert envelope_lamport_range(envelope) == (8, 9)
+
+
+def test_version_13_rejects_learning_commands() -> None:
+    value = payload()
+    value["schemaVersion"] = "1.3"
+    value["commands"][0]["command"] = {
+        "actorId": "actor:tutor-01",
+        "attemptId": "attempt:legacy-learning",
+        "expectedRevision": 0,
+        "id": "command:legacy-learning",
+        "kind": "core.solid-3d-learning.reset",
+        "timestamp": "2026-08-08T12:00:00.000Z",
+    }
+    with pytest.raises(PydanticValidationError):
+        BoardCommandEnvelopeInput.model_validate(value)
 
 
 def test_unknown_envelope_version_fails_closed() -> None:

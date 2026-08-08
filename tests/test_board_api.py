@@ -35,7 +35,7 @@ from tutor_assistant_web.modules.identity.models import (
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument11
+from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument14
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "schemas" / "board" / "v1" / "fixtures"
@@ -140,7 +140,7 @@ def _snapshot_payload(*, revision: int = 0):
     payload["documentId"] = DOCUMENT_ID
     payload["revision"] = revision
     payload["document"]["id"] = DOCUMENT_ID
-    document = BoardDocument11.model_validate(payload["document"])
+    document = BoardDocument14.model_validate(payload["document"])
     payload["documentSha256"] = canonical_json(document)[2]
     return payload
 
@@ -391,7 +391,7 @@ def test_mixed_legacy_and_ordered_journal_remains_recoverable(board_api):
     assert recovered.status_code == 200
     items = recovered.json()["items"]
     assert [item["revision"] for item in items] == [1, 2]
-    assert [item["schemaVersion"] for item in items] == ["1.2", "1.3"]
+    assert [item["schemaVersion"] for item in items] == ["1.2", "1.4"]
     assert items[0]["lamportMin"] is None
     assert items[1]["lamportMin"] == 1
 

@@ -6,13 +6,13 @@ import re
 from pathlib import Path
 
 from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope13,
+    BoardCommandEnvelope14,
 )
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument11
+from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument14
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
     BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 
 ROOT = Path(__file__).parents[1]
 CONTRACT_ROOT = ROOT / "schemas" / "board" / "v1"
@@ -40,9 +40,9 @@ def test_vendored_contract_manifest_is_complete_and_fresh() -> None:
 
 def test_generated_dtos_accept_canonical_tutorboard_fixtures() -> None:
     pairs = (
-        (BoardDocument11, "fixtures/board-document.json"),
-        (BoardCommandEnvelope13, "fixtures/board-command-envelope.json"),
-        (BoardSnapshot11, "fixtures/board-snapshot.json"),
+        (BoardDocument14, "fixtures/board-document.json"),
+        (BoardCommandEnvelope14, "fixtures/board-command-envelope.json"),
+        (BoardSnapshot14, "fixtures/board-snapshot.json"),
         (BoardGeometryImport11, "fixtures/board-geometry-import.json"),
     )
     for model, fixture in pairs:
@@ -56,7 +56,7 @@ def test_generated_dtos_forbid_unknown_transport_fields() -> None:
     payload["serverOwnedRevision"] = 8
 
     try:
-        BoardCommandEnvelope13.model_validate(payload)
+        BoardCommandEnvelope14.model_validate(payload)
     except ValueError as error:
         assert "serverOwnedRevision" in str(error)
     else:
