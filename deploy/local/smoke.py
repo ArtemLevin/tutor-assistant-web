@@ -12,7 +12,7 @@ import httpx
 import websockets
 
 from tutor_assistant_web.modules.boards.application import canonical_json
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument11
+from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument14
 
 BASE_URL = os.getenv("LOCAL_BASE_URL", "http://gateway:8080").rstrip("/")
 PUBLIC_ORIGIN = os.getenv("LOCAL_PUBLIC_ORIGIN", "http://localhost:8080").rstrip("/")
@@ -98,7 +98,7 @@ def fixture_document(revision: int) -> tuple[dict, str]:
     snapshot["revision"] = revision
     snapshot["document"]["id"] = DOCUMENT_ID
     snapshot["document"]["title"] = "Проверка единого локального приложения"
-    document = BoardDocument11.model_validate(snapshot["document"])
+    document = BoardDocument14.model_validate(snapshot["document"])
     digest = canonical_json(document)[2]
     snapshot["documentSha256"] = digest
     return snapshot, digest

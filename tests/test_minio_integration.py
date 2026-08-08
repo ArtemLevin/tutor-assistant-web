@@ -20,7 +20,7 @@ from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
 from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import S3ArtifactStorage
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 
 BOARD_SNAPSHOT_FIXTURE = (
     Path(__file__).parents[1] / "schemas" / "board" / "v1" / "fixtures" / "board-snapshot.json"
@@ -112,7 +112,7 @@ def test_board_snapshot_round_trip_through_minio(tmp_path):
         DEFAULT_ORGANIZATION_ID,
     )
     service.create_for_lesson(lesson.id, "document:lesson-01")
-    snapshot = BoardSnapshot11.model_validate(
+    snapshot = BoardSnapshot14.model_validate(
         json.loads(BOARD_SNAPSHOT_FIXTURE.read_text()) | {"revision": 0}
     )
 

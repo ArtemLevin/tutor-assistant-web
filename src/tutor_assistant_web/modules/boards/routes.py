@@ -40,7 +40,7 @@ from tutor_assistant_web.observability import (
     BOARD_EVIDENCE_DURATION,
     BOARD_SYNC_EVENTS,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 from tutor_assistant_web.shared.errors import NotFoundError
 
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
@@ -585,7 +585,7 @@ def create_router(container: AppContainer) -> APIRouter:
         web.validate_csrf_header(request)
         snapshot = await _validated_body(
             request,
-            BoardSnapshot11,
+            BoardSnapshot14,
             container.settings.board_snapshot_max_size_mb * 1024 * 1024,
         )
         if snapshot.document_id.root != document_id:

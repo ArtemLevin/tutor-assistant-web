@@ -4,6 +4,11 @@ The board API is session-authenticated and served from the same origin as
 TutorBoard. It uses the vendored `board/v1` schemas and the persistent revision
 journal described in `board-persistence.md`.
 
+The runtime reader accepts flat envelopes `1.0` and `1.2`, ordered envelopes
+`1.3`, and the current ordered envelope `1.4`. Version `1.4` carries the
+guided 3D learning commands and persists `solidLearningAttempts` inside the
+canonical BoardDocument and BoardSnapshot.
+
 ## Access matrix
 
 | Role | Read assigned board | Append commands | Save snapshots | Create/delete |

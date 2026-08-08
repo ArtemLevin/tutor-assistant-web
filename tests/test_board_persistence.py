@@ -35,7 +35,7 @@ from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
     BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot11
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 from tutor_assistant_web.shared.errors import (
     ConflictError,
     GoneError,
@@ -105,10 +105,10 @@ def load_command(**changes):
     return BoardCommandEnvelopeInput.model_validate(payload).root
 
 
-def load_snapshot(**changes) -> BoardSnapshot11:
+def load_snapshot(**changes) -> BoardSnapshot14:
     payload = json.loads((FIXTURES / "board-snapshot.json").read_text())
     payload.update(changes)
-    return BoardSnapshot11.model_validate(payload)
+    return BoardSnapshot14.model_validate(payload)
 
 
 def load_geometry_import(**changes) -> BoardGeometryImport11:

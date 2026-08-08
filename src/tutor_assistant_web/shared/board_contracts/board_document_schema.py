@@ -184,6 +184,491 @@ class SvgViewBox(BaseModel):
     y: float
 
 
+class HiddenEdgePolicy(Enum):
+    dashed = "dashed"
+    hidden = "hidden"
+
+
+class Kind(Enum):
+    oblique = "oblique"
+    orthographic = "orthographic"
+    perspective = "perspective"
+
+
+class Solid3DDefinition(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    edge_length: float = Field(..., alias="edgeLength", gt=0.0)
+    kind: Literal["cube"]
+
+
+class Solid3DDefinition13(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    edge_length: float = Field(..., alias="edgeLength", gt=0.0)
+    kind: Literal["tetrahedron"]
+
+
+class Solid3DDefinition16(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    height: float = Field(..., gt=0.0)
+    kind: Literal["cylinder"]
+    radius: float = Field(..., gt=0.0)
+
+
+class Solid3DDefinition17(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    height: float = Field(..., gt=0.0)
+    kind: Literal["cone"]
+    radius: float = Field(..., gt=0.0)
+
+
+class Solid3DDefinition18(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    bottom_radius: float = Field(..., alias="bottomRadius", gt=0.0)
+    height: float = Field(..., gt=0.0)
+    kind: Literal["truncated-cone"]
+    top_radius: float = Field(..., alias="topRadius", gt=0.0)
+
+
+class Solid3DDefinition19(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["sphere"]
+    radius: float = Field(..., gt=0.0)
+
+
+class AlgorithmVersion(Enum):
+    analytic_plane_1 = "analytic-plane/1"
+    polyhedron_plane_1 = "polyhedron-plane/1"
+
+
+class Solid3DSectionDefinition(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    algorithm_version: AlgorithmVersion = Field(..., alias="algorithmVersion")
+    id: Identifier
+    point_ids: list[Identifier] = Field(..., alias="pointIds", max_length=3, min_length=3)
+    visible: bool
+
+
+class Solid3DSource4(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["text-template"]
+    template_id: str = Field(..., alias="templateId", max_length=128, min_length=1)
+
+
+class Solid3DSource5(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["smart-ink"]
+    recognizer_version: str = Field(..., alias="recognizerVersion", max_length=128, min_length=1)
+
+
+class Solid3DSource6(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    import_id: Identifier = Field(..., alias="importId")
+    kind: Literal["geometryos"]
+
+
+Solid3DSource = RootModel[Solid3DSource4 | Solid3DSource5 | Solid3DSource6]
+
+
+class SolidPointAnchor5(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["vertex"]
+    vertex_id: Identifier = Field(..., alias="vertexId")
+
+
+class SolidPointAnchor6(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    edge_id: Identifier = Field(..., alias="edgeId")
+    kind: Literal["edge"]
+    parameter: float = Field(..., ge=0.0, le=1.0)
+
+
+class SolidPointAnchor8(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["analytic-surface"]
+    parameters: list[float] = Field(..., max_length=8)
+    surface_id: Identifier = Field(..., alias="surfaceId")
+
+
+class ExactValue(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    denominator: int = Field(..., ge=1)
+    kind: Literal["rational"]
+    numerator: int
+
+
+class ExactValue6(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    coefficient_denominator: int = Field(..., alias="coefficientDenominator", ge=1)
+    coefficient_numerator: int = Field(..., alias="coefficientNumerator")
+    kind: Literal["radical"]
+    radicand: int = Field(..., ge=0)
+
+
+class ExactValue7(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["decimal"]
+    value: float
+
+
+ExactValue4 = RootModel[ExactValue | ExactValue6 | ExactValue7]
+
+
+class SolidConstructionAction(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    face_id: Identifier = Field(..., alias="faceId")
+    kind: Literal["select-face"]
+
+
+class SolidConstructionAction7(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    edge_id: Identifier = Field(..., alias="edgeId")
+    kind: Literal["add-derived-point"]
+    parameter: float
+
+
+class SolidConstructionAction8(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    face_id: Identifier = Field(..., alias="faceId")
+    from_point_id: Identifier = Field(..., alias="fromPointId")
+    kind: Literal["add-trace-segment"]
+    to_point_id: Identifier = Field(..., alias="toPointId")
+
+
+class SolidConstructionAction9(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["close-contour"]
+    ordered_point_ids: list[Identifier] = Field(
+        ..., alias="orderedPointIds", max_length=32, min_length=3
+    )
+
+
+SolidConstructionAction5 = RootModel[
+    SolidConstructionAction
+    | SolidConstructionAction7
+    | SolidConstructionAction8
+    | SolidConstructionAction9
+]
+
+
+class SolidElementRef(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    kind: Literal["vertex"]
+
+
+class SolidElementRef8(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    kind: Literal["edge"]
+
+
+class SolidElementRef9(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    kind: Literal["face"]
+
+
+class SolidElementRef10(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    kind: Literal["point"]
+
+
+class SolidElementRef11(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    kind: Literal["section-segment"]
+
+
+SolidElementRef6 = RootModel[
+    SolidElementRef | SolidElementRef8 | SolidElementRef9 | SolidElementRef10 | SolidElementRef11
+]
+
+
+class Phase(Enum):
+    intro = "intro"
+    prediction = "prediction"
+    construction = "construction"
+    reasoning = "reasoning"
+    measurement = "measurement"
+    reflection = "reflection"
+    completed = "completed"
+
+
+class SolidLearningAttemptAction(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["set-phase"]
+    phase: Phase
+
+
+class Confidence(Enum):
+    confident = "confident"
+    unsure = "unsure"
+    stuck = "stuck"
+
+
+ParallelSidePair = RootModel[list[Identifier]]
+
+
+Score = RootModel[float]
+
+
+VertexCount = RootModel[int]
+
+
+class Prediction(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    confidence: Confidence
+    edge_ids: list[Identifier] = Field(..., alias="edgeIds", max_length=64)
+    parallel_side_pairs: list[ParallelSidePair] = Field(
+        ..., alias="parallelSidePairs", max_length=32
+    )
+    polygon_kind: str = Field(..., alias="polygonKind", max_length=64)
+    score: Score | None
+    submitted: bool
+    vertex_count: VertexCount | None = Field(..., alias="vertexCount")
+
+
+class SolidLearningAttemptAction13(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["submit-prediction"]
+    prediction: Prediction
+
+
+class Step(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    accepted: bool
+    premise_ids: list[Identifier] = Field(..., alias="premiseIds", max_length=16)
+    rule_id: Identifier = Field(..., alias="ruleId")
+    statement_id: Identifier = Field(..., alias="statementId")
+
+
+class SolidLearningAttemptAction15(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["add-reasoning"]
+    step: Step
+
+
+class Answer(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    correct: bool
+    formula_id: Identifier | None = Field(..., alias="formulaId")
+    parsed: ExactValue4 | None
+    raw: str = Field(..., max_length=256)
+    task_id: Identifier = Field(..., alias="taskId")
+    timestamp: AwareDatetime
+    unit: str = Field(..., max_length=32)
+
+
+class SolidLearningAttemptAction16(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    answer: Answer
+    kind: Literal["submit-answer"]
+
+
+class Level(Enum):
+    int_1 = 1
+    int_2 = 2
+    int_3 = 3
+
+
+class Hint(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    ladder_id: Identifier = Field(..., alias="ladderId")
+    level: Level
+    related_element: SolidElementRef6 | None = Field(..., alias="relatedElement")
+    timestamp: AwareDatetime
+
+
+class SolidLearningAttemptAction17(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    hint: Hint
+    kind: Literal["use-hint"]
+
+
+class Checkpoint(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    area: float = Field(..., ge=0.0)
+    parameter: float
+    perimeter: float = Field(..., ge=0.0)
+    timestamp: AwareDatetime
+    vertex_count: int = Field(..., alias="vertexCount", ge=0)
+
+
+class SolidLearningAttemptAction19(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    checkpoint: Checkpoint
+    kind: Literal["add-checkpoint"]
+
+
+class SolidLearningAttemptAction20(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    answer: str = Field(..., max_length=512)
+    item_id: Identifier = Field(..., alias="itemId")
+    kind: Literal["answer-quiz"]
+
+
+class SolidLearningDiagnosticCode(Enum):
+    points_on_different_faces = "points-on-different-faces"
+    missed_edge_intersection = "missed-edge-intersection"
+    wrong_contour_order = "wrong-contour-order"
+    self_intersection = "self-intersection"
+    point_outside_edge = "point-outside-edge"
+    segment_outside_section_plane = "segment-outside-section-plane"
+    duplicate_or_collinear_seeds = "duplicate-or-collinear-seeds"
+    invalid_proof_premises = "invalid-proof-premises"
+    incorrect_formula = "incorrect-formula"
+    incorrect_unit = "incorrect-unit"
+
+
+class Diagnostic(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    code: SolidLearningDiagnosticCode
+    element: SolidElementRef6 | None
+    id: Identifier
+    message: str = Field(..., max_length=1000)
+    timestamp: AwareDatetime
+
+
+class Hint3(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    id: Identifier
+    ladder_id: Identifier = Field(..., alias="ladderId")
+    level: Level
+    related_element: SolidElementRef6 | None = Field(..., alias="relatedElement")
+    timestamp: AwareDatetime
+
+
+class Mode(Enum):
+    guided = "guided"
+    assessment = "assessment"
+    teacher_demo = "teacher-demo"
+
+
+class Prediction3(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    confidence: Confidence
+    edge_ids: list[Identifier] = Field(..., alias="edgeIds", max_length=64)
+    parallel_side_pairs: list[ParallelSidePair] = Field(
+        ..., alias="parallelSidePairs", max_length=32
+    )
+    polygon_kind: str = Field(..., alias="polygonKind", max_length=64)
+    score: Score | None
+    submitted: bool
+    vertex_count: VertexCount | None = Field(..., alias="vertexCount")
+
+
+class ReasoningItem(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    accepted: bool
+    premise_ids: list[Identifier] = Field(..., alias="premiseIds", max_length=16)
+    rule_id: Identifier = Field(..., alias="ruleId")
+    statement_id: Identifier = Field(..., alias="statementId")
+
+
+class Result(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        regex_engine="python-re",
+    )
+    completed: bool
+    construction_accuracy: float = Field(..., alias="constructionAccuracy", ge=0.0, le=1.0)
+    maximum_hint_level: int = Field(..., alias="maximumHintLevel", ge=0, le=3)
+    measurement_accuracy: float = Field(..., alias="measurementAccuracy", ge=0.0, le=1.0)
+    prediction_score: float = Field(..., alias="predictionScore", ge=0.0, le=1.0)
+    quiz_score: float = Field(..., alias="quizScore", ge=0.0, le=1.0)
+    reasoning_accuracy: float = Field(..., alias="reasoningAccuracy", ge=0.0, le=1.0)
+    skill_scores: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        float,
+    ] = Field(..., alias="skillScores")
+
+
 class UserObjectSource(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -197,6 +682,15 @@ class Vec2(BaseModel):
     )
     x: float
     y: float
+
+
+class Vec3(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    x: float
+    y: float
+    z: float
 
 
 class Viewport(BaseModel):
@@ -346,6 +840,138 @@ class SvgObject(BaseModel):
     )
     size: Size5
     view_box: SvgViewBox = Field(..., alias="viewBox")
+
+
+class Solid3DBoardProjection(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    hidden_edge_policy: HiddenEdgePolicy = Field(..., alias="hiddenEdgePolicy")
+    kind: Kind
+    matrix: list[float] = Field(..., max_length=16, min_length=6)
+    origin: Vec2
+    viewport_scale: float = Field(..., alias="viewportScale", gt=0.0)
+
+
+class Solid3DDefinition12(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["cuboid"]
+    size: Vec3
+
+
+class Solid3DDefinition14(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    base: list[Vec2] = Field(..., max_length=256, min_length=3)
+    height: float = Field(..., gt=0.0)
+    kind: Literal["prism"]
+
+
+class Solid3DDefinition15(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    apex: Vec3
+    base: list[Vec2] = Field(..., max_length=256, min_length=3)
+    kind: Literal["pyramid"]
+
+
+Solid3DDefinition10 = RootModel[
+    Solid3DDefinition
+    | Solid3DDefinition12
+    | Solid3DDefinition13
+    | Solid3DDefinition14
+    | Solid3DDefinition15
+    | Solid3DDefinition16
+    | Solid3DDefinition17
+    | Solid3DDefinition18
+    | Solid3DDefinition19
+]
+
+
+class SolidPointAnchor7(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    face_id: Identifier = Field(..., alias="faceId")
+    kind: Literal["face"]
+    local_coordinates: Vec2 = Field(..., alias="localCoordinates")
+
+
+SolidPointAnchor = RootModel[
+    SolidPointAnchor5 | SolidPointAnchor6 | SolidPointAnchor7 | SolidPointAnchor8
+]
+
+
+class SolidConstructionTraceEntry(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    accepted: bool
+    action: SolidConstructionAction5
+    diagnostic_code: SolidLearningDiagnosticCode | None = Field(..., alias="diagnosticCode")
+    explanation: str = Field(..., max_length=1000)
+    id: Identifier
+    timestamp: AwareDatetime
+
+
+class SolidLearningAttemptAction14(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    entry: SolidConstructionTraceEntry
+    kind: Literal["construction-step"]
+
+
+class SolidLearningAttemptAction18(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    diagnostic: Diagnostic
+    kind: Literal["add-diagnostic"]
+
+
+class Construction(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    completed: bool
+    trace: list[SolidConstructionTraceEntry] = Field(..., max_length=128)
+
+
+class Solid3DLearningAttempt(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        regex_engine="python-re",
+    )
+    actor_id: Identifier = Field(..., alias="actorId")
+    answers: list[Answer] = Field(..., max_length=128)
+    checkpoints: list[Checkpoint] = Field(..., max_length=32)
+    construction: Construction
+    diagnostics: list[Diagnostic] = Field(..., max_length=64)
+    hints: list[Hint3] = Field(..., max_length=24)
+    id: Identifier
+    mode: Mode
+    phase: Phase
+    prediction: Prediction3 | None
+    quiz_answers: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        str,
+    ] = Field(..., alias="quizAnswers")
+    reasoning: list[ReasoningItem] = Field(..., max_length=128)
+    result: Result | None
+    revision: int = Field(..., ge=0)
+    scenario_id: Identifier = Field(..., alias="scenarioId")
+    scenario_version: str = Field(..., alias="scenarioVersion", max_length=32, min_length=1)
+    schema_version: Literal["1.0"] = Field(..., alias="schemaVersion")
+    solid_id: Identifier = Field(..., alias="solidId")
+    started_at: AwareDatetime = Field(..., alias="startedAt")
+    updated_at: AwareDatetime = Field(..., alias="updatedAt")
 
 
 class TextObject(BaseModel):
@@ -505,6 +1131,53 @@ class VectorInkData(BaseModel):
     version: Literal["1.0"]
 
 
+class Solid3DPoint(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    anchor: SolidPointAnchor
+    id: Identifier
+    label: str = Field(..., max_length=32, min_length=1)
+    position: Vec3
+
+
+class Solid3DRecord(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    board_object_ids: list[Identifier] = Field(..., alias="boardObjectIds", max_length=5000)
+    definition: Solid3DDefinition10
+    id: Identifier
+    points: list[Solid3DPoint] = Field(..., max_length=32)
+    projection: Solid3DBoardProjection
+    root_group_id: Identifier = Field(..., alias="rootGroupId")
+    schema_version: Literal["1.0"] = Field(..., alias="schemaVersion")
+    sections: list[Solid3DSectionDefinition] = Field(..., max_length=8)
+    source: Solid3DSource
+
+
+class SolidLearningAttemptAction21(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    kind: Literal["restore"]
+    snapshot: Solid3DLearningAttempt
+
+
+SolidLearningAttemptAction11 = RootModel[
+    SolidLearningAttemptAction
+    | SolidLearningAttemptAction13
+    | SolidLearningAttemptAction14
+    | SolidLearningAttemptAction15
+    | SolidLearningAttemptAction16
+    | SolidLearningAttemptAction17
+    | SolidLearningAttemptAction18
+    | SolidLearningAttemptAction19
+    | SolidLearningAttemptAction20
+    | SolidLearningAttemptAction21
+]
+
+
 class PenStrokeObject(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -561,10 +1234,22 @@ class BoardDocument(BaseModel):
         BoardObject,
     ]
     order: list[Identifier]
-    schema_version: Literal["1.2"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.4"] = Field(..., alias="schemaVersion")
+    solid_learning_attempts: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        Solid3DLearningAttempt,
+    ] = Field(..., alias="solidLearningAttempts")
+    solid_models: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        Solid3DRecord,
+    ] = Field(..., alias="solidModels")
     title: str = Field(..., max_length=256, min_length=1)
     updated_at: AwareDatetime = Field(..., alias="updatedAt")
     viewport: Viewport
 
 
-BoardDocument11 = RootModel[BoardDocument]
+BoardDocument14 = RootModel[BoardDocument]
