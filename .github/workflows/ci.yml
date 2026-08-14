@@ -197,6 +197,8 @@ jobs:
         working-directory: integrations/tutorboard
         env:
           TUTOR_ASSISTANT_WEB_ROOT: ${{ github.workspace }}
+          VITE_BOARD_API_BASE_URL: /api/v1
+          VITE_FEATURE_SERVER_SYNC: "true"
         run: |
           set -o pipefail
           npm run e2e:collaboration 2>&1 | tee collaboration-e2e.log
