@@ -1,0 +1,2 @@
+# Deterministic development-only key used by the isolated collaboration E2E server.
+f83843dbdb4072f44b14333cc890b2aa3d492cdb:tests/fullstack/collaboration_server.py:generic-api-key:32
