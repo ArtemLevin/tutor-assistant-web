@@ -75,6 +75,9 @@ async def verify_collaboration(
         ready = json.loads(await asyncio.wait_for(socket.recv(), timeout=10))
         if ready.get("type") != "ready" or ready.get("documentId") != DOCUMENT_ID:
             raise RuntimeError(f"Unexpected collaboration handshake: {ready}")
+        snapshot = json.loads(await asyncio.wait_for(socket.recv(), timeout=10))
+        if snapshot.get("type") != "presence.snapshot":
+            raise RuntimeError(f"Unexpected collaboration presence snapshot: {snapshot}")
         await socket.send(
             json.dumps(
                 {

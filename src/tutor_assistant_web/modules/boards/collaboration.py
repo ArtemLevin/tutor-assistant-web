@@ -510,17 +510,26 @@ async def run_collaboration_socket(
         except WebSocketDisconnect:
             return
 
+    tasks: set[asyncio.Task[None]] = set()
     try:
         tasks = {asyncio.create_task(relay()), asyncio.create_task(receive())}
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for task in pending:
-            task.cancel()
-        await asyncio.gather(*pending, return_exceptions=True)
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in done:
+            if task.cancelled():
+                continue
             error = task.exception()
             if error is not None:
                 raise error
+    except asyncio.CancelledError:
+        # ASGI servers and Starlette's TestClient cancel connection scopes during
+        # a normal client close. Treat that as a graceful socket disconnect.
+        pass
     finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         BOARD_WEBSOCKET_CONNECTIONS.labels(role=ticket.role).dec()
         BOARD_SYNC_EVENTS.labels(event="websocket_disconnected").inc()
         await broker.remove_presence(
