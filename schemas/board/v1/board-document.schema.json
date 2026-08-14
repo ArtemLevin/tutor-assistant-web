@@ -798,6 +798,18 @@
         "strokeWidth": {
           "minimum": 0,
           "type": "number"
+        },
+        "strokeStyle": {
+          "enum": [
+            "thin",
+            "thick",
+            "dashed",
+            "dash-dot",
+            "wavy",
+            "hand-pencil",
+            "hand-pen",
+            "marker"
+          ]
         }
       },
       "required": [

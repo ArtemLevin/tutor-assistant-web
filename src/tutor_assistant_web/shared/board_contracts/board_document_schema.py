@@ -98,6 +98,17 @@ class LineStyle(Enum):
     solid = "solid"
 
 
+class StrokeStyle(Enum):
+    thin = "thin"
+    thick = "thick"
+    dashed = "dashed"
+    dash_dot = "dash-dot"
+    wavy = "wavy"
+    hand_pencil = "hand-pencil"
+    hand_pen = "hand-pen"
+    marker = "marker"
+
+
 class ObjectStyle(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -106,6 +117,7 @@ class ObjectStyle(BaseModel):
     opacity: float = Field(..., ge=0.0, le=1.0)
     stroke: str | None = Field(..., max_length=256)
     stroke_width: float = Field(..., alias="strokeWidth", ge=0.0)
+    stroke_style: StrokeStyle | None = Field(None, alias="strokeStyle")
 
 
 MaxExpression = RootModel[str]
