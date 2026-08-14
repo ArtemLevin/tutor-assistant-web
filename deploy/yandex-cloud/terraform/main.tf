@@ -96,7 +96,6 @@ resource "yandex_compute_instance" "production" {
   zone                      = var.zone
   service_account_id        = yandex_iam_service_account.production_vm.id
   allow_stopping_for_update = true
-  deletion_protection       = var.deletion_protection
   labels                    = local.labels
 
   resources {

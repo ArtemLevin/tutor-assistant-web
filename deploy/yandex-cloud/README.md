@@ -35,8 +35,9 @@ Official references:
 
 Production defaults create paid resources: 8 vCPU, 32 GiB RAM, a 200 GiB
 network SSD, a static public IPv4 address and one Lockbox access binding. The
-VM and reserved address have deletion protection enabled by default; disabling
-it requires an explicit reviewed Terraform variable change.
+reserved address has deletion protection enabled by default; disabling it
+requires an explicit reviewed Terraform variable change. VM deletion is
+controlled through reviewed Terraform plans and protected remote state.
 
 ## Lockbox payload
 

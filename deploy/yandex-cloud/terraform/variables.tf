@@ -92,7 +92,7 @@ variable "boot_disk_gb" {
 }
 
 variable "deletion_protection" {
-  description = "Protect the production VM and reserved address from accidental deletion."
+  description = "Protect the reserved production address from accidental deletion."
   type        = bool
   default     = true
 }
