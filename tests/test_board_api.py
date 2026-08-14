@@ -99,6 +99,7 @@ def _command_payload(
     base_revision: int = 0,
     key: str = "api:batch-1",
     lamport_start: int = 1,
+    origin_id: str = "origin:test",
 ):
     payload = json.loads((FIXTURES / "board-command-envelope.json").read_text())
     payload.update(
@@ -107,6 +108,7 @@ def _command_payload(
             "baseRevision": base_revision,
             "idempotencyKey": key,
             "actorId": user_id,
+            "originId": origin_id,
         }
     )
     for index, item in enumerate(payload["commands"]):
@@ -131,6 +133,7 @@ def _legacy_command_payload(
         key=key,
     )
     payload["schemaVersion"] = "1.2"
+    payload.pop("originId", None)
     payload["commands"] = [item["command"] for item in payload["commands"]]
     return payload
 
@@ -351,6 +354,59 @@ def test_ordered_lamport_range_is_persisted_and_replay_is_rejected(board_api):
     }
 
 
+def test_lamport_clocks_are_scoped_to_client_origin(board_api):
+    client, database, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    expected_sha = _snapshot_payload()["documentSha256"]
+
+    for base_revision, origin_id, key in (
+        (0, "origin:device-a", "api:origin-a"),
+        (1, "origin:device-b", "api:origin-b"),
+    ):
+        payload = _command_payload(
+            user_id,
+            base_revision=base_revision,
+            key=key,
+            lamport_start=1,
+            origin_id=origin_id,
+        )
+        payload["expectedDocumentSha256"] = expected_sha
+        response = client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=payload,
+            headers={"x-csrf-token": csrf},
+        )
+        assert response.status_code == 200
+
+    replay = _command_payload(
+        user_id,
+        base_revision=2,
+        key="api:origin-a-replay",
+        lamport_start=2,
+        origin_id="origin:device-a",
+    )
+    replay["expectedDocumentSha256"] = expected_sha
+    assert (
+        client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/commands",
+            json=replay,
+            headers={"x-csrf-token": csrf},
+        ).status_code
+        == 409
+    )
+
+    with database.sessions() as session:
+        origins = list(
+            session.scalars(
+                select(BoardCommandBatch.origin_id)
+                .where(BoardCommandBatch.board_document_id == DOCUMENT_ID)
+                .order_by(BoardCommandBatch.revision)
+            )
+        )
+    assert origins == ["origin:device-a", "origin:device-b"]
+
+
 def test_mixed_legacy_and_ordered_journal_remains_recoverable(board_api):
     client, database, _, _, _, context = board_api
     csrf = context["csrfToken"]
@@ -391,7 +447,7 @@ def test_mixed_legacy_and_ordered_journal_remains_recoverable(board_api):
     assert recovered.status_code == 200
     items = recovered.json()["items"]
     assert [item["revision"] for item in items] == [1, 2]
-    assert [item["schemaVersion"] for item in items] == ["1.2", "1.4"]
+    assert [item["schemaVersion"] for item in items] == ["1.2", "1.5"]
     assert items[0]["lamportMin"] is None
     assert items[1]["lamportMin"] == 1
 
@@ -810,7 +866,7 @@ def test_collaboration_ticket_is_one_time_and_room_is_revision_only(board_api):
     )
     assert response.status_code == 200
     ticket = response.json()
-    assert ticket["protocolVersion"] == "1.0"
+    assert ticket["protocolVersion"] == "1.1"
     websocket_url = f"{ticket['websocketPath']}?ticket={ticket['ticket']}"
 
     with client.websocket_connect(
@@ -820,11 +876,16 @@ def test_collaboration_ticket_is_one_time_and_room_is_revision_only(board_api):
         ready = websocket.receive_json()
         assert ready == {
             "type": "ready",
-            "protocolVersion": "1.0",
+            "protocolVersion": "1.1",
             "documentId": DOCUMENT_ID,
             "clientId": "browser-a",
             "currentRevision": 0,
             "heartbeatSeconds": 20,
+        }
+        assert websocket.receive_json() == {
+            "type": "presence.snapshot",
+            "protocolVersion": "1.1",
+            "participants": [],
         }
         websocket.send_json(
             {
@@ -846,6 +907,85 @@ def test_collaboration_ticket_is_one_time_and_room_is_revision_only(board_api):
         ) as websocket,
     ):
         websocket.receive_json()
+
+
+def test_collaboration_relays_bounded_ephemeral_ink_and_transform_previews(board_api):
+    client, _, _, _, _, context = board_api
+
+    def ticket(client_id: str) -> str:
+        response = client.post(
+            f"/api/v1/boards/{DOCUMENT_ID}/collaboration-ticket",
+            json={"clientId": client_id},
+            headers={"x-csrf-token": context["csrfToken"]},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        return f"{payload['websocketPath']}?ticket={payload['ticket']}"
+
+    with client.websocket_connect(
+        ticket("browser-preview-a"), subprotocols=["tutorboard.v1"]
+    ) as first:
+        assert first.receive_json()["type"] == "ready"
+        assert first.receive_json()["type"] == "presence.snapshot"
+        with client.websocket_connect(
+            ticket("browser-preview-b"), subprotocols=["tutorboard.v1"]
+        ) as second:
+            assert second.receive_json()["type"] == "ready"
+            snapshot = second.receive_json()
+            assert [item["clientId"] for item in snapshot["participants"]] == ["browser-preview-a"]
+            assert first.receive_json()["type"] == "presence.joined"
+
+            first.send_json(
+                {
+                    "type": "preview.ink",
+                    "sequence": 1,
+                    "previewId": "ink:1",
+                    "phase": "start",
+                    "points": [{"x": 10, "y": 20}],
+                    "style": {"stroke": "#245d6b", "strokeWidth": 3, "opacity": 0.8},
+                }
+            )
+            ink = second.receive_json()
+            assert ink == {
+                "type": "preview.ink",
+                "protocolVersion": "1.1",
+                "actorId": context["userId"],
+                "clientId": "browser-preview-a",
+                "displayName": "Администратор",
+                "sequence": 1,
+                "previewId": "ink:1",
+                "phase": "start",
+                "points": [{"x": 10.0, "y": 20.0}],
+                "style": {"stroke": "#245d6b", "strokeWidth": 3.0, "opacity": 0.8},
+            }
+
+            first.send_json(
+                {
+                    "type": "preview.transform",
+                    "sequence": 2,
+                    "previewId": "selection:1",
+                    "phase": "update",
+                    "transforms": [
+                        {
+                            "objectId": "object:1",
+                            "position": {"x": 30, "y": 40},
+                            "rotation": 15,
+                            "scale": {"x": 1.25, "y": 0.75},
+                        }
+                    ],
+                }
+            )
+            transform = second.receive_json()
+            assert transform["type"] == "preview.transform"
+            assert transform["clientId"] == "browser-preview-a"
+            assert transform["transforms"] == [
+                {
+                    "objectId": "object:1",
+                    "position": {"x": 30.0, "y": 40.0},
+                    "rotation": 15.0,
+                    "scale": {"x": 1.25, "y": 0.75},
+                }
+            ]
 
 
 def test_geometryos_gateway_is_authenticated_bounded_and_correlated(

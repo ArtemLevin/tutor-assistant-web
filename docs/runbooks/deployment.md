@@ -9,7 +9,8 @@
 - `GEOMETRYOS_IMAGE` содержит опубликованный образ GeometryOS с полным
   `@sha256:<64-hex-digest>`, а не только mutable tag;
 - GitHub environments `staging` и `production`, для production назначены required reviewers;
-- image tag неизменяем и совпадает с release tag.
+- release tag опубликован и совпадает с release evidence; deploy фиксирует
+  полученный registry digest в runtime-state.
 
 Первичная подготовка: `make production-init`, затем заменить домены, provider
 URL и пустые provider secrets. Backup endpoint обязан быть внешним HTTPS S3,
@@ -22,12 +23,14 @@ URL и пустые provider secrets. Backup endpoint обязан быть вн
 2. На staging выполнить
    `make production-preflight RELEASE=v1.0.0-rc.1`, затем
    `make production-deploy RELEASE=v1.0.0-rc.1`.
-3. Скрипт выполняет Ubuntu host preflight, проверяет и запускает внутренний
+3. Скрипт выполняет Ubuntu host preflight, преобразует backend и TutorBoard
+   release tags в точные `repository@sha256:…`, проверяет и запускает внутренний
    GeometryOS по digest, инфраструктуру,
    backup, migration job, inactive blue/green slot и ждёт `/health/ready`.
 4. Caddy атомарно переключается на новый slot; старый worker получает SIGTERM и до 90 секунд на graceful shutdown.
 5. Выполняются smoke, 100-session load test и resilience drill.
-6. Required reviewer подтверждает production environment; выполняется тот же immutable image tag.
+6. Required reviewer подтверждает production environment; deployment повторно
+   фиксирует фактический registry digest и сохраняет его для точного rollback.
 7. После первого deployment/reboot выполняется
    `deploy/ubuntu/host-smoke.sh --verify-backup`.
 

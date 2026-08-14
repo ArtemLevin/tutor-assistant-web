@@ -1,0 +1,157 @@
+---
+- name: Provision and optionally deploy TutorBoard production
+  hosts: tutorboard
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Validate deployment inputs
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version in ["22.04", "24.04"]
+          - ansible_architecture == "x86_64"
+          - backend_commit is match('^[0-9a-f]{40}$')
+          - backend_commit != '0000000000000000000000000000000000000000'
+          - backend_release is match('^[A-Za-z0-9][A-Za-z0-9._-]+$')
+          - tutorboard_release is match('^[A-Za-z0-9][A-Za-z0-9._-]+$')
+          - backend_release != 'latest'
+          - tutorboard_release != 'latest'
+          - geometryos_image is match('^.+@sha256:[0-9a-fA-F]{64}$')
+          - app_domain is match('^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$')
+          - bbb_base_url is match('^https://')
+          - transcription_webhook_url is match('^https://')
+          - document_engine_url is match('^https://')
+          - backup_s3_endpoint_url is match('^https://')
+          - alert_webhook_url is match('^https://')
+        fail_msg: "Deployment variables are incomplete or unsafe; review vars.yml."
+
+    - name: Wait for minimal cloud-init
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+
+    - name: Install Git for the canonical checkout
+      ansible.builtin.apt:
+        name: git
+        state: present
+        update_cache: true
+
+  tasks:
+    - name: Create canonical installation directory
+      ansible.builtin.file:
+        path: "{{ install_dir }}"
+        state: directory
+        owner: "{{ deploy_user }}"
+        group: "{{ deploy_user }}"
+        mode: "0750"
+
+    - name: Check out the approved backend commit
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.git:
+        repo: "{{ repository_url }}"
+        dest: "{{ install_dir }}"
+        version: "{{ backend_commit }}"
+        update: true
+        force: false
+
+    - name: Confirm exact canonical checkout
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.command:
+        argv: [git, -C, "{{ install_dir }}", rev-parse, HEAD]
+      register: checked_out_commit
+      changed_when: false
+      failed_when: checked_out_commit.stdout != backend_commit
+
+    - name: Harden Ubuntu and install Docker through the existing bootstrap
+      ansible.builtin.command:
+        argv:
+          - "{{ install_dir }}/deploy/ubuntu/bootstrap.sh"
+          - --deploy-user
+          - "{{ deploy_user }}"
+          - --install-dir
+          - "{{ install_dir }}"
+          - --ssh-port
+          - "{{ ssh_port | string }}"
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      changed_when: true
+
+    - name: Reconnect so Docker group membership is effective
+      ansible.builtin.meta: reset_connection
+
+    - name: Render non-secret production environment
+      ansible.builtin.template:
+        src: production.env.j2
+        dest: "{{ install_dir }}/deploy/production/.env.production"
+        owner: "{{ deploy_user }}"
+        group: docker
+        mode: "0600"
+
+    - name: Install Lockbox materializer
+      ansible.builtin.copy:
+        src: ../scripts/materialize-lockbox.sh
+        dest: /usr/local/sbin/tutorboard-materialize-lockbox
+        owner: root
+        group: root
+        mode: "0750"
+
+    - name: Materialize production secrets from VM service-account identity
+      ansible.builtin.command: /usr/local/sbin/tutorboard-materialize-lockbox
+      environment:
+        DEPLOY_USER: "{{ deploy_user }}"
+        INSTALL_DIR: "{{ install_dir }}"
+      changed_when: true
+      no_log: true
+
+    - name: Authenticate deployment user to GHCR
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.shell: |
+        set -eu
+        docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin < /etc/tutorboard/ghcr_token
+      args:
+        executable: /bin/sh
+      environment:
+        GHCR_USERNAME: "{{ ghcr_username }}"
+      changed_when: true
+      no_log: true
+
+    - name: Initialize runtime files
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.command: "{{ install_dir }}/deploy/production/init.sh"
+      args:
+        chdir: "{{ install_dir }}"
+      changed_when: true
+
+    - name: Run production preflight
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.command:
+        argv:
+          - "{{ install_dir }}/deploy/ubuntu/preflight.sh"
+          - "{{ backend_release }}"
+          - "{{ tutorboard_release }}"
+      args:
+        chdir: "{{ install_dir }}"
+      changed_when: false
+
+    - name: Deploy approved releases with blue-green rollback
+      when: perform_deploy | bool
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.command:
+        argv:
+          - "{{ install_dir }}/deploy/production/deploy.sh"
+          - "{{ backend_release }}"
+          - "{{ tutorboard_release }}"
+      args:
+        chdir: "{{ install_dir }}"
+      changed_when: true
+
+    - name: Verify host, HTTPS, WebSocket path and backup boundary
+      when: perform_deploy | bool
+      become_user: "{{ deploy_user }}"
+      ansible.builtin.command:
+        argv:
+          - "{{ install_dir }}/deploy/ubuntu/host-smoke.sh"
+          - --verify-backup
+      args:
+        chdir: "{{ install_dir }}"
+      changed_when: false

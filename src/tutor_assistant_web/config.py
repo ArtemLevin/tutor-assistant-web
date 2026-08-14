@@ -116,6 +116,7 @@ class Settings(BaseSettings):
     board_retention_days: int = Field(default=365, ge=1, le=3650)
     board_delete_grace_days: int = Field(default=30, ge=1, le=365)
     board_collaboration_ticket_ttl_seconds: int = Field(default=30, ge=10, le=120)
+    board_collaboration_presence_ttl_seconds: int = Field(default=60, ge=30, le=300)
     board_evidence_svg_max_size_mb: int = Field(default=5, ge=1, le=50)
     board_evidence_png_max_size_mb: int = Field(default=10, ge=1, le=100)
 

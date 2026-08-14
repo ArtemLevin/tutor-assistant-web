@@ -1647,7 +1647,7 @@ class OrderedBoardCommand(BaseModel):
     order: BoardCommandOrder
 
 
-class BoardCommandEnvelope14(BaseModel):
+class BoardCommandEnvelope15(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1661,7 +1661,8 @@ class BoardCommandEnvelope14(BaseModel):
     idempotency_key: str = Field(
         ..., alias="idempotencyKey", max_length=128, min_length=1, pattern="^[A-Za-z0-9._:-]+$"
     )
-    schema_version: Literal["1.4"] = Field(..., alias="schemaVersion")
+    origin_id: Identifier = Field(..., alias="originId")
+    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
 
 
 class BoardDocument(BaseModel):

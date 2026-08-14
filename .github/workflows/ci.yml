@@ -16,9 +16,31 @@ jobs:
       - name: Validate POSIX shell scripts
         run: |
           shellcheck --severity=warning deploy/ubuntu/*.sh
-          for script in deploy/production/*.sh deploy/ubuntu/*.sh; do
+          shellcheck --severity=warning deploy/yandex-cloud/scripts/*.sh
+          for script in \
+            deploy/production/*.sh \
+            deploy/ubuntu/*.sh \
+            deploy/yandex-cloud/scripts/*.sh; do
             sh -n "$script"
           done
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.13.5"
+          terraform_wrapper: false
+      - name: Validate Yandex Cloud Terraform
+        working-directory: deploy/yandex-cloud/terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false
+          terraform validate
+      - name: Validate Yandex Cloud Ansible
+        run: |
+          python3 -m pip install 'ansible-core>=2.16,<3'
+          ansible-playbook \
+            --syntax-check \
+            -i deploy/yandex-cloud/ansible/inventory.example.yml \
+            -e @deploy/yandex-cloud/ansible/vars.example.yml \
+            deploy/yandex-cloud/ansible/playbook.yml
       - name: Reject CRLF in Linux deployment files
         run: |
           python3 - <<'PY'
@@ -126,6 +148,68 @@ jobs:
           minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
       - run: uv sync --extra dev
       - run: uv run pytest tests/test_postgres_integration.py tests/test_redis_integration.py tests/test_minio_integration.py
+
+  collaboration-e2e:
+    name: Two-client board collaboration
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out backend
+        uses: actions/checkout@v4
+      - name: Read pinned TutorBoard commit
+        id: tutorboard-contract
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          source = json.loads(Path("schemas/board/source.json").read_text())
+          print(f"ref={source['sourceCommit']}")
+          PY
+      - name: Check out contract-matched TutorBoard
+        uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/tutorboard
+          ref: ${{ steps.tutorboard-contract.outputs.ref }}
+          path: integrations/tutorboard
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: integrations/tutorboard/.nvmrc
+          cache: npm
+          cache-dependency-path: integrations/tutorboard/package-lock.json
+      - name: Install locked backend dependencies
+        run: uv sync --extra dev
+      - name: Install locked TutorBoard dependencies
+        working-directory: integrations/tutorboard
+        run: npm ci
+      - name: Install Chromium
+        working-directory: integrations/tutorboard
+        run: npx playwright install --with-deps chromium
+      - name: Run real tutor/student collaboration scenario
+        working-directory: integrations/tutorboard
+        env:
+          TUTOR_ASSISTANT_WEB_ROOT: ${{ github.workspace }}
+        run: |
+          set -o pipefail
+          npm run e2e:collaboration 2>&1 | tee collaboration-e2e.log
+      - name: Upload collaboration failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: collaboration-e2e-failure-${{ github.sha }}
+          path: |
+            integrations/tutorboard/collaboration-e2e.log
+            integrations/tutorboard/test-results
+          if-no-files-found: warn
+          retention-days: 7
 
   unified-local-smoke:
     runs-on: ubuntu-latest

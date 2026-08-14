@@ -54,6 +54,15 @@ BOARD_WEBSOCKET_CONNECTIONS = Gauge(
     "Active board collaboration WebSocket connections",
     ("role",),
 )
+BOARD_WEBSOCKET_MESSAGES = Counter(
+    "tutor_board_websocket_messages_total",
+    "Board collaboration WebSocket messages",
+    ("direction", "type"),
+)
+BOARD_COLLABORATION_PUBLISH_DURATION = Histogram(
+    "tutor_board_collaboration_publish_duration_seconds",
+    "Board collaboration broker publish duration",
+)
 BOARD_EVIDENCE_DURATION = Histogram(
     "tutor_board_evidence_finalize_duration_seconds",
     "Board evidence finalization duration",

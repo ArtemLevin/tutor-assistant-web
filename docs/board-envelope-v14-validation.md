@@ -1,4 +1,8 @@
-# Board envelope v1.4 validation
+# Board envelope v1.4 validation (historical)
+
+This document records the previous compatibility gate. The current writer and
+ordering contract is documented in
+[`board-envelope-v15-validation.md`](board-envelope-v15-validation.md).
 
 The server vendors the canonical `board/v1` artifacts from TutorBoard commit
 `19f4f845727a49407454a0468e47a8ffe548709c`. Generated Pydantic DTOs validate

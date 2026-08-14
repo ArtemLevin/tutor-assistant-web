@@ -13,13 +13,17 @@ from dataclasses import asdict, dataclass
 from typing import Literal
 from urllib.parse import urlsplit
 
-import redis
 import redis.asyncio as async_redis
-from fastapi import WebSocket
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tutor_assistant_web.modules.identity.application import Principal
-from tutor_assistant_web.observability import BOARD_SYNC_EVENTS, BOARD_WEBSOCKET_CONNECTIONS
+from tutor_assistant_web.observability import (
+    BOARD_COLLABORATION_PUBLISH_DURATION,
+    BOARD_SYNC_EVENTS,
+    BOARD_WEBSOCKET_CONNECTIONS,
+    BOARD_WEBSOCKET_MESSAGES,
+)
 from tutor_assistant_web.shared.errors import ForbiddenError
 
 _PROTOCOL = "tutorboard.v1"
@@ -52,6 +56,41 @@ class PresenceUpdate(CollaborationModel):
     )
 
 
+class InkPreviewStyle(CollaborationModel):
+    stroke: str = Field(min_length=1, max_length=32)
+    stroke_width: float = Field(alias="strokeWidth", gt=0, le=128)
+    opacity: float = Field(ge=0, le=1)
+
+
+class InkPreviewUpdate(CollaborationModel):
+    type: Literal["preview.ink"]
+    sequence: int = Field(ge=0)
+    preview_id: str = Field(alias="previewId", min_length=1, max_length=128)
+    phase: Literal["start", "update", "end", "cancel"]
+    points: list[Cursor] = Field(default_factory=list, max_length=64)
+    style: InkPreviewStyle | None = None
+
+
+class TransformScale(CollaborationModel):
+    x: float = Field(gt=0, le=100)
+    y: float = Field(gt=0, le=100)
+
+
+class TransformSnapshot(CollaborationModel):
+    object_id: str = Field(alias="objectId", min_length=1, max_length=128)
+    position: Cursor
+    rotation: float = Field(ge=-360_000, le=360_000)
+    scale: TransformScale
+
+
+class TransformPreviewUpdate(CollaborationModel):
+    type: Literal["preview.transform"]
+    sequence: int = Field(ge=0)
+    preview_id: str = Field(alias="previewId", min_length=1, max_length=128)
+    phase: Literal["update", "end", "cancel"]
+    transforms: list[TransformSnapshot] = Field(default_factory=list, max_length=200)
+
+
 @dataclass(frozen=True)
 class CollaborationTicket:
     organization_id: str
@@ -59,6 +98,7 @@ class CollaborationTicket:
     user_id: str
     role: str
     client_id: str
+    display_name: str
 
 
 class CollaborationBroker:
@@ -69,11 +109,16 @@ class CollaborationBroker:
         redis_url: str,
         *,
         distributed: bool,
+        presence_ttl_seconds: int = 60,
         ticket_ttl_seconds: int = 30,
     ) -> None:
         self.redis_url = redis_url
         self.distributed = distributed
+        self.presence_ttl_seconds = presence_ttl_seconds
         self.ticket_ttl_seconds = ticket_ttl_seconds
+        self._redis = (
+            async_redis.Redis.from_url(redis_url, decode_responses=True) if distributed else None
+        )
         self._tickets: dict[str, tuple[float, CollaborationTicket]] = {}
         self._ticket_lock = threading.Lock()
         self._subscribers: dict[
@@ -81,8 +126,10 @@ class CollaborationBroker:
             set[tuple[asyncio.AbstractEventLoop, asyncio.Queue[dict]]],
         ] = defaultdict(set)
         self._subscriber_lock = threading.Lock()
+        self._presence: dict[str, dict[str, tuple[float, dict]]] = defaultdict(dict)
+        self._presence_lock = threading.Lock()
 
-    def issue_ticket(
+    async def issue_ticket(
         self,
         principal: Principal,
         document_id: str,
@@ -96,18 +143,16 @@ class CollaborationBroker:
             user_id=principal.user_id,
             role=principal.role,
             client_id=client_id,
+            display_name=principal.full_name or principal.user_id,
         )
         if self.distributed:
-            client = redis.Redis.from_url(self.redis_url, decode_responses=True)
-            try:
-                created = client.set(
-                    key,
-                    json.dumps(asdict(ticket), separators=(",", ":")),
-                    ex=self.ticket_ttl_seconds,
-                    nx=True,
-                )
-            finally:
-                client.close()
+            assert self._redis is not None
+            created = await self._redis.set(
+                key,
+                json.dumps(asdict(ticket), separators=(",", ":")),
+                ex=self.ticket_ttl_seconds,
+                nx=True,
+            )
             if not created:
                 raise RuntimeError("Could not allocate a collaboration ticket")
         else:
@@ -115,16 +160,13 @@ class CollaborationBroker:
                 self._tickets[key] = (time.monotonic() + self.ticket_ttl_seconds, ticket)
         return token
 
-    def consume_ticket(self, token: str) -> CollaborationTicket | None:
+    async def consume_ticket(self, token: str) -> CollaborationTicket | None:
         if len(token) > 256:
             return None
         key = self._ticket_key(token)
         if self.distributed:
-            client = redis.Redis.from_url(self.redis_url, decode_responses=True)
-            try:
-                payload = client.getdel(key)
-            finally:
-                client.close()
+            assert self._redis is not None
+            payload = await self._redis.getdel(key)
             if not payload:
                 return None
             return CollaborationTicket(**json.loads(payload))
@@ -134,19 +176,118 @@ class CollaborationBroker:
             return None
         return ticket
 
-    def publish(self, organization_id: str, document_id: str, event: dict) -> None:
+    async def publish(self, organization_id: str, document_id: str, event: dict) -> None:
         channel = self._channel(organization_id, document_id)
+        event_type = str(event.get("type", "unknown"))
+        BOARD_WEBSOCKET_MESSAGES.labels(direction="published", type=event_type).inc()
         if self.distributed:
-            client = redis.Redis.from_url(self.redis_url, decode_responses=True)
-            try:
-                client.publish(channel, json.dumps(event, separators=(",", ":")))
-            finally:
-                client.close()
+            assert self._redis is not None
+            with BOARD_COLLABORATION_PUBLISH_DURATION.time():
+                await self._redis.publish(channel, json.dumps(event, separators=(",", ":")))
             return
         with self._subscriber_lock:
             subscribers = tuple(self._subscribers.get(channel, ()))
         for loop, queue in subscribers:
             loop.call_soon_threadsafe(self._offer, queue, event)
+
+    async def set_presence(
+        self,
+        organization_id: str,
+        document_id: str,
+        event: dict,
+    ) -> None:
+        channel = self._channel(organization_id, document_id)
+        client_id = str(event["clientId"])
+        expires_at = time.time() + self.presence_ttl_seconds
+        if self.distributed:
+            assert self._redis is not None
+            roster_key, expiry_key = self._presence_keys(channel)
+            async with self._redis.pipeline(transaction=True) as pipe:
+                pipe.hset(roster_key, client_id, json.dumps(event, separators=(",", ":")))
+                pipe.zadd(expiry_key, {client_id: expires_at})
+                pipe.expire(roster_key, self.presence_ttl_seconds * 2)
+                pipe.expire(expiry_key, self.presence_ttl_seconds * 2)
+                await pipe.execute()
+            return
+        with self._presence_lock:
+            self._presence[channel][client_id] = (expires_at, event)
+
+    async def touch_presence(
+        self,
+        organization_id: str,
+        document_id: str,
+        client_id: str,
+    ) -> None:
+        channel = self._channel(organization_id, document_id)
+        expires_at = time.time() + self.presence_ttl_seconds
+        if self.distributed:
+            assert self._redis is not None
+            roster_key, expiry_key = self._presence_keys(channel)
+            if await self._redis.hexists(roster_key, client_id):
+                async with self._redis.pipeline(transaction=True) as pipe:
+                    pipe.zadd(expiry_key, {client_id: expires_at})
+                    pipe.expire(roster_key, self.presence_ttl_seconds * 2)
+                    pipe.expire(expiry_key, self.presence_ttl_seconds * 2)
+                    await pipe.execute()
+            return
+        with self._presence_lock:
+            current = self._presence.get(channel, {}).get(client_id)
+            if current is not None:
+                self._presence[channel][client_id] = (expires_at, current[1])
+
+    async def remove_presence(
+        self,
+        organization_id: str,
+        document_id: str,
+        client_id: str,
+    ) -> None:
+        channel = self._channel(organization_id, document_id)
+        if self.distributed:
+            assert self._redis is not None
+            roster_key, expiry_key = self._presence_keys(channel)
+            async with self._redis.pipeline(transaction=True) as pipe:
+                pipe.hdel(roster_key, client_id)
+                pipe.zrem(expiry_key, client_id)
+                await pipe.execute()
+            return
+        with self._presence_lock:
+            room = self._presence.get(channel)
+            if room is None:
+                return
+            room.pop(client_id, None)
+            if not room:
+                self._presence.pop(channel, None)
+
+    async def list_presence(
+        self,
+        organization_id: str,
+        document_id: str,
+    ) -> list[dict]:
+        channel = self._channel(organization_id, document_id)
+        now = time.time()
+        if self.distributed:
+            assert self._redis is not None
+            roster_key, expiry_key = self._presence_keys(channel)
+            stale = await self._redis.zrangebyscore(expiry_key, 0, now)
+            if stale:
+                async with self._redis.pipeline(transaction=True) as pipe:
+                    pipe.hdel(roster_key, *stale)
+                    pipe.zrem(expiry_key, *stale)
+                    await pipe.execute()
+            payloads = await self._redis.hgetall(roster_key)
+            return [json.loads(payload) for payload in payloads.values()]
+        with self._presence_lock:
+            room = self._presence.get(channel, {})
+            stale = [client_id for client_id, (expires_at, _) in room.items() if expires_at <= now]
+            for client_id in stale:
+                room.pop(client_id, None)
+            if not room:
+                self._presence.pop(channel, None)
+            return [event for _, event in room.values()]
+
+    async def close(self) -> None:
+        if self._redis is not None:
+            await self._redis.aclose()
 
     async def subscribe(
         self,
@@ -155,8 +296,8 @@ class CollaborationBroker:
     ) -> AsyncIterator[dict]:
         channel = self._channel(organization_id, document_id)
         if self.distributed:
-            client = async_redis.Redis.from_url(self.redis_url, decode_responses=True)
-            pubsub = client.pubsub()
+            assert self._redis is not None
+            pubsub = self._redis.pubsub()
             await pubsub.subscribe(channel)
             try:
                 async for item in pubsub.listen():
@@ -165,7 +306,6 @@ class CollaborationBroker:
             finally:
                 await pubsub.unsubscribe(channel)
                 await pubsub.aclose()
-                await client.aclose()
             return
         queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=256)
         subscriber = (asyncio.get_running_loop(), queue)
@@ -196,6 +336,10 @@ class CollaborationBroker:
         digest = hashlib.sha256(f"{organization_id}\0{document_id}".encode()).hexdigest()
         return f"tutorboard:collaboration:room:{digest}"
 
+    @staticmethod
+    def _presence_keys(channel: str) -> tuple[str, str]:
+        return f"{channel}:presence", f"{channel}:presence-expiry"
+
 
 def validate_websocket_origin(
     websocket: WebSocket, public_base_url: str, *, production: bool
@@ -223,82 +367,176 @@ async def run_collaboration_socket(
     BOARD_SYNC_EVENTS.labels(event="websocket_connected").inc()
     joined = {
         "type": "presence.joined",
-        "protocolVersion": "1.0",
+        "protocolVersion": "1.1",
         "actorId": ticket.user_id,
         "clientId": ticket.client_id,
+        "displayName": ticket.display_name,
         "role": ticket.role,
     }
-    broker.publish(ticket.organization_id, ticket.document_id, joined)
+    await broker.set_presence(ticket.organization_id, ticket.document_id, joined)
+    await broker.publish(ticket.organization_id, ticket.document_id, joined)
     await websocket.send_json(
         {
             "type": "ready",
-            "protocolVersion": "1.0",
+            "protocolVersion": "1.1",
             "documentId": ticket.document_id,
             "clientId": ticket.client_id,
             "currentRevision": current_revision,
             "heartbeatSeconds": 20,
         }
     )
+    participants = await broker.list_presence(ticket.organization_id, ticket.document_id)
+    await websocket.send_json(
+        {
+            "type": "presence.snapshot",
+            "protocolVersion": "1.1",
+            "participants": [
+                participant
+                for participant in participants
+                if participant.get("clientId") != ticket.client_id
+            ],
+        }
+    )
 
     async def relay() -> None:
         async for event in broker.subscribe(ticket.organization_id, ticket.document_id):
             if event.get("clientId") != ticket.client_id:
+                BOARD_WEBSOCKET_MESSAGES.labels(
+                    direction="sent", type=str(event.get("type", "unknown"))
+                ).inc()
                 await websocket.send_json(event)
 
     async def receive() -> None:
         recent: deque[float] = deque()
         last_sequence = -1
-        while True:
-            payload = await websocket.receive_text()
-            if len(payload.encode()) > 32 * 1024:
-                await websocket.close(code=1009, reason="Message too large")
-                return
-            now = time.monotonic()
-            recent.append(now)
-            while recent and recent[0] < now - 1:
-                recent.popleft()
-            if len(recent) > 30:
-                await websocket.close(code=1008, reason="Message rate exceeded")
-                return
-            if payload == '{"type":"heartbeat"}':
-                await websocket.send_json({"type": "heartbeat.ack"})
-                continue
-            update = PresenceUpdate.model_validate_json(payload)
-            if update.sequence <= last_sequence:
-                continue
-            last_sequence = update.sequence
-            broker.publish(
-                ticket.organization_id,
-                ticket.document_id,
-                {
+        try:
+            while True:
+                payload = await websocket.receive_text()
+                if len(payload.encode()) > 32 * 1024:
+                    await websocket.close(code=1009, reason="Message too large")
+                    return
+                now = time.monotonic()
+                recent.append(now)
+                while recent and recent[0] < now - 1:
+                    recent.popleft()
+                if len(recent) > 30:
+                    await websocket.close(code=1008, reason="Message rate exceeded")
+                    return
+                if payload == '{"type":"heartbeat"}':
+                    BOARD_WEBSOCKET_MESSAGES.labels(direction="received", type="heartbeat").inc()
+                    await broker.touch_presence(
+                        ticket.organization_id,
+                        ticket.document_id,
+                        ticket.client_id,
+                    )
+                    await websocket.send_json({"type": "heartbeat.ack"})
+                    continue
+                try:
+                    decoded = json.loads(payload)
+                    if not isinstance(decoded, dict):
+                        raise ValueError("Collaboration message must be an object")
+                    message_type = decoded.get("type")
+                    if message_type == "presence":
+                        update: PresenceUpdate | InkPreviewUpdate | TransformPreviewUpdate = (
+                            PresenceUpdate.model_validate(decoded)
+                        )
+                    elif message_type == "preview.ink":
+                        update = InkPreviewUpdate.model_validate(decoded)
+                        if (
+                            update.phase == "start" and (update.style is None or not update.points)
+                        ) or (update.phase == "update" and not update.points):
+                            raise ValueError("Ink preview phase is incomplete")
+                    elif message_type == "preview.transform":
+                        update = TransformPreviewUpdate.model_validate(decoded)
+                        if update.phase == "update" and not update.transforms:
+                            raise ValueError("Transform preview update is empty")
+                    else:
+                        raise ValueError("Unsupported collaboration message")
+                except (json.JSONDecodeError, ValidationError, ValueError):
+                    await websocket.close(code=1003, reason="Invalid collaboration message")
+                    return
+                if update.sequence <= last_sequence:
+                    continue
+                last_sequence = update.sequence
+                if isinstance(update, (InkPreviewUpdate, TransformPreviewUpdate)):
+                    if ticket.role == "parent":
+                        await websocket.close(code=1008, reason="Read-only collaboration role")
+                        return
+                    event = {
+                        "type": update.type,
+                        "protocolVersion": "1.1",
+                        "actorId": ticket.user_id,
+                        "clientId": ticket.client_id,
+                        "displayName": ticket.display_name,
+                        **update.model_dump(
+                            mode="json",
+                            by_alias=True,
+                            exclude={"type"},
+                            exclude_none=True,
+                        ),
+                    }
+                    BOARD_WEBSOCKET_MESSAGES.labels(direction="received", type=update.type).inc()
+                    await broker.touch_presence(
+                        ticket.organization_id,
+                        ticket.document_id,
+                        ticket.client_id,
+                    )
+                    await broker.publish(
+                        ticket.organization_id,
+                        ticket.document_id,
+                        event,
+                    )
+                    continue
+                event = {
                     "type": "presence.updated",
-                    "protocolVersion": "1.0",
+                    "protocolVersion": "1.1",
                     "actorId": ticket.user_id,
                     "clientId": ticket.client_id,
+                    "displayName": ticket.display_name,
                     "role": ticket.role,
                     **update.model_dump(
                         mode="json",
                         by_alias=True,
                         exclude={"type"},
                     ),
-                },
-            )
+                }
+                BOARD_WEBSOCKET_MESSAGES.labels(direction="received", type="presence").inc()
+                await broker.set_presence(
+                    ticket.organization_id,
+                    ticket.document_id,
+                    event,
+                )
+                await broker.publish(ticket.organization_id, ticket.document_id, event)
+        except WebSocketDisconnect:
+            return
 
     try:
-        async with asyncio.TaskGroup() as group:
-            group.create_task(relay())
-            group.create_task(receive())
+        tasks = {asyncio.create_task(relay()), asyncio.create_task(receive())}
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+        for task in done:
+            error = task.exception()
+            if error is not None:
+                raise error
     finally:
         BOARD_WEBSOCKET_CONNECTIONS.labels(role=ticket.role).dec()
         BOARD_SYNC_EVENTS.labels(event="websocket_disconnected").inc()
-        broker.publish(
+        await broker.remove_presence(
+            ticket.organization_id,
+            ticket.document_id,
+            ticket.client_id,
+        )
+        await broker.publish(
             ticket.organization_id,
             ticket.document_id,
             {
                 "type": "presence.left",
-                "protocolVersion": "1.0",
+                "protocolVersion": "1.1",
                 "actorId": ticket.user_id,
                 "clientId": ticket.client_id,
+                "displayName": ticket.display_name,
                 "role": ticket.role,
             },
         )

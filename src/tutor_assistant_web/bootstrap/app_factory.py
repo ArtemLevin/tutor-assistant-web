@@ -72,7 +72,10 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         if settings.seed_demo_data:
             with database.sessions() as session:
                 seed_data(session, DEFAULT_ORGANIZATION_ID)
-        yield
+        try:
+            yield
+        finally:
+            await container.collaboration.close()
 
     app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
     app.state.container = container

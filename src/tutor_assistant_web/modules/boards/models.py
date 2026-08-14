@@ -172,6 +172,7 @@ class BoardCommandBatch(Base):
             "organization_id",
             "board_document_id",
             "contract_actor_id",
+            "origin_id",
             "lamport_max",
         ),
         Index(
@@ -192,6 +193,7 @@ class BoardCommandBatch(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     contract_actor_id: Mapped[str] = mapped_column(String(128))
+    origin_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     schema_version: Mapped[str] = mapped_column(String(16), default="1.0")
     lamport_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     lamport_max: Mapped[int | None] = mapped_column(Integer, nullable=True)

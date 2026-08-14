@@ -297,6 +297,7 @@ def build_container(
     collaboration = CollaborationBroker(
         settings.redis_url,
         distributed=not settings.task_eager,
+        presence_ttl_seconds=settings.board_collaboration_presence_ttl_seconds,
         ticket_ttl_seconds=settings.board_collaboration_ticket_ttl_seconds,
     )
     identity = IdentityService(database)

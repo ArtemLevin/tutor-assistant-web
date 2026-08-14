@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 
 from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
     BoardCommand,
-    BoardCommandEnvelope14,
+    BoardCommandEnvelope15,
     Identifier,
     OrderedBoardCommand,
 )
@@ -53,7 +53,7 @@ class LegacyOrderedBoardCommandEnvelope(BaseModel):
         max_length=128,
         pattern=r"^[A-Za-z0-9._:-]+$",
     )
-    schema_version: Literal["1.3"] = Field(alias="schemaVersion")
+    schema_version: Literal["1.3", "1.4"] = Field(alias="schemaVersion")
 
     @model_validator(mode="after")
     def reject_version_14_commands(self) -> LegacyOrderedBoardCommandEnvelope:
@@ -64,13 +64,15 @@ class LegacyOrderedBoardCommandEnvelope(BaseModel):
             "core.solid-3d-learning.reset",
             "core.solid-3d-learning.start",
         }
-        if any(item.command.root.kind in unsupported for item in self.commands):
+        if self.schema_version == "1.3" and any(
+            item.command.root.kind in unsupported for item in self.commands
+        ):
             raise ValueError("Команды обучения 3D требуют schemaVersion 1.4")
         return self
 
 
 type BoardCommandEnvelope = Annotated[
-    LegacyBoardCommandEnvelope | LegacyOrderedBoardCommandEnvelope | BoardCommandEnvelope14,
+    LegacyBoardCommandEnvelope | LegacyOrderedBoardCommandEnvelope | BoardCommandEnvelope15,
     Field(discriminator="schema_version"),
 ]
 
@@ -85,7 +87,7 @@ class BoardCommandEnvelopeInput(RootModel[BoardCommandEnvelope]):
 
 
 def envelope_commands(envelope: BoardCommandEnvelope) -> list[BoardCommand]:
-    if isinstance(envelope, (LegacyOrderedBoardCommandEnvelope, BoardCommandEnvelope14)):
+    if isinstance(envelope, (LegacyOrderedBoardCommandEnvelope, BoardCommandEnvelope15)):
         return [item.command for item in envelope.commands]
     return list(envelope.commands)
 
@@ -95,7 +97,7 @@ def envelope_actor_ids(envelope: BoardCommandEnvelope) -> list[str]:
 
 
 def envelope_base_revisions(envelope: BoardCommandEnvelope) -> list[int]:
-    if isinstance(envelope, (LegacyOrderedBoardCommandEnvelope, BoardCommandEnvelope14)):
+    if isinstance(envelope, (LegacyOrderedBoardCommandEnvelope, BoardCommandEnvelope15)):
         return [item.order.base_revision_at_creation for item in envelope.commands]
     return [envelope.base_revision for _ in envelope.commands]
 
@@ -105,7 +107,7 @@ def envelope_lamport_range(
 ) -> tuple[int, int] | None:
     """Return the actor-local Lamport range carried by an ordered envelope."""
 
-    if not isinstance(envelope, (LegacyOrderedBoardCommandEnvelope, BoardCommandEnvelope14)):
+    if not isinstance(envelope, (LegacyOrderedBoardCommandEnvelope, BoardCommandEnvelope15)):
         return None
 
     orders = [item.order for item in envelope.commands]
@@ -116,3 +118,9 @@ def envelope_lamport_range(
     if any(current <= previous for previous, current in zip(lamports, lamports[1:], strict=False)):
         raise ValueError("Lamport должен строго возрастать внутри пакета")
     return lamports[0], lamports[-1]
+
+
+def envelope_origin_id(envelope: BoardCommandEnvelope) -> str | None:
+    if isinstance(envelope, BoardCommandEnvelope15):
+        return envelope.origin_id.root
+    return None

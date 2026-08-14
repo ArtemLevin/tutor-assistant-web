@@ -1,0 +1,36 @@
+install_dir: /opt/tutorboard-stack
+deploy_user: tutor-deploy
+ssh_port: 22
+
+repository_url: https://github.com/ArtemLevin/tutor-assistant-web.git
+backend_commit: "0000000000000000000000000000000000000000"
+backend_release: "replace-with-backend-release"
+tutorboard_release: "replace-with-tutorboard-release"
+perform_deploy: false
+
+image_repository: ghcr.io/artemlevin/tutor-assistant-web
+tutorboard_image_repository: ghcr.io/artemlevin/tutorboard
+geometryos_image: ghcr.io/artemlevin/geometryos:v0.3.0@sha256:replace_with_64_hex_digest
+ghcr_username: ArtemLevin
+
+app_domain: board.example.ru
+acme_email: ops@example.ru
+bootstrap_organization_name: Tutor Workspace
+bootstrap_organization_slug: default
+bootstrap_admin_email: owner@example.ru
+bootstrap_admin_name: Владелец
+
+bbb_demo_mode: false
+bbb_base_url: https://bbb.example.ru/bigbluebutton
+transcription_provider: webhook
+transcription_webhook_url: https://transcription.example.ru/v1/transcribe
+document_engine_provider: latex-for-everyone
+document_engine_url: https://latex.example.ru
+
+backup_s3_endpoint_url: https://storage.yandexcloud.net
+backup_s3_region: ru-central1
+backup_s3_bucket: tutorboard-production-backups
+backup_s3_access_key: replace-with-static-access-key-id
+backup_s3_prefix: tutor-assistant
+
+alert_webhook_url: https://alerts.example.ru/tutorboard

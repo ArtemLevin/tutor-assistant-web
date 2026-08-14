@@ -19,6 +19,7 @@ from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
     envelope_lamport_range,
+    envelope_origin_id,
 )
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
@@ -205,6 +206,7 @@ class BoardPersistenceService:
             raise ValidationError("Пакет команд превышает допустимый размер")
         document_id = envelope.document_id.root
         contract_actor_id = envelope.actor_id.root
+        origin_id = envelope_origin_id(envelope)
         try:
             lamport_range = envelope_lamport_range(envelope)
         except ValueError as exc:
@@ -251,6 +253,7 @@ class BoardPersistenceService:
                             BoardCommandBatch.organization_id == self.organization_id,
                             BoardCommandBatch.board_document_id == document.id,
                             BoardCommandBatch.contract_actor_id == contract_actor_id,
+                            BoardCommandBatch.origin_id == origin_id,
                         )
                     )
                     or 0
@@ -270,6 +273,7 @@ class BoardPersistenceService:
                 idempotency_key=envelope.idempotency_key,
                 actor_user_id=actor_user_id,
                 contract_actor_id=contract_actor_id,
+                origin_id=origin_id,
                 schema_version=envelope.schema_version,
                 lamport_min=lamport_min,
                 lamport_max=lamport_max,
@@ -290,6 +294,7 @@ class BoardPersistenceService:
                     "event": "board.command_batch.committed",
                     "document_id": document.id,
                     "actor_id": contract_actor_id,
+                    "origin_id": origin_id,
                     "schema_version": envelope.schema_version,
                     "base_revision": envelope.base_revision,
                     "revision": revision,
