@@ -118,7 +118,8 @@ install -m 0600 -o "$DEPLOY_USER" -g docker \
   "$staging_dir/ghcr_token" /etc/tutorboard/ghcr_token
 
 set -a
-# shellcheck disable=SC1090 -- the runtime environment file is selected by the deploy operator.
+# The deploy operator selects the runtime environment file.
+# shellcheck disable=SC1090
 . "$ENV_FILE"
 set +a
 export POSTGRES_DB=${POSTGRES_DB:-tutor}
