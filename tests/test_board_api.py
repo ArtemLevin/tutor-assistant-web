@@ -898,6 +898,7 @@ def test_collaboration_ticket_is_one_time_and_room_is_revision_only(board_api):
         )
         websocket.send_text('{"type":"heartbeat"}')
         assert websocket.receive_json() == {"type": "heartbeat.ack"}
+        websocket.close(code=1000)
 
     with (
         pytest.raises(WebSocketDisconnect),
