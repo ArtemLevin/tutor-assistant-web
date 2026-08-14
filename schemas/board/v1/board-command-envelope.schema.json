@@ -798,6 +798,18 @@
         "strokeWidth": {
           "minimum": 0,
           "type": "number"
+        },
+        "strokeStyle": {
+          "enum": [
+            "thin",
+            "thick",
+            "dashed",
+            "dash-dot",
+            "wavy",
+            "hand-pencil",
+            "hand-pen",
+            "marker"
+          ]
         }
       },
       "required": [
@@ -4637,7 +4649,7 @@
   },
   "$id": "https://contracts.tutorboard.dev/board/v1/board-command-envelope.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "BoardCommandEnvelope 1.4",
+  "title": "BoardCommandEnvelope 1.5",
   "additionalProperties": false,
   "properties": {
     "actorId": {
@@ -4668,8 +4680,11 @@
       "pattern": "^[A-Za-z0-9._:-]+$",
       "type": "string"
     },
+    "originId": {
+      "$ref": "#/$defs/Identifier"
+    },
     "schemaVersion": {
-      "const": "1.4"
+      "const": "1.5"
     }
   },
   "required": [
@@ -4679,6 +4694,7 @@
     "documentId",
     "expectedDocumentSha256",
     "idempotencyKey",
+    "originId",
     "schemaVersion"
   ],
   "type": "object"

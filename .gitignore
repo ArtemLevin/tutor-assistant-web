@@ -19,5 +19,13 @@ deploy/production/secrets/
 deploy/production/runtime/
 deploy/local/.env.local
 load/results/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+deploy/yandex-cloud/terraform/terraform.tfvars
+deploy/yandex-cloud/ansible/inventory.yml
+deploy/yandex-cloud/ansible/vars.yml
 .idea
 .gigaide

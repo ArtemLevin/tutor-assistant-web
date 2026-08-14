@@ -1,5 +1,9 @@
 # Runbook: Ubuntu production host
 
+For the Yandex Cloud Terraform → cloud-init → Ansible path, start with
+[`yandex-cloud.md`](yandex-cloud.md). The host hardening and deployment steps
+below remain canonical after the VM is created.
+
 Целевая платформа единого приложения — Ubuntu Server 22.04 или 24.04 LTS на
 `x86_64`. Приложение, TutorBoard и GeometryOS остаются контейнерными; этот
 runbook настраивает только host-уровень.
@@ -98,7 +102,8 @@ deploy/ubuntu/host-smoke.sh --verify-backup
 Preflight проверяет Ubuntu/version/amd64, Docker, Compose, RAM, диск, NTP, DNS,
 занятость 80/443, заполнение secrets, off-host backup boundary, immutable
 GeometryOS digest, доступ к каждому GHCR image и наличие `linux/amd64`
-manifest.
+manifest. Deploy сразу преобразует release-теги приложения в registry digest;
+runtime-preflight запрещает запуск active slot по тегу.
 
 `host-smoke.sh --verify-backup` подтверждает systemd, обязательные контейнеры,
 HTTPS, security headers, TutorBoard, GeometryOS и фактическую выгрузку свежего

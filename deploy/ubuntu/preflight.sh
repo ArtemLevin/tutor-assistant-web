@@ -174,6 +174,45 @@ compose() {
 }
 compose config --quiet
 
+if [ "$MODE" = runtime ]; then
+  if [ "${ACTIVE_SLOT:-blue}" = blue ]; then
+    runtime_web_image=${BLUE_WEB_IMAGE:-}
+    runtime_worker_image=${BLUE_WORKER_IMAGE:-}
+    runtime_tutorboard_image=${TUTORBOARD_BLUE_IMAGE:-}
+  else
+    runtime_web_image=${GREEN_WEB_IMAGE:-}
+    runtime_worker_image=${GREEN_WORKER_IMAGE:-}
+    runtime_tutorboard_image=${TUTORBOARD_GREEN_IMAGE:-}
+  fi
+  for runtime_image in \
+    "$runtime_web_image" \
+    "$runtime_worker_image" \
+    "$runtime_tutorboard_image" \
+    "${SCHEDULER_IMAGE:-}" \
+    "${MIGRATION_IMAGE:-}" \
+    "${OPS_IMAGE:-}"; do
+    case "$runtime_image" in
+      *@sha256:*)
+        runtime_digest=${runtime_image##*@sha256:}
+        [ "${#runtime_digest}" -eq 64 ] || {
+          echo "Runtime image has an incomplete digest: $runtime_image" >&2
+          exit 1
+        }
+        case "$runtime_digest" in
+          *[!0-9a-fA-F]*)
+            echo "Runtime image digest is not hexadecimal: $runtime_image" >&2
+            exit 1
+            ;;
+        esac
+        ;;
+      *)
+        echo "Runtime image is not pinned by digest: $runtime_image" >&2
+        exit 1
+        ;;
+    esac
+  done
+fi
+
 if ss -H -ltn | awk '{print $4}' | grep -Eq '(:|\])80$|(:|\])443$'; then
   caddy_id=$(compose ps -q caddy 2>/dev/null || true)
   [ -n "$caddy_id" ] || {

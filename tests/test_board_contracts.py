@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommandEnvelope14,
+    BoardCommandEnvelope15,
 )
 from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument14
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
@@ -41,7 +41,7 @@ def test_vendored_contract_manifest_is_complete_and_fresh() -> None:
 def test_generated_dtos_accept_canonical_tutorboard_fixtures() -> None:
     pairs = (
         (BoardDocument14, "fixtures/board-document.json"),
-        (BoardCommandEnvelope14, "fixtures/board-command-envelope.json"),
+        (BoardCommandEnvelope15, "fixtures/board-command-envelope.json"),
         (BoardSnapshot14, "fixtures/board-snapshot.json"),
         (BoardGeometryImport11, "fixtures/board-geometry-import.json"),
     )
@@ -56,7 +56,7 @@ def test_generated_dtos_forbid_unknown_transport_fields() -> None:
     payload["serverOwnedRevision"] = 8
 
     try:
-        BoardCommandEnvelope14.model_validate(payload)
+        BoardCommandEnvelope15.model_validate(payload)
     except ValueError as error:
         assert "serverOwnedRevision" in str(error)
     else:

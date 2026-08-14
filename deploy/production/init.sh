@@ -61,11 +61,29 @@ case "${GEOMETRYOS_IMAGE:-}" in
     echo "Set GEOMETRYOS_IMAGE to the published GeometryOS digest before deploy." >&2
     ;;
 esac
-POSTGRES_PASSWORD=$(cat "$SECRETS/postgres_password")
-REDIS_PASSWORD=$(cat "$SECRETS/redis_password")
-printf 'postgresql+psycopg://%s:%s@postgres:5432/%s' \
-  "$POSTGRES_USER" "$POSTGRES_PASSWORD" "$POSTGRES_DB" > "$SECRETS/database_url"
-printf 'redis://:%s@redis:6379/0' "$REDIS_PASSWORD" > "$SECRETS/redis_url"
+export POSTGRES_USER POSTGRES_DB SECRETS
+python3 <<'PY'
+import os
+from pathlib import Path
+from urllib.parse import quote
+
+secrets = Path(os.environ["SECRETS"])
+postgres_password = (secrets / "postgres_password").read_text(encoding="utf-8")
+redis_password = (secrets / "redis_password").read_text(encoding="utf-8")
+(secrets / "database_url").write_text(
+    "postgresql+psycopg://"
+    + quote(os.environ["POSTGRES_USER"], safe="")
+    + ":"
+    + quote(postgres_password, safe="")
+    + "@postgres:5432/"
+    + quote(os.environ["POSTGRES_DB"], safe=""),
+    encoding="utf-8",
+)
+(secrets / "redis_url").write_text(
+    "redis://:" + quote(redis_password, safe="") + "@redis:6379/0",
+    encoding="utf-8",
+)
+PY
 
 case "${ALERT_WEBHOOK_URL:-}" in
   https://* )
@@ -97,18 +115,34 @@ EOF
 esac
 
 if [ ! -s "$RUNTIME/deployment.env" ]; then
+  initial_backend_release=${BLUE_RELEASE:-v1.0.0}
+  initial_green_release=${GREEN_RELEASE:-$initial_backend_release}
+  initial_tutorboard_release=${TUTORBOARD_BLUE_RELEASE:-v1.0.0}
+  initial_tutorboard_green_release=${TUTORBOARD_GREEN_RELEASE:-$initial_tutorboard_release}
   cat > "$RUNTIME/deployment.env" <<EOF
 ACTIVE_SLOT=${ACTIVE_SLOT:-blue}
-BLUE_RELEASE=${BLUE_RELEASE:-v1.0.0}
-GREEN_RELEASE=${GREEN_RELEASE:-v1.0.0}
-CURRENT_RELEASE=${BLUE_RELEASE:-v1.0.0}
+BLUE_RELEASE=$initial_backend_release
+GREEN_RELEASE=$initial_green_release
+CURRENT_RELEASE=
 PREVIOUS_RELEASE=
 SCHEDULER_RELEASE=${SCHEDULER_RELEASE:-v1.0.0}
 OPS_RELEASE=${OPS_RELEASE:-v1.0.0}
-TUTORBOARD_BLUE_RELEASE=${TUTORBOARD_BLUE_RELEASE:-v1.0.0}
-TUTORBOARD_GREEN_RELEASE=${TUTORBOARD_GREEN_RELEASE:-v1.0.0}
-CURRENT_TUTORBOARD_RELEASE=${TUTORBOARD_BLUE_RELEASE:-v1.0.0}
+TUTORBOARD_BLUE_RELEASE=$initial_tutorboard_release
+TUTORBOARD_GREEN_RELEASE=$initial_tutorboard_green_release
+CURRENT_TUTORBOARD_RELEASE=
 PREVIOUS_TUTORBOARD_RELEASE=
+BLUE_WEB_IMAGE=${IMAGE_REPOSITORY}-web:$initial_backend_release
+BLUE_WORKER_IMAGE=${IMAGE_REPOSITORY}-worker:$initial_backend_release
+GREEN_WEB_IMAGE=${IMAGE_REPOSITORY}-web:$initial_green_release
+GREEN_WORKER_IMAGE=${IMAGE_REPOSITORY}-worker:$initial_green_release
+TUTORBOARD_BLUE_IMAGE=${TUTORBOARD_IMAGE_REPOSITORY}:$initial_tutorboard_release
+TUTORBOARD_GREEN_IMAGE=${TUTORBOARD_IMAGE_REPOSITORY}:$initial_tutorboard_green_release
+SCHEDULER_IMAGE=${IMAGE_REPOSITORY}-scheduler:${SCHEDULER_RELEASE:-v1.0.0}
+MIGRATION_IMAGE=${IMAGE_REPOSITORY}-migration:${OPS_RELEASE:-v1.0.0}
+OPS_IMAGE=${IMAGE_REPOSITORY}-ops:${OPS_RELEASE:-v1.0.0}
+PREVIOUS_SCHEDULER_IMAGE=
+PREVIOUS_MIGRATION_IMAGE=
+PREVIOUS_OPS_IMAGE=
 EOF
 fi
 . "$RUNTIME/deployment.env"

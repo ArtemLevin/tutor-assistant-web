@@ -5,9 +5,11 @@ TutorBoard. It uses the vendored `board/v1` schemas and the persistent revision
 journal described in `board-persistence.md`.
 
 The runtime reader accepts flat envelopes `1.0` and `1.2`, ordered envelopes
-`1.3`, and the current ordered envelope `1.4`. Version `1.4` carries the
-guided 3D learning commands and persists `solidLearningAttempts` inside the
-canonical BoardDocument and BoardSnapshot.
+`1.3` and `1.4`, and the current ordered envelope `1.5`. Version `1.5` adds a
+durable browser `originId`; Lamport ordering is scoped to actor plus origin so
+two tabs owned by the same person cannot invalidate one another's monotonic
+clock. Version `1.4` remains the document/snapshot version and carries guided
+3D learning state.
 
 ## Access matrix
 
@@ -59,9 +61,23 @@ copied into the audit log.
 
 The HTTP command log remains authoritative. `POST
 /api/v1/boards/{document_id}/collaboration-ticket` returns a short-lived
-one-time ticket for the tenant/document-scoped WebSocket. The socket carries
-only revision notifications and ephemeral presence; clients recover through
-the normal pull/rebase API.
+one-time ticket for the tenant/document-scoped WebSocket. Protocol `1.1`
+carries revision notifications, a bounded presence roster, and ephemeral
+`preview.ink` / `preview.transform` updates. Preview updates are rate-limited,
+bounded, expire client-side, and are never written to the command journal or a
+snapshot. A completed gesture is persisted only as its semantic command over
+HTTP; clients recover through the normal pull/rebase API after reconnect.
+
+Each socket validates same-origin access in production, consumes its ticket
+once, enforces a 32 KiB message limit and 30 messages per second, and sends a
+heartbeat interval in `ready`. The client coalesces revision signals, applies
+exponential reconnect with jitter, clears stale participants/previews, and
+pulls the authoritative command suffix before reporting itself recovered.
+
+Commands that cannot be deterministically replayed are quarantined locally
+instead of blocking independent pending commands. Evidence finalization is
+disabled while the quarantine is non-empty, preventing a misleading
+"successful" artifact from being finalized over unresolved local work.
 
 Finalization at `POST /api/v1/boards/{document_id}/evidence` requires an
 available snapshot at the exact revision and matching document SHA-256.

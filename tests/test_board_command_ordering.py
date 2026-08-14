@@ -12,6 +12,7 @@ from tutor_assistant_web.modules.boards.contracts import (
     envelope_base_revisions,
     envelope_commands,
     envelope_lamport_range,
+    envelope_origin_id,
 )
 
 CONTRACT = Path(__file__).parents[1] / "schemas" / "board" / "v1" / "fixtures"
@@ -23,11 +24,12 @@ def payload() -> dict:
 
 def test_ordered_envelope_exposes_commands_and_order_metadata() -> None:
     envelope = BoardCommandEnvelopeInput.model_validate(payload()).root
-    assert envelope.schema_version == "1.4"
+    assert envelope.schema_version == "1.5"
     assert len(envelope_commands(envelope)) == 2
     assert envelope_actor_ids(envelope) == ["actor:tutor-01", "actor:tutor-01"]
     assert envelope_base_revisions(envelope) == [7, 7]
     assert envelope_lamport_range(envelope) == (8, 9)
+    assert envelope_origin_id(envelope) == "origin:tutor-browser-01"
 
 
 @pytest.mark.parametrize("lamports", ([8, 8], [9, 8], [0, 1]))
@@ -50,23 +52,28 @@ def test_ordered_envelope_rejects_future_base_revision() -> None:
 def test_legacy_envelopes_remain_readable(version: str) -> None:
     value = payload()
     value["schemaVersion"] = version
+    value.pop("originId")
     value["commands"] = [item["command"] for item in value["commands"]]
     envelope = BoardCommandEnvelopeInput.model_validate(value).root
     assert envelope.schema_version == version
     assert envelope_lamport_range(envelope) is None
 
 
-def test_version_13_ordered_envelopes_remain_readable() -> None:
+@pytest.mark.parametrize("version", ["1.3", "1.4"])
+def test_previous_ordered_envelopes_remain_readable(version: str) -> None:
     value = payload()
-    value["schemaVersion"] = "1.3"
+    value["schemaVersion"] = version
+    value.pop("originId")
     envelope = BoardCommandEnvelopeInput.model_validate(value).root
-    assert envelope.schema_version == "1.3"
+    assert envelope.schema_version == version
     assert envelope_lamport_range(envelope) == (8, 9)
+    assert envelope_origin_id(envelope) is None
 
 
 def test_version_13_rejects_learning_commands() -> None:
     value = payload()
     value["schemaVersion"] = "1.3"
+    value.pop("originId")
     value["commands"][0]["command"] = {
         "actorId": "actor:tutor-01",
         "attemptId": "attempt:legacy-learning",

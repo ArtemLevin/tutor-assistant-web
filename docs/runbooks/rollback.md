@@ -2,7 +2,12 @@
 
 ## Приложение
 
-`make production-rollback` переключает трафик на `PREVIOUS_RELEASE` без повторного запуска миграций. Операция blue/green и проходит readiness/smoke. После неё проверить jobs, доставку и корреляцию trace.
+`make production-rollback` переключает трафик на `PREVIOUS_RELEASE` без
+повторного запуска миграций. Для web, worker, TutorBoard, scheduler, migration
+и ops используются точные digest-ссылки, сохранённые при предыдущем
+deployment; если их нет, скрипт откажется откатываться по потенциально
+изменившемуся тегу. Операция blue/green проходит readiness/smoke. После неё
+проверить jobs, доставку и корреляцию trace.
 
 ## Миграция
 

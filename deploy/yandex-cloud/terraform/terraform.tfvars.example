@@ -1,0 +1,10 @@
+cloud_id         = "b1g00000000000000000"
+folder_id        = "b1g00000000000000001"
+domain           = "board.example.ru"
+dns_zone_id      = "dns00000000000000000"
+lockbox_secret_id = "e6q00000000000000000"
+ssh_allowed_cidrs = ["203.0.113.10/32"]
+ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... operator@example"
+
+# Production defaults are 8 vCPU, 32 GiB RAM and a 200 GiB network SSD.
+# Override only after measuring the full Compose stack.

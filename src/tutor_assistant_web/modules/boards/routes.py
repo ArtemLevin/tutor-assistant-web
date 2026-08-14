@@ -335,12 +335,12 @@ def create_router(container: AppContainer) -> APIRouter:
                     "payload_sha256": batch.payload_sha256,
                 },
             )
-            container.collaboration.publish(
+            await container.collaboration.publish(
                 actor.organization_id,
                 document.id,
                 {
                     "type": "board.revision",
-                    "protocolVersion": "1.0",
+                    "protocolVersion": "1.1",
                     "documentId": document.id,
                     "revision": batch.revision,
                     "baseRevision": batch.base_revision,
@@ -387,14 +387,14 @@ def create_router(container: AppContainer) -> APIRouter:
         _, _ = document_for(actor, document_id, operation="read")
         web.validate_csrf_header(request)
         body = await _validated_body(request, CollaborationTicketRequest, 4096)
-        ticket = container.collaboration.issue_ticket(
+        ticket = await container.collaboration.issue_ticket(
             actor,
             document_id,
             body.client_id,
         )
         return JSONResponse(
             {
-                "protocolVersion": "1.0",
+                "protocolVersion": "1.1",
                 "ticket": ticket,
                 "expiresInSeconds": container.settings.board_collaboration_ticket_ttl_seconds,
                 "websocketPath": f"/api/v1/boards/{document_id}/collaboration",
@@ -414,7 +414,7 @@ def create_router(container: AppContainer) -> APIRouter:
                 container.settings.public_base_url,
                 production=container.settings.app_env.lower() == "production",
             )
-            issued = container.collaboration.consume_ticket(ticket)
+            issued = await container.collaboration.consume_ticket(ticket)
             if issued is None or issued.document_id != document_id:
                 await websocket.close(code=4401, reason="Invalid or expired ticket")
                 return
@@ -438,6 +438,7 @@ def create_router(container: AppContainer) -> APIRouter:
                     user_id=issued.user_id,
                     role=issued.role,
                     client_id=issued.client_id,
+                    display_name=issued.display_name,
                 ),
                 current_revision=document.current_revision,
             )

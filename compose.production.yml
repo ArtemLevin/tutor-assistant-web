@@ -136,16 +136,16 @@ services:
 
   web-blue:
     <<: *web-common
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-web:${BLUE_RELEASE:?set BLUE_RELEASE}
+    image: ${BLUE_WEB_IMAGE:?set BLUE_WEB_IMAGE to an immutable digest}
     profiles: [blue]
 
   web-green:
     <<: *web-common
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-web:${GREEN_RELEASE:?set GREEN_RELEASE}
+    image: ${GREEN_WEB_IMAGE:?set GREEN_WEB_IMAGE to an immutable digest}
     profiles: [green]
 
   tutorboard-blue:
-    image: ${TUTORBOARD_IMAGE_REPOSITORY:?set TUTORBOARD_IMAGE_REPOSITORY}:${TUTORBOARD_BLUE_RELEASE:?set TUTORBOARD_BLUE_RELEASE}
+    image: ${TUTORBOARD_BLUE_IMAGE:?set TUTORBOARD_BLUE_IMAGE to an immutable digest}
     profiles: [blue]
     restart: unless-stopped
     read_only: true
@@ -165,7 +165,7 @@ services:
       start_period: 10s
 
   tutorboard-green:
-    image: ${TUTORBOARD_IMAGE_REPOSITORY:?set TUTORBOARD_IMAGE_REPOSITORY}:${TUTORBOARD_GREEN_RELEASE:?set TUTORBOARD_GREEN_RELEASE}
+    image: ${TUTORBOARD_GREEN_IMAGE:?set TUTORBOARD_GREEN_IMAGE to an immutable digest}
     profiles: [green]
     restart: unless-stopped
     read_only: true
@@ -212,16 +212,16 @@ services:
 
   worker-blue:
     <<: *worker-common
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-worker:${BLUE_RELEASE:?set BLUE_RELEASE}
+    image: ${BLUE_WORKER_IMAGE:?set BLUE_WORKER_IMAGE to an immutable digest}
     profiles: [blue]
 
   worker-green:
     <<: *worker-common
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-worker:${GREEN_RELEASE:?set GREEN_RELEASE}
+    image: ${GREEN_WORKER_IMAGE:?set GREEN_WORKER_IMAGE to an immutable digest}
     profiles: [green]
 
   scheduler:
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-scheduler:${SCHEDULER_RELEASE:?set SCHEDULER_RELEASE}
+    image: ${SCHEDULER_IMAGE:?set SCHEDULER_IMAGE to an immutable digest}
     environment: *app-environment
     secrets: *app-secrets
     depends_on: *app-depends
@@ -234,7 +234,7 @@ services:
     networks: [backend, egress]
 
   migration:
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-migration:${OPS_RELEASE:?set OPS_RELEASE}
+    image: ${MIGRATION_IMAGE:?set MIGRATION_IMAGE to an immutable digest}
     environment: *app-environment
     secrets: *app-secrets
     depends_on:
@@ -248,7 +248,7 @@ services:
     networks: [backend]
 
   ops:
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-ops:${OPS_RELEASE:?set OPS_RELEASE}
+    image: ${OPS_IMAGE:?set OPS_IMAGE to an immutable digest}
     environment: *app-environment
     secrets: *app-secrets
     depends_on: *app-depends
@@ -260,7 +260,7 @@ services:
     networks: [backend, egress]
 
   backup:
-    image: ${IMAGE_REPOSITORY:?set IMAGE_REPOSITORY}-ops:${OPS_RELEASE:?set OPS_RELEASE}
+    image: ${OPS_IMAGE:?set OPS_IMAGE to an immutable digest}
     command: ["/bin/sh", "-c", "while true; do if tutor-assistant-backup create; then sleep $${BACKUP_INTERVAL_SECONDS}; else sleep 900; fi; done"]
     environment: *app-environment
     secrets: *app-secrets

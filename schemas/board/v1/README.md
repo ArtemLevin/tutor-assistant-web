@@ -8,7 +8,7 @@ camelCase field names. Every schema is self-contained and targets JSON Schema
 ## Artifacts
 
 - `BoardDocument 1.4` is the canonical persisted board state.
-- `BoardCommandEnvelope 1.4` carries one atomic, idempotent command batch
+- `BoardCommandEnvelope 1.5` carries one atomic, idempotent command batch
   against a known base revision.
 - `BoardSnapshot 1.4` binds a canonical document to a server revision and
   SHA-256 digest.

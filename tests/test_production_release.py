@@ -51,6 +51,12 @@ def test_production_compose_has_separate_processes_and_private_network() -> None
     assert services["geometryos"]["read_only"] is True
     assert services["geometryos"]["cap_drop"] == ["ALL"]
     assert services["geometryos"]["image"].startswith("${GEOMETRYOS_IMAGE:")
+    assert services["web-blue"]["image"].startswith("${BLUE_WEB_IMAGE:")
+    assert services["worker-green"]["image"].startswith("${GREEN_WORKER_IMAGE:")
+    assert services["tutorboard-blue"]["image"].startswith("${TUTORBOARD_BLUE_IMAGE:")
+    assert services["scheduler"]["image"].startswith("${SCHEDULER_IMAGE:")
+    assert services["migration"]["image"].startswith("${MIGRATION_IMAGE:")
+    assert services["ops"]["image"].startswith("${OPS_IMAGE:")
     assert "ports" not in services["geometryos"]
     assert services["web-blue"]["depends_on"]["geometryos"]["condition"] == "service_healthy"
     assert "ports" not in services["postgres"]
@@ -93,7 +99,11 @@ def test_postgresql_unique_constraints_match_historical_indexes(
 
 
 def test_release_shell_scripts_are_syntactically_valid() -> None:
-    script_directories = (ROOT / "deploy" / "production", ROOT / "deploy" / "ubuntu")
+    script_directories = (
+        ROOT / "deploy" / "production",
+        ROOT / "deploy" / "ubuntu",
+        ROOT / "deploy" / "yandex-cloud" / "scripts",
+    )
     for script_directory in script_directories:
         for script in script_directory.glob("*.sh"):
             subprocess.run(["sh", "-n", str(script)], check=True)
@@ -101,6 +111,12 @@ def test_release_shell_scripts_are_syntactically_valid() -> None:
     assert "GEOMETRYOS_IMAGE must be pinned with @sha256:" in deploy
     assert "compose pull geometryos" in deploy
     assert 'deploy/ubuntu/preflight.sh" "$RELEASE" "$TUTORBOARD_RELEASE"' in deploy
+    assert "Resolving release tags to immutable repository digests" in deploy
+    assert "docker image inspect --format" in deploy
+
+    rollback = (ROOT / "deploy" / "production" / "rollback.sh").read_text(encoding="utf-8")
+    assert "Exact rollback digests are unavailable" in rollback
+    assert "PREVIOUS_SCHEDULER_IMAGE" in rollback
 
 
 def test_ubuntu_host_contract_is_hardened_and_rebootable() -> None:
@@ -142,6 +158,28 @@ def test_ubuntu_host_contract_is_hardened_and_rebootable() -> None:
     assert "Before=docker.service tutorboard-stack.service" in firewall_unit
     assert "--verify-backup" in host_smoke
     assert "systemctl is-active --quiet tutorboard-stack.service" in host_smoke
+
+
+def test_yandex_cloud_provisioning_keeps_secrets_out_of_terraform_state() -> None:
+    yandex = ROOT / "deploy" / "yandex-cloud"
+    terraform = "\n".join(
+        path.read_text(encoding="utf-8") for path in (yandex / "terraform").glob("*.tf")
+    )
+    cloud_init = (yandex / "terraform" / "cloud-init.tftpl").read_text(encoding="utf-8")
+    playbook = (yandex / "ansible" / "playbook.yml").read_text(encoding="utf-8")
+    materializer = (yandex / "scripts" / "materialize-lockbox.sh").read_text(encoding="utf-8")
+
+    assert 'version = "0.220.0"' in terraform
+    assert "yandex_lockbox_secret_iam_binding" in terraform
+    assert 'role      = "lockbox.payloadViewer"' in terraform
+    assert 'data "yandex_lockbox_secret_version"' not in terraform
+    assert "ghcr_token" not in terraform
+    assert "lockbox_secret_id" in cloud_init
+    assert "ghcr_token" not in cloud_init
+    assert "no_log: true" in playbook
+    assert "backend_commit" in playbook
+    assert "169.254.169.254/computeMetadata" in materializer
+    assert "payload.lockbox.api.cloud.yandex.net" in materializer
 
 
 def test_production_backup_is_off_host_and_line_endings_are_pinned() -> None:

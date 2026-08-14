@@ -98,6 +98,17 @@ class LineStyle(Enum):
     solid = "solid"
 
 
+class StrokeStyle(Enum):
+    thin = "thin"
+    thick = "thick"
+    dashed = "dashed"
+    dash_dot = "dash-dot"
+    wavy = "wavy"
+    hand_pencil = "hand-pencil"
+    hand_pen = "hand-pen"
+    marker = "marker"
+
+
 class ObjectStyle(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -106,6 +117,7 @@ class ObjectStyle(BaseModel):
     opacity: float = Field(..., ge=0.0, le=1.0)
     stroke: str | None = Field(..., max_length=256)
     stroke_width: float = Field(..., alias="strokeWidth", ge=0.0)
+    stroke_style: StrokeStyle | None = Field(None, alias="strokeStyle")
 
 
 MaxExpression = RootModel[str]
@@ -1647,7 +1659,7 @@ class OrderedBoardCommand(BaseModel):
     order: BoardCommandOrder
 
 
-class BoardCommandEnvelope14(BaseModel):
+class BoardCommandEnvelope15(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1661,7 +1673,8 @@ class BoardCommandEnvelope14(BaseModel):
     idempotency_key: str = Field(
         ..., alias="idempotencyKey", max_length=128, min_length=1, pattern="^[A-Za-z0-9._:-]+$"
     )
-    schema_version: Literal["1.4"] = Field(..., alias="schemaVersion")
+    origin_id: Identifier = Field(..., alias="originId")
+    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
 
 
 class BoardDocument(BaseModel):
