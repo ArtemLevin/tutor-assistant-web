@@ -122,7 +122,7 @@ resource "yandex_compute_instance" "production" {
   }
 
   metadata = {
-    user-data          = templatefile("${path.module}/cloud-init.tftpl", {
+    user-data = templatefile("${path.module}/cloud-init.tftpl", {
       lockbox_secret_id = var.lockbox_secret_id
       ssh_public_key    = var.ssh_public_key
     })
