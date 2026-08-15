@@ -86,3 +86,19 @@ parent routes expose only explicitly published, non-revoked evidence.
 
 GeometryOS browser traffic uses the authenticated same-origin
 `/api/v1/geometryos/` gateway. Direct production browser access is unsupported.
+
+## Standalone B0 contract
+
+The routes above describe the currently wired lesson-bound runtime. The additive
+standalone owner/guest contract is frozen separately in
+`contracts/standalone-board/` and is intentionally not mounted by B0.
+
+B0 adds strict Pydantic contract readers and shared fixtures for the future
+`BoardAccessContext`, capability vocabulary, invitation management routes,
+`cacheScopeId`, `accessEpoch`, and WebSocket access-control events. The matching
+TutorBoard branch carries strict Zod readers for the same fixtures.
+
+Runtime adoption is staged: T0 prepares the frontend security/persistence
+boundary; B1 introduces standalone board ownership/persistence; B2 wires guest
+invitation/session authorization. Until those PRs land, the existing context and
+lesson-bound routes remain authoritative.
