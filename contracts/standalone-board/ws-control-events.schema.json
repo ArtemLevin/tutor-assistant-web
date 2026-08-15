@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tutorboard.local/contracts/standalone-board/ws-control-events.schema.json",
+  "title": "TutorBoard standalone access control WebSocket events",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "type",
+        "boardId",
+        "accessEpoch",
+        "refreshRequired"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "1.0" },
+        "type": { "const": "access.capabilities.changed" },
+        "boardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "accessEpoch": { "type": "string", "minLength": 8, "maxLength": 512 },
+        "refreshRequired": { "const": true }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "type", "boardId", "terminal"],
+      "properties": {
+        "schemaVersion": { "const": "1.0" },
+        "type": { "const": "access.revoked" },
+        "boardId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "terminal": { "const": true }
+      }
+    }
+  ]
+}
