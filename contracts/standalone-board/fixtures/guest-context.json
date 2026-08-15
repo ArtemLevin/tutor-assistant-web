@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "principalType": "guest",
+  "actorId": "guest:9a1dc7b1-2a4f-49ce-a1a8-5dd845da9cd2",
+  "boardId": "board:71e2d27c-6933-40d5-a426-fd348aa220dd",
+  "role": "student",
+  "displayName": "Ксения",
+  "capabilities": [
+    "board.read",
+    "board.write",
+    "board.snapshot.write",
+    "collaboration.connect"
+  ],
+  "csrfToken": "csrf-fixture-guest-opaque",
+  "cacheScopeId": "scope:guest:fixture-7f04",
+  "accessEpoch": "epoch:guest:fixture-03"
+}
