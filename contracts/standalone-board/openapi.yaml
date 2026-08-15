@@ -1,0 +1,566 @@
+openapi: 3.1.0
+info:
+  title: TutorBoard Standalone Board API
+  version: 1.0.0-b0
+  description: >-
+    Additive B0 contract for standalone owner boards and capability-link guest
+    access. Existing lesson-bound routes and Board command envelope 1.5 remain
+    unchanged until later migration PRs.
+servers:
+  - url: /
+tags:
+  - name: board-management
+  - name: guest-access
+paths:
+  /api/v1/boards:
+    post:
+      tags: [board-management]
+      summary: Create a standalone board owned by the authenticated teacher.
+      security:
+        - teacherSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBoardRequest'
+      responses:
+        '201':
+          description: Board created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandaloneBoardDescriptor'
+        '403':
+          $ref: '#/components/responses/Problem'
+    get:
+      tags: [board-management]
+      summary: List boards owned by the authenticated teacher.
+      security:
+        - teacherSession: []
+      responses:
+        '200':
+          description: Owner-scoped board list.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StandaloneBoardDescriptor'
+  /api/v1/boards/context:
+    get:
+      tags: [guest-access]
+      summary: Resolve the effective teacher or guest principal for board bootstrap.
+      description: >-
+        Teacher authentication wins when teacher and guest cookies coexist. Guest
+        callers are board-scoped. The response is fetched before sync starts.
+      responses:
+        '200':
+          description: Effective access context.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must include no-store for guest contexts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardAccessContext'
+        '401':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /api/v1/boards/{boardId}:
+    parameters:
+      - $ref: '#/components/parameters/BoardId'
+    patch:
+      tags: [board-management]
+      summary: Rename a board or change the board-wide guest write switch.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                guestWritesEnabled:
+                  type: boolean
+              minProperties: 1
+      responses:
+        '200':
+          description: Updated board.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandaloneBoardDescriptor'
+        '404':
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [board-management]
+      summary: Soft-delete a standalone board.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Board soft-deleted.
+        '404':
+          $ref: '#/components/responses/Problem'
+  /api/v1/boards/{boardId}/archive:
+    post:
+      tags: [board-management]
+      summary: Archive a board.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: Archived board.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandaloneBoardDescriptor'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /api/v1/boards/{boardId}/unarchive:
+    post:
+      tags: [board-management]
+      summary: Restore an archived board.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: Restored board.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandaloneBoardDescriptor'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /api/v1/boards/{boardId}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/BoardId'
+    post:
+      tags: [board-management]
+      summary: Create a reusable board-scoped guest invitation.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+      responses:
+        '201':
+          description: >-
+            Invitation created. joinUrl contains the raw invitation token and is
+            returned only by create/rotate responses.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be no-store.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationSecretResult'
+        '404':
+          $ref: '#/components/responses/Problem'
+    get:
+      tags: [board-management]
+      summary: List invitation status without raw tokens.
+      security:
+        - teacherSession: []
+      responses:
+        '200':
+          description: Invitation summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InvitationSummary'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /api/v1/boards/{boardId}/invitations/{invitationId}:
+    patch:
+      tags: [board-management]
+      summary: Update display name, expiry or per-invitation write permission.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                displayName:
+                  type: string
+                  minLength: 1
+                  maxLength: 160
+                expiresAt:
+                  oneOf:
+                    - type: string
+                      format: date-time
+                    - type: 'null'
+                writeEnabled:
+                  type: boolean
+              minProperties: 1
+      responses:
+        '200':
+          description: Invitation summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationSummary'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /api/v1/boards/{boardId}/invitations/{invitationId}/revoke:
+    post:
+      tags: [board-management]
+      summary: Revoke an invitation and invalidate active access.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: Revoked invitation summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationSummary'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /api/v1/boards/{boardId}/invitations/{invitationId}/rotate:
+    post:
+      tags: [board-management]
+      summary: Rotate the invitation secret and invalidate prior guest credentials.
+      security:
+        - teacherSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: New transient join URL.
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              description: Must be no-store.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationSecretResult'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /j/{secret}:
+    get:
+      tags: [guest-access]
+      summary: Exchange an invitation secret for a board-scoped guest session.
+      description: >-
+        The raw secret must never be written to persistent access logs, traces,
+        analytics or error reporting. Invalid, expired and revoked links share the
+        same non-enumerating public UX.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 32
+            maxLength: 512
+      responses:
+        '303':
+          description: Guest session created and redirected to /b/{boardId}#/board.
+          headers:
+            Location:
+              required: true
+              schema: { type: string }
+            Cache-Control:
+              required: true
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              required: true
+              schema: { type: string, const: no-referrer }
+            X-Robots-Tag:
+              required: true
+              schema: { type: string, const: 'noindex, nofollow' }
+            Set-Cookie:
+              schema: { type: string }
+              description: HttpOnly; Secure; SameSite=Lax guest session cookie.
+        '404':
+          $ref: '#/components/responses/Problem'
+        '429':
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    teacherSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Existing authenticated teacher session. Concrete cookie name is deployment-specific.
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 512
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        deletedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          additionalProperties: false
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          additionalProperties: false
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        revokedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail:
+          type: string
+          minLength: 1
+          maxLength: 500
+        currentRevision:
+          type: integer
+          minimum: 0
