@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0",
+  "principalType": "teacher",
+  "actorId": "user:8b1eaf26-6f35-4a2e-b321-42b4a0c0d911",
+  "boardId": "board:71e2d27c-6933-40d5-a426-fd348aa220dd",
+  "role": "tutor",
+  "displayName": "Артём Александрович",
+  "capabilities": [
+    "board.read",
+    "board.write",
+    "board.snapshot.write",
+    "collaboration.connect",
+    "board.export",
+    "board.history.read",
+    "board.invites.manage",
+    "board.archive",
+    "board.delete"
+  ],
+  "csrfToken": "csrf-fixture-teacher-opaque",
+  "cacheScopeId": "scope:teacher:fixture-01",
+  "accessEpoch": "epoch:teacher:fixture-01",
+  "organizationId": "org:fixture-01",
+  "userId": "8b1eaf26-6f35-4a2e-b321-42b4a0c0d911"
+}
