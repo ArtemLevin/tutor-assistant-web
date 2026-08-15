@@ -69,7 +69,5 @@ class GuestBoardAccessContext(_StandaloneContextBase):
         return self
 
 
-class BoardAccessContextInput(
-    RootModel[TeacherBoardAccessContext | GuestBoardAccessContext]
-):
+class BoardAccessContextInput(RootModel[TeacherBoardAccessContext | GuestBoardAccessContext]):
     """Strict B0 contract reader; not wired into runtime routes until B1/B2."""
