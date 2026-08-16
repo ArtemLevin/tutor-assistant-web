@@ -206,7 +206,9 @@ def test_standalone_create_list_update_archive_and_delete(standalone_api):
     assert archived.json()["boardId"] == board_id
     assert archived.json()["archivedAt"] is not None
     assert client.get("/api/v1/boards").json()["items"] == []
-    assert client.get("/api/v1/boards?includeArchived=true").json()["items"][0]["boardId"] == board_id
+    assert (
+        client.get("/api/v1/boards?includeArchived=true").json()["items"][0]["boardId"] == board_id
+    )
 
     restored = client.post(
         f"/api/v1/boards/{board_id}/unarchive",
@@ -288,13 +290,17 @@ def test_migration_0015_can_downgrade_before_standalone_rows_exist(tmp_path):
     config = _alembic_config(database)
     command.upgrade(config, "0014_board_command_origins")
     command.upgrade(config, "0015_standalone_board_persistence")
-    columns = {column["name"]: column for column in inspect(database.engine).get_columns("board_documents")}
+    columns = {
+        column["name"]: column for column in inspect(database.engine).get_columns("board_documents")
+    }
     assert columns["lesson_id"]["nullable"] is True
     assert columns["student_id"]["nullable"] is True
     assert {"owner_user_id", "title", "guest_writes_enabled", "access_version"} <= set(columns)
 
     command.downgrade(config, "0014_board_command_origins")
-    downgraded = {column["name"]: column for column in inspect(database.engine).get_columns("board_documents")}
+    downgraded = {
+        column["name"]: column for column in inspect(database.engine).get_columns("board_documents")
+    }
     assert downgraded["lesson_id"]["nullable"] is False
     assert downgraded["student_id"]["nullable"] is False
     assert "owner_user_id" not in downgraded
