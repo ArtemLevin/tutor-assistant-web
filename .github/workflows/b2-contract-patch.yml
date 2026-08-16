@@ -1,0 +1,30 @@
+name: B2 contract patch
+
+on:
+  push:
+    branches:
+      - agent/b2-guest-invitations
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/b2-guest-invitations
+          fetch-depth: 0
+      - name: Refine standalone contract
+        run: |
+          python tools/b2_contract_patch.py
+          rm tools/b2_contract_patch.py .github/workflows/b2-contract-patch.yml
+      - name: Commit contract refinement
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'docs: scope strict standalone board context'
+          git push origin HEAD:agent/b2-guest-invitations
