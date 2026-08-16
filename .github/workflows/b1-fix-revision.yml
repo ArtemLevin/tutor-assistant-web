@@ -1,0 +1,31 @@
+name: B1 fix migration predecessor
+
+on:
+  push:
+    branches:
+      - agent/b1-standalone-persistence
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/b1-standalone-persistence
+          fetch-depth: 0
+      - name: Fix Alembic predecessor revision id
+        run: |
+          sed -i 's/0014_board_command_origins/0014_board_origins/g' \
+            src/tutor_assistant_web/migrations/versions/0015_standalone_board_persistence.py \
+            tests/test_standalone_board_b1.py
+      - name: Commit revision fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tutor_assistant_web/migrations/versions/0015_standalone_board_persistence.py tests/test_standalone_board_b1.py
+          git commit -m "fix: link B1 migration to actual Alembic revision"
+          git push origin HEAD:agent/b1-standalone-persistence
