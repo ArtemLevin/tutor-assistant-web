@@ -36,13 +36,13 @@ from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema imp
 )
 from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 from tutor_assistant_web.shared.contracts import ArtifactStorage
-from tutor_assistant_web.shared.models import new_id
 from tutor_assistant_web.shared.errors import (
     ConflictError,
     GoneError,
     NotFoundError,
     ValidationError,
 )
+from tutor_assistant_web.shared.models import new_id
 
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _UNSAFE_IDENTIFIERS = {"__proto__", "constructor", "prototype"}
