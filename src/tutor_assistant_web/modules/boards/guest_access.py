@@ -461,7 +461,8 @@ class BoardGuestAccessService:
         events: list[dict[str, Any]] = []
         now = datetime.now(UTC)
         for invitation in invitations:
-            if invitation.expires_at is not None and invitation.expires_at <= now:
+            expires_at = self._as_utc(invitation.expires_at)
+            if expires_at is not None and expires_at <= now:
                 continue
             can_write = self._effective_write(invitation, document)
             events.append(
@@ -535,7 +536,7 @@ class BoardGuestAccessService:
                 str(invitation.credential_version),
             ),
             access_epoch=self._access_epoch(invitation, document),
-            access_expires_at=invitation.expires_at,
+            access_expires_at=self._as_utc(invitation.expires_at),
         )
 
     @staticmethod
@@ -592,10 +593,19 @@ class BoardGuestAccessService:
 
     def _cookie_max_age(self, invitation: BoardInvitation, now: datetime) -> int:
         max_age = self.settings.board_guest_session_max_age
-        if invitation.expires_at is None:
+        expires_at = self._as_utc(invitation.expires_at)
+        if expires_at is None:
             return max_age
-        remaining = int((invitation.expires_at - now).total_seconds())
+        remaining = int((expires_at - self._as_utc(now)).total_seconds())
         return max(1, min(max_age, remaining))
+
+    @staticmethod
+    def _as_utc(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     @staticmethod
     def _normalize_display_name(value: str) -> str:
@@ -644,7 +654,10 @@ class BoardGuestAccessService:
             return False
         if invitation.revoked_at is not None:
             return False
-        return invitation.expires_at is None or invitation.expires_at > now
+        expires_at = BoardGuestAccessService._as_utc(invitation.expires_at)
+        normalized_now = BoardGuestAccessService._as_utc(now)
+        assert normalized_now is not None
+        return expires_at is None or expires_at > normalized_now
 
     @staticmethod
     def _standalone_document(

@@ -16,7 +16,6 @@ from tutor_assistant_web.modules.boards.application import (
     canonical_json,
 )
 from tutor_assistant_web.modules.boards.collaboration import (
-    CollaborationTicket,
     run_collaboration_socket,
     validate_websocket_origin,
 )
@@ -49,7 +48,7 @@ from tutor_assistant_web.observability import (
     BOARD_SYNC_EVENTS,
 )
 from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
-from tutor_assistant_web.shared.errors import NotFoundError
+from tutor_assistant_web.shared.errors import ApplicationError, NotFoundError
 
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
 
@@ -309,7 +308,7 @@ def create_router(container: AppContainer) -> APIRouter:
         if teacher is not None:
             try:
                 access.require_read(teacher, issue.document)
-            except Exception:
+            except ApplicationError:
                 pass
             else:
                 return response

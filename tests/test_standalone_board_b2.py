@@ -462,10 +462,14 @@ def test_revoke_and_rotate_invalidate_old_credentials_and_public_join_is_non_enu
     revoked_join = client.get(join_path, follow_redirects=False)
     random_join = client.get("/j/not-a-real-invitation-secret-00000000", follow_redirects=False)
     assert revoked_join.status_code == random_join.status_code == 404
-    assert revoked_join.json() == random_join.json() == {
-        "code": "invitation_invalid",
-        "detail": "This invitation link is unavailable.",
-    }
+    assert (
+        revoked_join.json()
+        == random_join.json()
+        == {
+            "code": "invitation_invalid",
+            "detail": "This invitation link is unavailable.",
+        }
+    )
     assert old_secret not in revoked_join.text
 
     _login(client)
@@ -575,9 +579,7 @@ def test_invitation_orm_never_persists_join_secret(b2_api):
     result = _create_invitation(client, board_id, teacher["csrfToken"])
     _, secret = _join_path(result)
     with database.sessions() as session:
-        document = session.scalar(
-            select(BoardDocument).where(BoardDocument.id == board_id)
-        )
+        document = session.scalar(select(BoardDocument).where(BoardDocument.id == board_id))
         invitation = session.scalar(
             select(BoardInvitation).where(BoardInvitation.board_document_id == board_id)
         )
