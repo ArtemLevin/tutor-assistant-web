@@ -371,7 +371,9 @@ class BoardGuestAccessService:
             displayName=principal.full_name or principal.user_id,
             capabilities=list(self._ordered_capabilities(capabilities)),
             csrfToken=csrf_token,
-            cacheScopeId=self._opaque("teacher-cache", principal.organization_id, principal.user_id),
+            cacheScopeId=self._opaque(
+                "teacher-cache", principal.organization_id, principal.user_id
+            ),
             accessEpoch=self._opaque("teacher-epoch", document.id, principal.user_id),
             organizationId=principal.organization_id,
             userId=principal.user_id,

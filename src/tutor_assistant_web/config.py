@@ -127,6 +127,8 @@ class Settings(BaseSettings):
     session_max_age: int = Field(default=60 * 60 * 12, ge=300)
     session_idle_timeout: int = Field(default=60 * 60, ge=300)
     session_rotation_seconds: int = Field(default=15 * 60, ge=60)
+    board_guest_cookie_name: str = "tutorboard_guest"
+    board_guest_session_max_age: int = Field(default=60 * 60 * 12, ge=300, le=60 * 60 * 24 * 30)
     rate_limit_login: int = Field(default=10, ge=1, le=1000)
     rate_limit_invitations: int = Field(default=30, ge=1, le=1000)
     rate_limit_callbacks: int = Field(default=120, ge=1, le=10000)

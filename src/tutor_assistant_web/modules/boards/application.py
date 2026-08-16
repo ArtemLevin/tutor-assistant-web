@@ -271,7 +271,7 @@ class BoardPersistenceService:
     def append_commands(
         self,
         envelope: BoardCommandEnvelope,
-        actor_user_id: str,
+        actor_user_id: str | None,
     ) -> BoardCommandBatch:
         payload, encoded, payload_sha256 = canonical_json(envelope)
         if len(encoded) > self.max_command_bytes:
@@ -289,7 +289,8 @@ class BoardPersistenceService:
         else:
             lamport_min, lamport_max = lamport_range
         with self.database.sessions() as session:
-            self._require_active_membership(session, actor_user_id)
+            if actor_user_id is not None:
+                self._require_active_membership(session, actor_user_id)
             existing = session.scalar(
                 select(BoardCommandBatch).where(
                     BoardCommandBatch.organization_id == self.organization_id,
