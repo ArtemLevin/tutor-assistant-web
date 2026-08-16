@@ -288,7 +288,7 @@ def _alembic_config(database: Database) -> Config:
 def test_migration_0015_can_downgrade_before_standalone_rows_exist(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'migration-b1.db'}")
     config = _alembic_config(database)
-    command.upgrade(config, "0014_board_command_origins")
+    command.upgrade(config, "0014_board_origins")
     command.upgrade(config, "0015_standalone_board_persistence")
     columns = {
         column["name"]: column for column in inspect(database.engine).get_columns("board_documents")
@@ -297,7 +297,7 @@ def test_migration_0015_can_downgrade_before_standalone_rows_exist(tmp_path):
     assert columns["student_id"]["nullable"] is True
     assert {"owner_user_id", "title", "guest_writes_enabled", "access_version"} <= set(columns)
 
-    command.downgrade(config, "0014_board_command_origins")
+    command.downgrade(config, "0014_board_origins")
     downgraded = {
         column["name"]: column for column in inspect(database.engine).get_columns("board_documents")
     }
@@ -317,4 +317,4 @@ def test_migration_0015_refuses_schema_downgrade_with_standalone_data(standalone
     assert created.status_code == 201
 
     with pytest.raises(RuntimeError, match="Cannot downgrade standalone board persistence"):
-        command.downgrade(_alembic_config(database), "0014_board_command_origins")
+        command.downgrade(_alembic_config(database), "0014_board_origins")
