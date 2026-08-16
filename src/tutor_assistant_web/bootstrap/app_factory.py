@@ -21,6 +21,7 @@ from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.audit.module import MODULE as AUDIT_MODULE
 from tutor_assistant_web.modules.automation.module import MODULE as AUTOMATION_MODULE
 from tutor_assistant_web.modules.boards.module import MODULE as BOARDS_MODULE
+from tutor_assistant_web.modules.boards.standalone_contracts import StandaloneBoardProblem
 from tutor_assistant_web.modules.classroom.module import MODULE as CLASSROOM_MODULE
 from tutor_assistant_web.modules.dashboard.module import MODULE as DASHBOARD_MODULE
 from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
@@ -103,6 +104,15 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
 
     @app.exception_handler(ApplicationError)
     async def handle_application_error(request: Request, exc: ApplicationError):
+        if isinstance(exc, StandaloneBoardProblem):
+            response = JSONResponse(
+                {"code": exc.code, "detail": str(exc)},
+                status_code=exc.status_code,
+                headers={"Cache-Control": "private, no-store"},
+            )
+            if exc.code in {"guest_session_invalid", "guest_session_version_mismatch"}:
+                container.board_guest_access_service().clear_guest_cookie(response)
+            return response
         if request.url.path.startswith("/api/"):
             return JSONResponse(
                 {

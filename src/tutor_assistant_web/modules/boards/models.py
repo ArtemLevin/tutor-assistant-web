@@ -135,6 +135,12 @@ class BoardDocument(Base):
     )
 
     lesson: Mapped[Lesson | None] = relationship("Lesson")
+    invitations: Mapped[list[BoardInvitation]] = relationship(
+        "BoardInvitation",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="BoardInvitation.created_at",
+    )
     command_batches: Mapped[list[BoardCommandBatch]] = relationship(
         "BoardCommandBatch",
         back_populates="document",
@@ -157,6 +163,61 @@ class BoardDocument(Base):
         back_populates="document",
         cascade="all, delete-orphan",
         order_by="BoardEvidence.finalized_at",
+    )
+
+
+class BoardInvitation(Base):
+    __tablename__ = "board_invitations"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "board_document_id"],
+            ["board_documents.organization_id", "board_documents.id"],
+            name="fk_board_invitations_org_document",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("secret_digest", name="uq_board_invitations_secret_digest"),
+        CheckConstraint(
+            "length(trim(display_name)) > 0",
+            name="ck_board_invitations_display_name",
+        ),
+        CheckConstraint(
+            "credential_version > 0",
+            name="ck_board_invitations_credential_version",
+        ),
+        CheckConstraint(
+            "access_version > 0",
+            name="ck_board_invitations_access_version",
+        ),
+        CheckConstraint("use_count >= 0", name="ck_board_invitations_use_count"),
+        Index(
+            "ix_board_invitations_org_board_created",
+            "organization_id",
+            "board_document_id",
+            "created_at",
+        ),
+        Index("ix_board_invitations_expires", "expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(String(36))
+    board_document_id: Mapped[str] = mapped_column(String(128))
+    secret_digest: Mapped[str] = mapped_column(String(64), unique=True)
+    display_name: Mapped[str] = mapped_column(String(160))
+    write_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    credential_version: Mapped[int] = mapped_column(BigInteger, default=1)
+    access_version: Mapped[int] = mapped_column(BigInteger, default=1)
+    use_count: Mapped[int] = mapped_column(BigInteger, default=0)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+    document: Mapped[BoardDocument] = relationship(
+        "BoardDocument",
+        back_populates="invitations",
     )
 
 

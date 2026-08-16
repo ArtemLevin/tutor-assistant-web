@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 
+from tutor_assistant_web.shared.errors import ApplicationError
+
 BoardCapability = Literal[
     "board.read",
     "board.write",
@@ -15,6 +17,13 @@ BoardCapability = Literal[
     "board.archive",
     "board.delete",
 ]
+
+
+class StandaloneBoardProblem(ApplicationError):
+    def __init__(self, code: str, detail: str, status_code: int) -> None:
+        super().__init__(detail)
+        self.code = code
+        self.status_code = status_code
 
 
 class _StandaloneContextBase(BaseModel):

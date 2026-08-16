@@ -57,7 +57,18 @@ paths:
       summary: Resolve the effective teacher or guest principal before sync starts.
       description: >-
         Teacher authentication wins when teacher and guest cookies coexist.
-        Guest callers are board-scoped.
+        Guest callers are board-scoped. Standalone teacher callers MUST supply
+        boardId so the server can return a strict board-scoped context. Omitting
+        boardId is reserved for the temporary legacy authenticated-context bridge
+        and is outside this standalone contract.
+      parameters:
+        - name: boardId
+          in: query
+          required: false
+          schema: { type: string, minLength: 1, maxLength: 128 }
+          description: >-
+            Required for standalone teacher callers. Guest sessions are already
+            scoped to exactly one board and may omit it.
       responses:
         '200':
           description: Effective access context.

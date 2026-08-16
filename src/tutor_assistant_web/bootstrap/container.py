@@ -109,6 +109,11 @@ class AppContainer:
             delete_grace_days=self.settings.board_delete_grace_days,
         )
 
+    def board_guest_access_service(self):
+        from tutor_assistant_web.modules.boards.guest_access import BoardGuestAccessService
+
+        return BoardGuestAccessService(self.database, self.settings)
+
     def board_evidence_service(self, organization_id: str):
         from tutor_assistant_web.modules.boards.evidence import BoardEvidenceService
 
