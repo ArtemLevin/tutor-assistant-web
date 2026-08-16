@@ -1,0 +1,30 @@
+name: B2 rate limit fix
+
+on:
+  push:
+    branches:
+      - agent/b2-guest-invitations
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/b2-guest-invitations
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: |
+          python tools/b2_rate_limit_fix.py
+          uvx ruff format src/tutor_assistant_web/shared/middleware.py
+          rm tools/b2_rate_limit_fix.py .github/workflows/b2-rate-limit-fix.yml
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'fix: scope standalone invitation rate limit response'
+          git push origin HEAD:agent/b2-guest-invitations
