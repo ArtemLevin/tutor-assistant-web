@@ -46,10 +46,23 @@ from tutor_assistant_web.shared.errors import NotFoundError
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
 
 
-class CreateBoardRequest(BaseModel):
+class CreateLessonBoardRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     document_id: str = Field(alias="documentId", min_length=1, max_length=128)
+
+
+class CreateStandaloneBoardRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(default="Новая доска", min_length=1, max_length=200)
+
+
+class UpdateStandaloneBoardRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    guest_writes_enabled: bool | None = Field(default=None, alias="guestWritesEnabled")
 
 
 class CollaborationTicketRequest(BaseModel):
@@ -153,12 +166,82 @@ def create_router(container: AppContainer) -> APIRouter:
             ).observe(event.duration_ms / 1000)
         return Response(status_code=204)
 
+    @router.post("/boards", status_code=201)
+    async def create_standalone_board(request: Request):
+        actor = principal(request)
+        access.require_create(actor)
+        web.validate_csrf_header(request)
+        body = await _validated_body(
+            request,
+            CreateStandaloneBoardRequest,
+            _CREATE_REQUEST_MAX_BYTES,
+        )
+        document = service(actor).create_standalone(actor.user_id, body.title)
+        audit(actor, "board.created", document, {"mode": "standalone"})
+        return JSONResponse(
+            _standalone_board_payload(document),
+            status_code=201,
+            headers=_board_headers(document, web.csrf_token(request)),
+        )
+
+    @router.get("/boards")
+    def list_standalone_boards(
+        request: Request,
+        include_archived: bool = Query(default=False, alias="includeArchived"),
+    ):
+        actor = principal(request)
+        access.require_create(actor)
+        documents = service(actor).list_owned_standalone(
+            actor.user_id,
+            include_archived=include_archived,
+        )
+        return JSONResponse(
+            {"items": [_standalone_board_payload(item) for item in documents]},
+            headers={"Cache-Control": "private, no-store"},
+        )
+
+    @router.patch("/boards/{document_id}")
+    async def update_standalone_board(request: Request, document_id: str):
+        actor = principal(request)
+        boards, document = document_for(actor, document_id, operation="manage")
+        if document.lesson_id is not None or document.student_id is not None:
+            raise NotFoundError("Standalone-доска не найдена")
+        web.validate_csrf_header(request)
+        body = await _validated_body(
+            request,
+            UpdateStandaloneBoardRequest,
+            _CREATE_REQUEST_MAX_BYTES,
+        )
+        if not body.model_fields_set:
+            raise HTTPException(422, "Нужно изменить хотя бы одно поле")
+        if "title" in body.model_fields_set and body.title is None:
+            raise HTTPException(422, "title не может быть null")
+        updated = boards.update_standalone(
+            document_id,
+            title=body.title if "title" in body.model_fields_set else None,
+            guest_writes_enabled=(
+                body.guest_writes_enabled
+                if "guest_writes_enabled" in body.model_fields_set
+                else None
+            ),
+        )
+        audit(
+            actor,
+            "board.updated",
+            updated,
+            {"access_version": updated.access_version},
+        )
+        return JSONResponse(
+            _standalone_board_payload(updated),
+            headers=_board_headers(updated, web.csrf_token(request)),
+        )
+
     @router.post("/lessons/{lesson_id}/board", status_code=201)
     async def create_board(request: Request, lesson_id: str):
         actor = principal(request)
         access.require_create(actor)
         web.validate_csrf_header(request)
-        body = await _validated_body(request, CreateBoardRequest, _CREATE_REQUEST_MAX_BYTES)
+        body = await _validated_body(request, CreateLessonBoardRequest, _CREATE_REQUEST_MAX_BYTES)
         boards = service(actor)
         try:
             existing = boards.get(body.document_id)
@@ -727,14 +810,37 @@ def _snapshot_due(boards: BoardPersistenceService, document: BoardDocument) -> b
     )
 
 
+def _standalone_board_payload(document: BoardDocument) -> dict:
+    if document.lesson_id is not None or document.student_id is not None:
+        raise ValueError("Standalone descriptor requested for a lesson-bound board")
+    if document.title is None:
+        raise ValueError("Standalone board is missing title")
+    return {
+        "schemaVersion": "1.0",
+        "boardId": document.id,
+        "title": document.title,
+        "currentRevision": document.current_revision,
+        "guestWritesEnabled": document.guest_writes_enabled,
+        "archivedAt": document.archived_at.isoformat() if document.archived_at else None,
+        "deletedAt": document.deleted_at.isoformat() if document.deleted_at else None,
+        "createdAt": document.created_at.isoformat(),
+        "updatedAt": document.updated_at.isoformat(),
+    }
+
+
 def _board_response(
     document: BoardDocument,
     csrf_token: str,
     *,
     status_code: int,
 ) -> JSONResponse:
+    payload = (
+        _standalone_board_payload(document)
+        if document.lesson_id is None and document.student_id is None
+        else _board_payload(document, False)
+    )
     return JSONResponse(
-        _board_payload(document, False),
+        payload,
         status_code=status_code,
         headers=_board_headers(document, csrf_token),
     )
