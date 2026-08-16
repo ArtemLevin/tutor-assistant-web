@@ -110,6 +110,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if count > limit:
                 logger.warning("Rate limit exceeded", extra={"category": category})
                 headers = {"Retry-After": str(self.settings.rate_limit_window_seconds)}
+                path = request.url.path
                 if path.startswith("/j/") or (
                     path.startswith("/api/v1/boards/") and "/invitations" in path
                 ):
