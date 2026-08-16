@@ -84,7 +84,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if request.method == "POST" and path == "/login":
             return "login", self.settings.rate_limit_login
-        if "invitation" in path:
+        if "invitation" in path or path.startswith("/j/"):
             return "invitations", self.settings.rate_limit_invitations
         if path.startswith("/webhooks/"):
             return "callbacks", self.settings.rate_limit_callbacks
@@ -109,10 +109,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 await asyncio.sleep(min(0.05 * (count - 3), 0.5))
             if count > limit:
                 logger.warning("Rate limit exceeded", extra={"category": category})
+                headers = {"Retry-After": str(self.settings.rate_limit_window_seconds)}
+                if path.startswith("/j/") or (
+                    path.startswith("/api/v1/boards/") and "/invitations" in path
+                ):
+                    headers["Cache-Control"] = "no-store"
+                    return JSONResponse(
+                        {
+                            "code": "rate_limit_exceeded",
+                            "detail": "Too many invitation requests. Retry later.",
+                        },
+                        status_code=429,
+                        headers=headers,
+                    )
                 return JSONResponse(
                     {"detail": "Слишком много запросов. Повторите попытку позже."},
                     status_code=429,
-                    headers={"Retry-After": str(self.settings.rate_limit_window_seconds)},
+                    headers=headers,
                 )
         return await call_next(request)
 

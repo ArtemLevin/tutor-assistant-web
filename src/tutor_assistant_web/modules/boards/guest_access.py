@@ -383,7 +383,15 @@ class BoardGuestAccessService:
     def validate_csrf_header(self, request: Request, principal: GuestPrincipal) -> None:
         supplied = request.headers.get("x-csrf-token", "")
         if not supplied or not secrets.compare_digest(supplied, principal.csrf_token):
-            raise GuestSessionInvalid("Guest CSRF token is missing or stale")
+            from tutor_assistant_web.modules.boards.standalone_contracts import (
+                StandaloneBoardProblem,
+            )
+
+            raise StandaloneBoardProblem(
+                "guest_session_invalid",
+                "Guest CSRF token is missing or stale.",
+                403,
+            )
 
     def validate_access_epoch_header(self, request: Request, principal: GuestPrincipal) -> None:
         supplied = request.headers.get("x-board-access-epoch", "")

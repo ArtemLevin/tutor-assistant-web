@@ -86,7 +86,8 @@ _SENSITIVE_KEYS = re.compile(
 _BEARER = re.compile(r"(?i)bearer\s+[a-z0-9._~+\-/]+=*")
 _EMAIL = re.compile(r"(?<![\w.-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}(?![\w.-])")
 _PHONE = re.compile(r"(?<![\w])(?:\+?7|8)[ ()-]?\d{3}[ ()-]?\d{3}[ -]?\d{2}[ -]?\d{2}(?![\w])")
-_SECRET_QUERY = re.compile(r"(?i)(token|secret|password|checksum)=([^&\s]+)")
+_SECRET_QUERY = re.compile(r"(?i)(token|secret|ticket|password|checksum)=([^&\s]+)")
+_JOIN_PATH = re.compile(r"(?i)(/j/)[^/?#\s]+")
 _CORRELATION_ID = re.compile(
     r"(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}|"
     r"[0-9A-HJKMNP-TV-Z]{26})"
@@ -119,6 +120,7 @@ def redact(value: Any, key: str = "") -> Any:
         value = _BEARER.sub("Bearer [REDACTED]", value)
         value = _EMAIL.sub("[REDACTED_EMAIL]", value)
         value = _PHONE.sub("[REDACTED_PHONE]", value)
+        value = _JOIN_PATH.sub(r"\1[REDACTED]", value)
         return _SECRET_QUERY.sub(lambda match: f"{match.group(1)}=[REDACTED]", value)
     return value
 
@@ -182,10 +184,27 @@ def _configure_tracer(settings: Settings) -> None:
     _tracing_configured = True
 
 
+def _server_request_hook(span, scope: dict[str, Any]) -> None:
+    if span is None or not getattr(span, "is_recording", lambda: False)():
+        return
+    path = str(scope.get("path", ""))
+    query = scope.get("query_string", b"")
+    if isinstance(query, bytes):
+        query_text = query.decode("latin-1", errors="replace")
+    else:
+        query_text = str(query or "")
+    safe_path = str(redact(path))
+    safe_query = str(redact(query_text))
+    target = safe_path + (f"?{safe_query}" if safe_query else "")
+    span.set_attribute("url.path", safe_path)
+    span.set_attribute("url.query", safe_query)
+    span.set_attribute("http.target", target)
+
+
 def configure_telemetry(app, settings: Settings, engine) -> None:
     _configure_tracer(settings)
     if not getattr(app.state, "otel_instrumented", False):
-        FastAPIInstrumentor.instrument_app(app)
+        FastAPIInstrumentor.instrument_app(app, server_request_hook=_server_request_hook)
         app.state.otel_instrumented = True
     if not getattr(engine, "_tutor_otel_instrumented", False):
         SQLAlchemyInstrumentor().instrument(engine=engine)
