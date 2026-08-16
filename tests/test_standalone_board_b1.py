@@ -289,7 +289,7 @@ def test_migration_0015_can_downgrade_before_standalone_rows_exist(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'migration-b1.db'}")
     config = _alembic_config(database)
     command.upgrade(config, "0014_board_origins")
-    command.upgrade(config, "0015_standalone_board_persistence")
+    command.upgrade(config, "0015_standalone_boards")
     columns = {
         column["name"]: column for column in inspect(database.engine).get_columns("board_documents")
     }

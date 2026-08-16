@@ -10,7 +10,7 @@ loss when restoring the legacy NOT NULL lesson/student linkage.
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0015_standalone_board_persistence"
+revision = "0015_standalone_boards"
 down_revision = "0014_board_origins"
 branch_labels = None
 depends_on = None
