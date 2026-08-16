@@ -36,6 +36,7 @@ from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema imp
 )
 from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 from tutor_assistant_web.shared.contracts import ArtifactStorage
+from tutor_assistant_web.shared.models import new_id
 from tutor_assistant_web.shared.errors import (
     ConflictError,
     GoneError,
@@ -46,6 +47,7 @@ from tutor_assistant_web.shared.errors import (
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _UNSAFE_IDENTIFIERS = {"__proto__", "constructor", "prototype"}
 _LOGGER = logging.getLogger(__name__)
+_DEFAULT_STANDALONE_BOARD_TITLE = "Новая доска"
 
 
 class BoardRevisionConflict(ConflictError):
@@ -165,6 +167,76 @@ class BoardPersistenceService:
                 if existing is not None:
                     return self._resolve_existing_document(existing, document_id)
             raise ConflictError("Идентификатор доски уже используется") from exc
+
+    def create_standalone(
+        self,
+        owner_user_id: str,
+        title: str | None = None,
+    ) -> BoardDocument:
+        normalized_title = _normalize_standalone_title(title)
+        with self.database.sessions() as session:
+            self._require_active_membership(session, owner_user_id)
+            document = BoardDocument(
+                id=new_id(),
+                organization_id=self.organization_id,
+                student_id=None,
+                lesson_id=None,
+                owner_user_id=owner_user_id,
+                title=normalized_title,
+                guest_writes_enabled=True,
+                access_version=1,
+            )
+            session.add(document)
+            try:
+                session.commit()
+            except IntegrityError as exc:
+                session.rollback()
+                raise ConflictError("Не удалось создать standalone-доску") from exc
+            return document
+
+    def list_owned_standalone(
+        self,
+        owner_user_id: str,
+        *,
+        include_archived: bool = True,
+    ) -> list[BoardDocument]:
+        with self.database.sessions() as session:
+            query = select(BoardDocument).where(
+                BoardDocument.organization_id == self.organization_id,
+                BoardDocument.owner_user_id == owner_user_id,
+                BoardDocument.lesson_id.is_(None),
+                BoardDocument.student_id.is_(None),
+                BoardDocument.deleted_at.is_(None),
+            )
+            if not include_archived:
+                query = query.where(BoardDocument.archived_at.is_(None))
+            return list(session.scalars(query.order_by(BoardDocument.updated_at.desc())))
+
+    def update_standalone(
+        self,
+        document_id: str,
+        *,
+        title: str | None = None,
+        guest_writes_enabled: bool | None = None,
+    ) -> BoardDocument:
+        with self.database.sessions() as session:
+            document = self._locked_document(
+                session,
+                document_id,
+                allow_archived=True,
+            )
+            if document.lesson_id is not None or document.student_id is not None:
+                raise NotFoundError("Standalone-доска не найдена")
+            if title is not None:
+                document.title = _normalize_standalone_title(title)
+            if (
+                guest_writes_enabled is not None
+                and document.guest_writes_enabled != guest_writes_enabled
+            ):
+                document.guest_writes_enabled = guest_writes_enabled
+                document.access_version += 1
+            session.commit()
+            return document
 
     def get(self, document_id: str, *, include_deleted: bool = False) -> BoardDocument:
         with self.database.sessions() as session:
@@ -566,7 +638,9 @@ class BoardPersistenceService:
                 document_id,
                 allow_archived=True,
             )
-            document.archived_at = document.archived_at or datetime.now(UTC)
+            if document.archived_at is None:
+                document.archived_at = datetime.now(UTC)
+                document.access_version += 1
             session.commit()
             return document
 
@@ -577,7 +651,9 @@ class BoardPersistenceService:
                 document_id,
                 allow_archived=True,
             )
-            document.archived_at = None
+            if document.archived_at is not None:
+                document.archived_at = None
+                document.access_version += 1
             session.commit()
             return document
 
@@ -656,6 +732,7 @@ class BoardPersistenceService:
                 return document
             document.deleted_at = now
             document.purge_after = purge_after
+            document.access_version += 1
             for snapshot in session.scalars(
                 select(BoardSnapshot).where(
                     BoardSnapshot.organization_id == self.organization_id,
@@ -915,6 +992,15 @@ class BoardPersistenceService:
             snapshot.storage_status = BoardSnapshotStatus.quarantined.value
             snapshot.upload_error = reason[:2000]
             session.commit()
+
+
+def _normalize_standalone_title(value: str | None) -> str:
+    normalized = (value or _DEFAULT_STANDALONE_BOARD_TITLE).strip()
+    if not normalized:
+        raise ValidationError("Название доски не может быть пустым")
+    if len(normalized) > 200:
+        raise ValidationError("Название доски не может быть длиннее 200 символов")
+    return normalized
 
 
 def _validate_identifier(value: str) -> None:

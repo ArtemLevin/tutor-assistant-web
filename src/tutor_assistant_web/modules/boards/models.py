@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -52,6 +54,24 @@ class BoardDocument(Base):
             name="fk_board_documents_org_student_lesson",
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["organization_id", "owner_user_id"],
+            ["memberships.organization_id", "memberships.user_id"],
+            name="fk_board_documents_org_owner_membership",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "((lesson_id IS NOT NULL AND student_id IS NOT NULL) OR "
+            "(lesson_id IS NULL AND student_id IS NULL))",
+            name="ck_board_documents_linkage",
+        ),
+        CheckConstraint(
+            "lesson_id IS NOT NULL OR "
+            "(owner_user_id IS NOT NULL AND title IS NOT NULL "
+            "AND length(trim(title)) > 0)",
+            name="ck_board_documents_standalone_owner",
+        ),
+        CheckConstraint("access_version > 0", name="ck_board_documents_access_version"),
         CheckConstraint("current_revision >= 0", name="ck_board_documents_current_revision"),
         CheckConstraint(
             "last_snapshot_revision >= 0 AND last_snapshot_revision <= current_revision",
@@ -64,6 +84,12 @@ class BoardDocument(Base):
         CheckConstraint(
             "bytes_since_snapshot >= 0",
             name="ck_board_documents_bytes_since_snapshot",
+        ),
+        Index(
+            "ix_board_documents_org_owner_updated",
+            "organization_id",
+            "owner_user_id",
+            "updated_at",
         ),
         Index(
             "ix_board_documents_org_student_updated",
@@ -84,8 +110,12 @@ class BoardDocument(Base):
         primary_key=True,
         index=True,
     )
-    student_id: Mapped[str] = mapped_column(String(36), index=True)
-    lesson_id: Mapped[str] = mapped_column(String(36), index=True)
+    student_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    lesson_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    owner_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    guest_writes_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    access_version: Mapped[int] = mapped_column(BigInteger, default=1)
     schema_version: Mapped[str] = mapped_column(String(16), default="1.0")
     current_revision: Mapped[int] = mapped_column(Integer, default=0)
     current_document_sha256: Mapped[str] = mapped_column(String(64), default="")
@@ -104,7 +134,7 @@ class BoardDocument(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
 
-    lesson: Mapped[Lesson] = relationship("Lesson")
+    lesson: Mapped[Lesson | None] = relationship("Lesson")
     command_batches: Mapped[list[BoardCommandBatch]] = relationship(
         "BoardCommandBatch",
         back_populates="document",

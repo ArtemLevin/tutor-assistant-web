@@ -21,13 +21,19 @@ class BoardAccessPolicy:
             raise ForbiddenError("Создавать доски могут только преподаватели и администраторы")
 
     def require_read(self, principal: Principal, document: BoardDocument) -> None:
-        if principal.role in {MembershipRole.admin.value, MembershipRole.tutor.value}:
+        if principal.role == MembershipRole.admin.value:
+            return
+        if principal.role == MembershipRole.tutor.value:
+            if self._is_standalone(document) and document.owner_user_id != principal.user_id:
+                raise NotFoundError("Доска не найдена")
             return
         if principal.role not in {
             MembershipRole.student.value,
             MembershipRole.parent.value,
         }:
             raise ForbiddenError("Роль не поддерживает доступ к доскам")
+        if self._is_standalone(document) or document.student_id is None:
+            raise NotFoundError("Доска не найдена")
         if not self._has_student_access(principal, document.student_id):
             raise NotFoundError("Доска не найдена")
 
@@ -40,6 +46,10 @@ class BoardAccessPolicy:
         self.require_read(principal, document)
         if principal.role not in {MembershipRole.admin.value, MembershipRole.tutor.value}:
             raise ForbiddenError("Удалять доски могут только преподаватели и администраторы")
+
+    @staticmethod
+    def _is_standalone(document: BoardDocument) -> bool:
+        return document.lesson_id is None and document.student_id is None
 
     def _has_student_access(self, principal: Principal, student_id: str) -> bool:
         with self.database.sessions() as session:

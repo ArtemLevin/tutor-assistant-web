@@ -80,8 +80,7 @@ def downgrade() -> None:
     connection = op.get_bind()
     standalone_count = connection.execute(
         sa.text(
-            "SELECT COUNT(*) FROM board_documents "
-            "WHERE lesson_id IS NULL OR student_id IS NULL"
+            "SELECT COUNT(*) FROM board_documents WHERE lesson_id IS NULL OR student_id IS NULL"
         )
     ).scalar_one()
     if int(standalone_count) > 0:
