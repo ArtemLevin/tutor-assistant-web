@@ -1,0 +1,30 @@
+name: B2 migration parity fix
+
+on:
+  push:
+    branches:
+      - agent/b2-guest-invitations
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/b2-guest-invitations
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - run: |
+          python tools/b2_migration_parity_fix.py
+          uvx ruff format src/tutor_assistant_web/modules/boards/models.py
+          rm tools/b2_migration_parity_fix.py .github/workflows/b2-migration-parity-fix.yml
+      - run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+ArtemLevin@users.noreply.github.com
+          git add -A
+          git commit -m 'fix: align B2 ORM indexes with migration'
+          git push origin HEAD:agent/b2-guest-invitations
