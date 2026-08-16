@@ -199,8 +199,8 @@ class BoardInvitation(Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    organization_id: Mapped[str] = mapped_column(String(36), index=True)
-    board_document_id: Mapped[str] = mapped_column(String(128), index=True)
+    organization_id: Mapped[str] = mapped_column(String(36))
+    board_document_id: Mapped[str] = mapped_column(String(128))
     secret_digest: Mapped[str] = mapped_column(String(64), unique=True)
     display_name: Mapped[str] = mapped_column(String(160))
     write_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
