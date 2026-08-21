@@ -1,0 +1,247 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-20m}
+    max-file: ${DOCKER_LOG_MAX_FILES:-5}
+
+x-board-environment: &board-environment
+  APP_PROFILE: board
+  APP_ENV: production
+  AUTO_MIGRATE: "false"
+  SEED_DEMO_DATA: "false"
+  TASK_EAGER: "true"
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_SAME_SITE: lax
+  LOG_JSON: "true"
+  METRICS_ENABLED: "true"
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}
+  TRUSTED_HOSTS: ${TRUSTED_HOSTS:?set TRUSTED_HOSTS}
+  TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:?set TRUSTED_PROXY_IPS}
+  DATABASE_URL_FILE: /run/secrets/database_url
+  REDIS_URL_FILE: /run/secrets/redis_url
+  APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
+  BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/bootstrap_admin_password
+  ARTIFACT_S3_SECRET_KEY_FILE: /run/secrets/artifact_s3_secret_key
+  METRICS_BEARER_TOKEN_FILE: /run/secrets/metrics_bearer_token
+  BACKUP_S3_SECRET_KEY_FILE: /run/secrets/backup_s3_secret_key
+  ARTIFACT_STORAGE_PROVIDER: s3
+  ARTIFACT_S3_ENDPOINT_URL: ${ARTIFACT_S3_ENDPOINT_URL:?set ARTIFACT_S3_ENDPOINT_URL}
+  ARTIFACT_S3_REGION: ${ARTIFACT_S3_REGION:-us-east-1}
+  ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:?set ARTIFACT_S3_BUCKET}
+  ARTIFACT_S3_ACCESS_KEY: ${ARTIFACT_S3_ACCESS_KEY:?set ARTIFACT_S3_ACCESS_KEY}
+  ARTIFACT_CLAMAV_ENABLED: "false"
+  BOARD_COMMAND_MAX_SIZE_MB: ${BOARD_COMMAND_MAX_SIZE_MB:-5}
+  BOARD_SNAPSHOT_MAX_SIZE_MB: ${BOARD_SNAPSHOT_MAX_SIZE_MB:-50}
+  BOARD_SNAPSHOT_INTERVAL_COMMANDS: ${BOARD_SNAPSHOT_INTERVAL_COMMANDS:-100}
+  BOARD_SNAPSHOT_INTERVAL_MB: ${BOARD_SNAPSHOT_INTERVAL_MB:-5}
+  BOARD_RETENTION_DAYS: ${BOARD_RETENTION_DAYS:-365}
+  BOARD_DELETE_GRACE_DAYS: ${BOARD_DELETE_GRACE_DAYS:-30}
+  RATE_LIMIT_BOARD_READS: ${RATE_LIMIT_BOARD_READS:-600}
+  RATE_LIMIT_BOARD_WRITES: ${RATE_LIMIT_BOARD_WRITES:-300}
+  RATE_LIMIT_INVITATIONS: ${RATE_LIMIT_INVITATIONS:-120}
+  BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:?set BACKUP_S3_BUCKET}
+  BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-tutorboard}
+  BACKUP_S3_ENDPOINT_URL: ${BACKUP_S3_ENDPOINT_URL:?set BACKUP_S3_ENDPOINT_URL}
+  BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+  BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:?set BACKUP_S3_ACCESS_KEY}
+  BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-35}
+  BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-79200}
+  BOOTSTRAP_ORGANIZATION_NAME: ${BOOTSTRAP_ORGANIZATION_NAME:-TutorBoard}
+  BOOTSTRAP_ORGANIZATION_SLUG: ${BOOTSTRAP_ORGANIZATION_SLUG:-tutorboard}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?set BOOTSTRAP_ADMIN_EMAIL}
+  BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Owner}
+
+x-board-secrets: &board-secrets
+  - database_url
+  - redis_url
+  - app_secret_key
+  - bootstrap_admin_password
+  - artifact_s3_secret_key
+  - metrics_bearer_token
+  - backup_s3_secret_key
+
+x-board-depends: &board-depends
+  postgres: {condition: service_healthy}
+  redis: {condition: service_healthy}
+
+x-board-api-common: &board-api-common
+  environment: *board-environment
+  secrets: *board-secrets
+  depends_on: *board-depends
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  cpus: ${BOARD_API_CPU_LIMIT:-2.0}
+  mem_limit: ${BOARD_API_MEMORY_LIMIT:-2g}
+  pids_limit: ${BOARD_API_PIDS_LIMIT:-512}
+  logging: *default-logging
+  networks: [frontend, backend, egress]
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+
+x-tutorboard-common: &tutorboard-common
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16m
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  cpus: ${TUTORBOARD_CPU_LIMIT:-1.0}
+  mem_limit: ${TUTORBOARD_MEMORY_LIMIT:-512m}
+  pids_limit: ${TUTORBOARD_PIDS_LIMIT:-256}
+  logging: *default-logging
+  networks: [frontend]
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+    interval: 10s
+    timeout: 3s
+    retries: 12
+    start_period: 10s
+
+services:
+  caddy:
+    image: caddy:2.10.0-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/board-production/runtime:/etc/caddy:ro
+      - board-caddy-data:/data
+      - board-caddy-config:/config
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+      - /config:rw,noexec,nosuid,size=32m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *default-logging
+    networks: [frontend, egress]
+
+  board-api-blue:
+    <<: *board-api-common
+    image: ${BOARD_API_BLUE_IMAGE:?set immutable BOARD_API_BLUE_IMAGE}
+    profiles: [blue]
+
+  board-api-green:
+    <<: *board-api-common
+    image: ${BOARD_API_GREEN_IMAGE:?set immutable BOARD_API_GREEN_IMAGE}
+    profiles: [green]
+
+  tutorboard-blue:
+    <<: *tutorboard-common
+    image: ${TUTORBOARD_BLUE_IMAGE:?set immutable TUTORBOARD_BLUE_IMAGE}
+    profiles: [blue]
+
+  tutorboard-green:
+    <<: *tutorboard-common
+    image: ${TUTORBOARD_GREEN_IMAGE:?set immutable TUTORBOARD_GREEN_IMAGE}
+    profiles: [green]
+
+  migration:
+    image: ${BOARD_MIGRATION_IMAGE:?set immutable BOARD_MIGRATION_IMAGE}
+    environment: *board-environment
+    secrets: *board-secrets
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=32m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *default-logging
+    profiles: [jobs]
+    networks: [backend, egress]
+
+  ops:
+    image: ${BOARD_OPS_IMAGE:?set immutable BOARD_OPS_IMAGE}
+    environment: *board-environment
+    secrets: *board-secrets
+    depends_on: *board-depends
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=64m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *default-logging
+    profiles: [jobs]
+    networks: [backend, egress]
+
+  backup:
+    image: ${BOARD_OPS_IMAGE:?set immutable BOARD_OPS_IMAGE}
+    command:
+      - /bin/sh
+      - -c
+      - while true; do if tutor-assistant-backup create; then sleep "$${BACKUP_INTERVAL_SECONDS}"; else sleep 900; fi; done
+    environment: *board-environment
+    secrets: *board-secrets
+    depends_on: *board-depends
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=64m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *default-logging
+    networks: [backend, egress]
+
+  postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tutorboard}
+      POSTGRES_USER: ${POSTGRES_USER:-tutorboard}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes: [board-postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging: *default-logging
+    networks: [backend]
+
+  redis:
+    image: redis:7.4.5-alpine
+    command: ["/bin/sh", "-c", "exec redis-server --appendonly yes --maxmemory-policy noeviction --requirepass \"$$(cat /run/secrets/redis_password)\""]
+    secrets: [redis_password]
+    volumes: [board-redis-data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$(cat /run/secrets/redis_password)\" ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging: *default-logging
+    networks: [backend]
+
+networks:
+  frontend:
+    internal: true
+  backend:
+    internal: true
+  egress:
+
+volumes:
+  board-postgres-data:
+  board-redis-data:
+  board-caddy-data:
+  board-caddy-config:
+
+secrets:
+  database_url: {file: ./deploy/board-production/secrets/database_url}
+  redis_url: {file: ./deploy/board-production/secrets/redis_url}
+  app_secret_key: {file: ./deploy/board-production/secrets/app_secret_key}
+  bootstrap_admin_password: {file: ./deploy/board-production/secrets/bootstrap_admin_password}
+  postgres_password: {file: ./deploy/board-production/secrets/postgres_password}
+  redis_password: {file: ./deploy/board-production/secrets/redis_password}
+  artifact_s3_secret_key: {file: ./deploy/board-production/secrets/artifact_s3_secret_key}
+  metrics_bearer_token: {file: ./deploy/board-production/secrets/metrics_bearer_token}
+  backup_s3_secret_key: {file: ./deploy/board-production/secrets/backup_s3_secret_key}
