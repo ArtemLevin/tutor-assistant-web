@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from tutor_assistant_web.config import Settings, get_settings
 
@@ -21,7 +21,7 @@ def resolve_app_profile(value: str | None = None) -> AppProfile:
         candidate = "full"
     if candidate not in {"full", "board"}:
         raise ValueError(f"Unsupported APP_PROFILE: {candidate}")
-    return candidate  # type: ignore[return-value]
+    return cast(AppProfile, candidate)
 
 
 def load_runtime_configuration(value: str | None = None) -> RuntimeConfiguration:
