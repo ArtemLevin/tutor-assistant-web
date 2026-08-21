@@ -33,7 +33,10 @@ class StandaloneBoardAccessPolicy:
             return
         if principal.role == MembershipRole.admin.value:
             return
-        if principal.role == MembershipRole.tutor.value and document.owner_user_id == principal.user_id:
+        if (
+            principal.role == MembershipRole.tutor.value
+            and document.owner_user_id == principal.user_id
+        ):
             return
         raise NotFoundError("Доска не найдена")
 
@@ -42,7 +45,9 @@ class StandaloneBoardAccessPolicy:
         if isinstance(principal, GuestPrincipal) and "board.write" not in principal.capabilities:
             raise StandaloneBoardProblem("board_read_only", "Board is read-only.", 403)
 
-    def require_manage(self, principal: Principal | GuestPrincipal, document: BoardDocument) -> None:
+    def require_manage(
+        self, principal: Principal | GuestPrincipal, document: BoardDocument
+    ) -> None:
         self.require_read(principal, document)
         if isinstance(principal, GuestPrincipal):
             raise StandaloneBoardProblem("board_not_found", "Board not found.", 404)

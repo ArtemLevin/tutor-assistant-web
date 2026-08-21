@@ -20,7 +20,10 @@ from tutor_assistant_web.modules.boards.standalone_routes import create_standalo
 from tutor_assistant_web.modules.identity.board_routes import create_board_identity_router
 from tutor_assistant_web.observability import configure_logging, configure_telemetry
 from tutor_assistant_web.shared.errors import ApplicationError
-from tutor_assistant_web.shared.middleware import RateLimitMiddleware, SecurityAndCorrelationMiddleware
+from tutor_assistant_web.shared.middleware import (
+    RateLimitMiddleware,
+    SecurityAndCorrelationMiddleware,
+)
 from tutor_assistant_web.version import __version__
 
 PACKAGE_DIR = Path(__file__).parent.parent
@@ -86,7 +89,9 @@ def create_board_app(settings: Settings, database: Database | None = None) -> Fa
     )
     app.add_middleware(
         ProxyHeadersMiddleware,
-        trusted_hosts={item.strip() for item in settings.trusted_proxy_ips.split(",") if item.strip()},
+        trusted_hosts={
+            item.strip() for item in settings.trusted_proxy_ips.split(",") if item.strip()
+        },
     )
 
     @app.exception_handler(ApplicationError)

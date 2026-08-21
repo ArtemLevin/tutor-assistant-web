@@ -59,7 +59,9 @@ class CreateBoardInvitationRequest(BaseModel):
 
 class UpdateBoardInvitationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    display_name: str | None = Field(default=None, alias="displayName", min_length=1, max_length=160)
+    display_name: str | None = Field(
+        default=None, alias="displayName", min_length=1, max_length=160
+    )
     write_enabled: bool | None = Field(default=None, alias="writeEnabled")
     expires_at: datetime | None = Field(default=None, alias="expiresAt")
 
@@ -251,7 +253,9 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
     async def create_board(request: Request):
         actor = principal(request)
         web.validate_csrf_header(request)
-        body = await _validated_body(request, CreateStandaloneBoardRequest, _CREATE_REQUEST_MAX_BYTES)
+        body = await _validated_body(
+            request, CreateStandaloneBoardRequest, _CREATE_REQUEST_MAX_BYTES
+        )
         document = service(actor).create_standalone(actor.user_id, body.title)
         audit(actor, "board.created", document, {"mode": "standalone"})
         return JSONResponse(
@@ -280,7 +284,9 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
         actor = principal(request)
         boards, document = document_for(actor, document_id, operation="manage")
         web.validate_csrf_header(request)
-        body = await _validated_body(request, UpdateStandaloneBoardRequest, _CREATE_REQUEST_MAX_BYTES)
+        body = await _validated_body(
+            request, UpdateStandaloneBoardRequest, _CREATE_REQUEST_MAX_BYTES
+        )
         if not body.model_fields_set:
             raise HTTPException(422, "Нужно изменить хотя бы одно поле")
         if "title" in body.model_fields_set and body.title is None:
@@ -340,7 +346,9 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
         actor = principal(request)
         _, document = document_for(actor, document_id, operation="manage")
         web.validate_csrf_header(request)
-        body = await _validated_body(request, CreateBoardInvitationRequest, _CREATE_REQUEST_MAX_BYTES)
+        body = await _validated_body(
+            request, CreateBoardInvitationRequest, _CREATE_REQUEST_MAX_BYTES
+        )
         try:
             invitation, raw_secret = guest_access.create_invitation(
                 document_id,
@@ -386,7 +394,9 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
         actor = principal(request)
         _, document = document_for(actor, document_id, operation="manage")
         web.validate_csrf_header(request)
-        body = await _validated_body(request, UpdateBoardInvitationRequest, _CREATE_REQUEST_MAX_BYTES)
+        body = await _validated_body(
+            request, UpdateBoardInvitationRequest, _CREATE_REQUEST_MAX_BYTES
+        )
         if not body.model_fields_set:
             raise HTTPException(422, "Нужно изменить хотя бы одно поле")
         if "display_name" in body.model_fields_set and body.display_name is None:
@@ -397,7 +407,9 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
                 actor.organization_id,
                 invitation_id,
                 display_name=body.display_name if "display_name" in body.model_fields_set else None,
-                write_enabled=body.write_enabled if "write_enabled" in body.model_fields_set else None,
+                write_enabled=body.write_enabled
+                if "write_enabled" in body.model_fields_set
+                else None,
                 expires_at=body.expires_at if "expires_at" in body.model_fields_set else ...,
             )
         except LookupError as exc:
@@ -473,8 +485,12 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
         recovery = boards.recovery(document_id)
         return JSONResponse(
             {
-                "board": _board_payload(recovery.document, _snapshot_due(boards, recovery.document)),
-                "snapshot": canonical_json(recovery.snapshot)[0] if recovery.snapshot is not None else None,
+                "board": _board_payload(
+                    recovery.document, _snapshot_due(boards, recovery.document)
+                ),
+                "snapshot": canonical_json(recovery.snapshot)[0]
+                if recovery.snapshot is not None
+                else None,
                 "commandBatches": [_command_payload(item) for item in recovery.command_batches],
             },
             headers=_board_headers(recovery.document, csrf_token(request, actor)),
