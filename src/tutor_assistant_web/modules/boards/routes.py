@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tutor_assistant_web.bootstrap.container import AppContainer
-from tutor_assistant_web.modules.boards.access import BoardAccessPolicy
+from tutor_assistant_web.modules.boards.access import BoardAccessPolicy, StandaloneBoardAccessPolicy
 from tutor_assistant_web.modules.boards.application import (
     BoardLamportConflict,
     BoardPersistenceService,
@@ -123,7 +123,11 @@ def create_router(container: AppContainer) -> APIRouter:
     root = APIRouter()
     router = APIRouter(prefix="/api/v1", tags=["boards"])
     web = container.web
-    access = BoardAccessPolicy(container.database)
+    access = (
+        StandaloneBoardAccessPolicy()
+        if container.settings.app_profile == "board"
+        else BoardAccessPolicy(container.database)
+    )
     guest_access = container.board_guest_access_service()
     router.include_router(create_geometry_gateway_router(container))
 

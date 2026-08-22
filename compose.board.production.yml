@@ -1,0 +1,305 @@
+name: ${BOARD_COMPOSE_PROJECT_NAME:-tutorboard-production}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: ${DOCKER_LOG_MAX_SIZE:-20m}
+    max-file: ${DOCKER_LOG_MAX_FILES:-5}
+
+x-board-environment: &board-environment
+  APP_PROFILE: board
+  APP_ENV: production
+  AUTO_MIGRATE: "false"
+  TASK_EAGER: "false"
+  SEED_DEMO_DATA: "false"
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_SAME_SITE: lax
+  LOG_JSON: "true"
+  METRICS_ENABLED: "true"
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?set PUBLIC_BASE_URL}
+  TRUSTED_HOSTS: ${TRUSTED_HOSTS:?set TRUSTED_HOSTS}
+  TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-172.16.0.0/12}
+  DATABASE_URL_FILE: /run/secrets/database_url
+  REDIS_URL_FILE: /run/secrets/redis_url
+  APP_SECRET_KEY_FILE: /run/secrets/app_secret_key
+  BOOTSTRAP_ADMIN_PASSWORD_FILE: /run/secrets/bootstrap_admin_password
+  ARTIFACT_S3_SECRET_KEY_FILE: /run/secrets/artifact_s3_secret_key
+  METRICS_BEARER_TOKEN_FILE: /run/secrets/metrics_bearer_token
+  BACKUP_S3_SECRET_KEY_FILE: /run/secrets/backup_s3_secret_key
+  ARTIFACT_STORAGE_PROVIDER: s3
+  ARTIFACT_S3_ENDPOINT_URL: ${ARTIFACT_S3_ENDPOINT_URL:-http://minio:9000}
+  ARTIFACT_S3_REGION: ${ARTIFACT_S3_REGION:-us-east-1}
+  ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:-tutorboard-artifacts}
+  ARTIFACT_S3_ACCESS_KEY: ${ARTIFACT_S3_ACCESS_KEY:-tutorboard-app}
+  ARTIFACT_CLAMAV_ENABLED: "false"
+  BACKUP_S3_ENDPOINT_URL: ${BACKUP_S3_ENDPOINT_URL:?set off-host BACKUP_S3_ENDPOINT_URL}
+  BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+  BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-tutorboard-backups}
+  BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-board-production}
+  BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:?set BACKUP_S3_ACCESS_KEY}
+  BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-79200}
+  BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-35}
+  BOOTSTRAP_ORGANIZATION_NAME: ${BOOTSTRAP_ORGANIZATION_NAME:-TutorBoard}
+  BOOTSTRAP_ORGANIZATION_SLUG: ${BOOTSTRAP_ORGANIZATION_SLUG:-board}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?set BOOTSTRAP_ADMIN_EMAIL}
+  BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Owner}
+
+x-board-secrets: &board-secrets
+  - database_url
+  - redis_url
+  - app_secret_key
+  - bootstrap_admin_password
+  - artifact_s3_secret_key
+  - metrics_bearer_token
+  - backup_s3_secret_key
+
+x-api: &api
+  environment: *board-environment
+  secrets: *board-secrets
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis: {condition: service_healthy}
+    minio: {condition: service_healthy}
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp:rw,noexec,nosuid,size=32m]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 45s
+  cpus: ${BOARD_API_CPU_LIMIT:-2.0}
+  mem_limit: ${BOARD_API_MEMORY_LIMIT:-1g}
+  pids_limit: ${BOARD_API_PIDS_LIMIT:-256}
+  logging: *logging
+  networks: [edge, data]
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=4)"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+
+x-ui: &ui
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  cpus: ${TUTORBOARD_CPU_LIMIT:-1.0}
+  mem_limit: ${TUTORBOARD_MEMORY_LIMIT:-512m}
+  pids_limit: ${TUTORBOARD_PIDS_LIMIT:-128}
+  logging: *logging
+  networks: [edge]
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+    interval: 10s
+    timeout: 3s
+    retries: 12
+    start_period: 10s
+
+services:
+  caddy:
+    image: caddy:2.10.0-alpine
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/board-production/runtime:/etc/caddy:ro
+      - board-caddy-data:/data
+      - board-caddy-config:/config
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=16m]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    cpus: ${CADDY_CPU_LIMIT:-0.5}
+    mem_limit: ${CADDY_MEMORY_LIMIT:-256m}
+    pids_limit: ${CADDY_PIDS_LIMIT:-128}
+    logging: *logging
+    networks: [edge, egress]
+
+  board-api-blue:
+    <<: *api
+    image: ${BOARD_API_BLUE_IMAGE:?set BOARD_API_BLUE_IMAGE digest}
+    profiles: [blue]
+
+  board-api-green:
+    <<: *api
+    image: ${BOARD_API_GREEN_IMAGE:?set BOARD_API_GREEN_IMAGE digest}
+    profiles: [green]
+
+  tutorboard-blue:
+    <<: *ui
+    image: ${TUTORBOARD_BLUE_IMAGE:?set TUTORBOARD_BLUE_IMAGE digest}
+    profiles: [blue]
+
+  tutorboard-green:
+    <<: *ui
+    image: ${TUTORBOARD_GREEN_IMAGE:?set TUTORBOARD_GREEN_IMAGE digest}
+    profiles: [green]
+
+  migration:
+    image: ${MIGRATION_IMAGE:?set an immutable migration image digest}
+    environment: *board-environment
+    secrets: *board-secrets
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=32m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    logging: *logging
+    profiles: [jobs]
+    networks: [data]
+
+  ops:
+    image: ${OPS_IMAGE:?set an immutable ops image digest}
+    environment: *board-environment
+    secrets: *board-secrets
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=256m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    logging: *logging
+    profiles: [jobs]
+    networks: [data, egress]
+
+  backup:
+    image: ${OPS_IMAGE:?set an immutable ops image digest}
+    command: ["/bin/sh", "-c", "while true; do tutor-assistant-backup create && sleep $${BACKUP_INTERVAL_SECONDS} || sleep 900; done"]
+    environment: *board-environment
+    secrets: *board-secrets
+    depends_on:
+      postgres: {condition: service_healthy}
+      minio: {condition: service_healthy}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp:rw,noexec,nosuid,size=512m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    logging: *logging
+    networks: [data, egress]
+
+  postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tutorboard}
+      POSTGRES_USER: ${POSTGRES_USER:-tutorboard}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes: [board-postgres:/var/lib/postgresql/data]
+    restart: unless-stopped
+    shm_size: 256mb
+    cpus: ${POSTGRES_CPU_LIMIT:-2.0}
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-2g}
+    pids_limit: 256
+    logging: *logging
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4.5-alpine
+    secrets: [redis_password]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        password=$$(cat /run/secrets/redis_password);
+        exec docker-entrypoint.sh redis-server --appendonly yes --requirepass "$$password"
+    volumes: [board-redis:/data]
+    restart: unless-stopped
+    cpus: ${REDIS_CPU_LIMIT:-1.0}
+    mem_limit: ${REDIS_MEMORY_LIMIT:-512m}
+    pids_limit: 128
+    logging: *logging
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$(cat /run/secrets/redis_password) redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    secrets: [minio_root_user, minio_root_password]
+    volumes: [board-minio:/data]
+    restart: unless-stopped
+    cpus: ${MINIO_CPU_LIMIT:-1.0}
+    mem_limit: ${MINIO_MEMORY_LIMIT:-1g}
+    pids_limit: 256
+    logging: *logging
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio: {condition: service_healthy}
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:-tutorboard-artifacts}
+      ARTIFACT_S3_ACCESS_KEY: ${ARTIFACT_S3_ACCESS_KEY:-tutorboard-app}
+    secrets: [minio_root_user, minio_root_password, artifact_s3_secret_key]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set local http://minio:9000 "$$(cat $$MINIO_ROOT_USER_FILE)" "$$(cat $$MINIO_ROOT_PASSWORD_FILE)" &&
+        mc mb --ignore-existing "local/$$ARTIFACT_S3_BUCKET" &&
+        mc anonymous set none "local/$$ARTIFACT_S3_BUCKET" &&
+        mc admin user add local "$$ARTIFACT_S3_ACCESS_KEY" "$$(cat /run/secrets/artifact_s3_secret_key)" || true &&
+        mc admin policy attach local readwrite --user "$$ARTIFACT_S3_ACCESS_KEY"
+    restart: "no"
+    profiles: [jobs]
+    networks: [data]
+
+secrets:
+  database_url: {file: ./deploy/board-production/secrets/database_url}
+  redis_url: {file: ./deploy/board-production/secrets/redis_url}
+  app_secret_key: {file: ./deploy/board-production/secrets/app_secret_key}
+  bootstrap_admin_password: {file: ./deploy/board-production/secrets/bootstrap_admin_password}
+  artifact_s3_secret_key: {file: ./deploy/board-production/secrets/artifact_s3_secret_key}
+  metrics_bearer_token: {file: ./deploy/board-production/secrets/metrics_bearer_token}
+  backup_s3_secret_key: {file: ./deploy/board-production/secrets/backup_s3_secret_key}
+  postgres_password: {file: ./deploy/board-production/secrets/postgres_password}
+  redis_password: {file: ./deploy/board-production/secrets/redis_password}
+  minio_root_user: {file: ./deploy/board-production/secrets/minio_root_user}
+  minio_root_password: {file: ./deploy/board-production/secrets/minio_root_password}
+
+networks:
+  edge: {}
+  data: {internal: true}
+  egress: {}
+
+volumes:
+  board-postgres: {}
+  board-redis: {}
+  board-minio: {}
+  board-caddy-data: {}
+  board-caddy-config: {}

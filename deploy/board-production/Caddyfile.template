@@ -1,0 +1,61 @@
+{
+	email {$ACME_EMAIL}
+	admin 0.0.0.0:2019
+	servers {
+		trusted_proxies static private_ranges
+		client_ip_headers X-Forwarded-For X-Real-IP
+	}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	@api path /login /logout /j/* /api/v1/boards /api/v1/boards/* /health/* /metrics
+	handle @api {
+		reverse_proxy __BOARD_API_UPSTREAM__:8000 {
+			health_uri /health/live
+			health_interval 10s
+			health_timeout 3s
+		}
+	}
+
+	handle_path /board/* {
+		reverse_proxy __TUTORBOARD_UPSTREAM__:8080 {
+			health_uri /healthz
+			health_interval 10s
+			health_timeout 3s
+		}
+	}
+
+	@ui path / /boards /boards/* /b/* /assets/* /build.json /favicon.ico
+	handle @ui {
+		reverse_proxy __TUTORBOARD_UPSTREAM__:8080 {
+			health_uri /healthz
+			health_interval 10s
+			health_timeout 3s
+		}
+	}
+
+	handle {
+		respond "Not Found" 404
+	}
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+	}
+
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>uri regexp "(/j/[^/?]+)|(ticket=[^&]+)" "[REDACTED]"
+			}
+		}
+	}
+}

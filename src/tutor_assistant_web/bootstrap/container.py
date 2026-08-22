@@ -177,6 +177,44 @@ class AppContainer:
         )
 
 
+@dataclass(frozen=True)
+class BoardAppContainer:
+    """Runtime dependencies exposed by the standalone board profile."""
+
+    settings: Settings
+    database: Database
+    timezone: ZoneInfo
+    templates: Jinja2Templates
+    web: WebSupport
+    identity: IdentityService
+    artifact_storage: ArtifactStorage
+    collaboration: CollaborationBroker
+
+    def audit_service(self, organization_id: str):
+        from tutor_assistant_web.modules.audit.application import AuditService
+
+        return AuditService(self.database, organization_id)
+
+    def boards_service(self, organization_id: str):
+        from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+
+        return BoardPersistenceService(
+            self.database,
+            self.artifact_storage,
+            organization_id,
+            max_command_bytes=self.settings.board_command_max_size_mb * 1024 * 1024,
+            max_snapshot_bytes=self.settings.board_snapshot_max_size_mb * 1024 * 1024,
+            snapshot_interval_commands=self.settings.board_snapshot_interval_commands,
+            snapshot_interval_bytes=self.settings.board_snapshot_interval_mb * 1024 * 1024,
+            delete_grace_days=self.settings.board_delete_grace_days,
+        )
+
+    def board_guest_access_service(self):
+        from tutor_assistant_web.modules.boards.guest_access import BoardGuestAccessService
+
+        return BoardGuestAccessService(self.database, self.settings)
+
+
 def build_conference_provider(settings: Settings) -> ConferenceProvider:
     if settings.bbb_demo_mode:
         return DemoConferenceProvider()
@@ -293,7 +331,9 @@ def build_container(
     database: Database,
     templates: Jinja2Templates,
     timezone: ZoneInfo,
-) -> AppContainer:
+) -> AppContainer | BoardAppContainer:
+    if settings.app_profile == "board":
+        return build_board_container(settings, database, templates, timezone)
     conference = build_conference_provider(settings)
     materials = build_material_generator(settings)
     transcription = build_transcription_provider(settings)
@@ -331,6 +371,32 @@ def build_container(
         transcription=transcription,
         jobs=jobs,
         document_engine=document_engine,
+        artifact_storage=artifact_storage,
+        collaboration=collaboration,
+    )
+
+
+def build_board_container(
+    settings: Settings,
+    database: Database,
+    templates: Jinja2Templates,
+    timezone: ZoneInfo,
+) -> BoardAppContainer:
+    artifact_storage = build_artifact_storage(settings)
+    collaboration = CollaborationBroker(
+        settings.redis_url,
+        distributed=not settings.task_eager,
+        presence_ttl_seconds=settings.board_collaboration_presence_ttl_seconds,
+        ticket_ttl_seconds=settings.board_collaboration_ticket_ttl_seconds,
+    )
+    identity = IdentityService(database)
+    return BoardAppContainer(
+        settings=settings,
+        database=database,
+        timezone=timezone,
+        templates=templates,
+        web=WebSupport(settings, templates, timezone, identity),
+        identity=identity,
         artifact_storage=artifact_storage,
         collaboration=collaboration,
     )

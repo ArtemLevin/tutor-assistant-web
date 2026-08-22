@@ -13,7 +13,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from tutor_assistant_web.bbb import BigBlueButtonError
-from tutor_assistant_web.bootstrap.container import build_container
+from tutor_assistant_web.bootstrap.board_profile import create_board_profile_router
+from tutor_assistant_web.bootstrap.container import BoardAppContainer, build_container
 from tutor_assistant_web.bootstrap.registry import ModuleRegistry
 from tutor_assistant_web.bootstrap.seed import seed_data
 from tutor_assistant_web.config import Settings, get_settings
@@ -70,7 +71,7 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         if settings.auto_migrate:
             database.migrate()
         container.identity.bootstrap(settings)
-        if settings.seed_demo_data:
+        if settings.seed_demo_data and settings.app_profile == "full":
             with database.sessions() as session:
                 seed_data(session, DEFAULT_ORGANIZATION_ID)
         try:
@@ -78,9 +79,18 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
         finally:
             await container.collaboration.close()
 
-    app = FastAPI(title=settings.app_name, version=__version__, lifespan=lifespan)
+    board_profile = settings.app_profile == "board"
+    app = FastAPI(
+        title=settings.app_name,
+        version=__version__,
+        lifespan=lifespan,
+        docs_url=None if board_profile else "/docs",
+        redoc_url=None if board_profile else "/redoc",
+        openapi_url=None if board_profile else "/openapi.json",
+    )
     app.state.container = container
-    app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
+    if not board_profile:
+        app.mount("/static", StaticFiles(directory=str(PACKAGE_DIR / "static")), name="static")
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.app_secret_key,
@@ -149,7 +159,15 @@ def create_app(settings: Settings | None = None, database: Database | None = Non
             status_code=502,
         )
 
-    enabled = {item.strip() for item in settings.enabled_modules.split(",") if item.strip()} or None
-    app.state.installed_modules = ModuleRegistry(ALL_MODULES).install(app, container, enabled)
+    if board_profile:
+        if not isinstance(container, BoardAppContainer):
+            raise RuntimeError("board profile requires BoardAppContainer")
+        app.include_router(create_board_profile_router(container))
+        app.state.installed_modules = ("identity", "audit", "boards", "health")
+    else:
+        enabled = {
+            item.strip() for item in settings.enabled_modules.split(",") if item.strip()
+        } or None
+        app.state.installed_modules = ModuleRegistry(ALL_MODULES).install(app, container, enabled)
     configure_telemetry(app, settings, database.engine)
     return app

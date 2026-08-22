@@ -17,6 +17,9 @@ data/artifacts/
 deploy/production/.env.production
 deploy/production/secrets/
 deploy/production/runtime/
+deploy/board-production/.env.production
+deploy/board-production/secrets/
+deploy/board-production/runtime/
 deploy/local/.env.local
 load/results/
 **/.terraform/

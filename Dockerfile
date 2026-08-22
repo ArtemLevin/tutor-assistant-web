@@ -79,3 +79,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 USER tutor:tutor
 CMD ["tutor-assistant-backup", "--help"]
+
+
+FROM web AS board-api
+ENV APP_PROFILE=board
