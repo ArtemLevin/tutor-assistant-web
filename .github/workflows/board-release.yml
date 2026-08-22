@@ -1,0 +1,302 @@
+name: TutorBoard standalone release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      promote_production:
+        description: Promote after staging and protected approval
+        type: boolean
+        default: false
+        required: true
+
+concurrency:
+  group: board-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ github.sha }}
+
+jobs:
+  quality-and-profile-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: uv sync --frozen --extra dev
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - run: uv run pytest -q tests/test_board_profile.py tests/test_architecture.py tests/test_standalone_board_b1.py tests/test_standalone_board_b2.py
+      - run: uv run bandit -r src -ll
+      - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/requirements.txt
+      - run: uv run pip-audit --strict --requirement /tmp/requirements.txt
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate board Compose contract
+        run: |
+          deploy/board-production/init.sh
+          docker compose -f compose.board.production.yml \
+            --env-file deploy/board-production/.env.production \
+            --env-file deploy/board-production/runtime/deployment.env config --quiet
+
+  postgres-redis-s3-and-b3:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.9-alpine
+        env:
+          POSTGRES_DB: tutor_board_test
+          POSTGRES_USER: tutor
+          POSTGRES_PASSWORD: tutor
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U tutor -d tutor_board_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7.4.5-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://tutor:tutor@127.0.0.1:5432/tutor_board_test
+      TEST_DATABASE_URL: postgresql+psycopg://tutor:tutor@127.0.0.1:5432/tutor_board_test
+      TEST_REDIS_URL: redis://127.0.0.1:6379/15
+      TEST_S3_ENDPOINT_URL: http://127.0.0.1:9000
+      TEST_S3_ACCESS_KEY: minioadmin
+      TEST_S3_SECRET_KEY: minioadmin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: >-
+          docker run -d --name board-minio -p 9000:9000
+          -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
+          minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+      - run: uv sync --frozen --extra dev
+      - run: uv run alembic upgrade head
+      - run: uv run pytest -q tests/test_postgres_integration.py tests/test_minio_integration.py tests/test_redis_integration.py tests/test_board_collaboration.py
+
+  tutorboard-quality-and-two-client-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: tutor-assistant-web}
+      - name: Read contract-matched TutorBoard commit
+        id: tutorboard-contract
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          source = json.loads(
+              Path("tutor-assistant-web/schemas/board/source.json").read_text()
+          )
+          print(f"ref={source['sourceCommit']}")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/tutorboard
+          ref: ${{ steps.tutorboard-contract.outputs.ref }}
+          path: tutorboard
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: tutorboard/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: uv sync --frozen --extra dev
+        working-directory: tutor-assistant-web
+      - run: npm ci
+        working-directory: tutorboard
+      - run: npm run format:check && npm run lint && npm run typecheck && npm run test
+        working-directory: tutorboard
+      - name: Build strict board UI
+        run: npm run build
+        working-directory: tutorboard
+        env:
+          VITE_APP_PROFILE: board
+          VITE_BASE_PATH: /
+          VITE_BOARD_API_BASE_URL: /api/v1
+      - run: npx playwright install --with-deps chromium
+        working-directory: tutorboard
+      - name: Two-client collaboration, reconnect, and recovery
+        run: npm run e2e:collaboration
+        working-directory: tutorboard
+        env:
+          TUTOR_ASSISTANT_WEB_ROOT: ${{ github.workspace }}/tutor-assistant-web
+          VITE_BOARD_API_BASE_URL: /api/v1
+          VITE_FEATURE_SERVER_SYNC: "true"
+
+  images:
+    needs: [quality-and-profile-contract, postgres-redis-s3-and-b3, tutorboard-quality-and-two-client-e2e]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [board-api, migration, ops]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.target }}:${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.image.outputs.name }}
+          build-args: |
+            VCS_REF=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+          cache-from: type=gha,scope=board-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=board-${{ matrix.target }}
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.name }}
+          artifact-name: board-${{ matrix.target }}.spdx.json
+          output-file: /tmp/board-${{ matrix.target }}.spdx.json
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.image.outputs.name }}
+          format: sarif
+          output: /tmp/trivy-${{ matrix.target }}.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Assert non-root board runtime
+        run: test "$(docker inspect --format '{{.Config.User}}' '${{ steps.image.outputs.name }}')" = "tutor:tutor"
+        if: github.event_name == 'pull_request'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board-supply-chain-${{ matrix.target }}
+          path: /tmp/board-${{ matrix.target }}.spdx.json
+
+  tutorboard-image:
+    needs: tutorboard-quality-and-two-client-e2e
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: tutor-assistant-web}
+      - name: Read contract-matched TutorBoard commit
+        id: tutorboard-contract
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          source = json.loads(
+              Path("tutor-assistant-web/schemas/board/source.json").read_text()
+          )
+          print(f"ref={source['sourceCommit']}")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/tutorboard
+          ref: ${{ steps.tutorboard-contract.outputs.ref }}
+          path: tutorboard
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        run: echo "name=ghcr.io/artemlevin/tutorboard:${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: tutorboard
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ steps.image.outputs.name }}
+          build-args: |
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ env.RELEASE_TAG }}
+            VITE_APP_PROFILE=board
+      - uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.name }}
+          artifact-name: tutorboard.spdx.json
+          output-file: /tmp/tutorboard.spdx.json
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.image.outputs.name }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  staging:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [images, tutorboard-image]
+    runs-on: [self-hosted, tutorboard-staging]
+    environment: board-staging
+    timeout-minutes: 1560
+    steps:
+      - uses: actions/checkout@v4
+        with: {clean: false}
+      - name: Resolve immutable image digests
+        run: deploy/board-production/resolve-release.sh "$RELEASE_TAG" > deploy/board-production/runtime/resolved.env
+      - name: Deploy inactive slot
+        run: |
+          . deploy/board-production/runtime/resolved.env
+          deploy/board-production/deploy.sh "$BOARD_API_DIGEST" "$TUTORBOARD_DIGEST" "$MIGRATION_DIGEST" "$OPS_DIGEST"
+      - run: CHECK_LOG_REDACTION=true deploy/board-production/smoke.sh
+      - run: deploy/board-production/restart-drill.sh
+      - name: Backup and isolated restore
+        run: |
+          backup_id=$(date -u +%Y%m%dT%H%M%SZ)
+          deploy/board-production/backup.sh --backup-id "$backup_id"
+          deploy/board-production/restore-drill.sh "$backup_id"
+      - name: 24-hour soak gate
+        run: deploy/board-production/soak.sh wait
+
+  production:
+    if: github.event_name == 'workflow_dispatch' && inputs.promote_production
+    needs: staging
+    runs-on: [self-hosted, tutorboard-production]
+    environment: board-production
+    steps:
+      - uses: actions/checkout@v4
+        with: {clean: false}
+      - name: Resolve the staging-approved manifest
+        run: deploy/board-production/resolve-release.sh "$RELEASE_TAG" > deploy/board-production/runtime/resolved.env
+      - name: Blue/green production rollout
+        run: |
+          . deploy/board-production/runtime/resolved.env
+          deploy/board-production/deploy.sh "$BOARD_API_DIGEST" "$TUTORBOARD_DIGEST" "$MIGRATION_DIGEST" "$OPS_DIGEST"
+      - run: CHECK_LOG_REDACTION=true deploy/board-production/smoke.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board-production-release-manifest
+          path: deploy/board-production/runtime/release-manifest.json

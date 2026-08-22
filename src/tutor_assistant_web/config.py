@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "Tutor Assistant"
+    app_profile: str = "full"
     app_env: str = "development"
     app_secret_key: str = "change-me-in-production"
     # Deprecated compatibility value. When set, it is used as the development
@@ -182,6 +183,14 @@ class Settings(BaseSettings):
     bootstrap_admin_password: str = ""
     invitation_ttl_hours: int = Field(default=72, ge=1, le=24 * 30)
 
+    @field_validator("app_profile")
+    @classmethod
+    def validate_app_profile(cls, value: str) -> str:
+        profile = value.strip().lower()
+        if profile not in {"full", "board"}:
+            raise ValueError("APP_PROFILE must be either 'full' or 'board'")
+        return profile
+
     @property
     def effective_bootstrap_password(self) -> str:
         return self.bootstrap_admin_password or self.app_access_token or "admin"
@@ -206,10 +215,16 @@ class Settings(BaseSettings):
             if path:
                 setattr(self, value_field, Path(path).read_text(encoding="utf-8").strip())
         enabled = {item.strip() for item in self.enabled_modules.split(",") if item.strip()}
+        if self.app_profile == "board" and enabled:
+            raise ValueError("ENABLED_MODULES must be empty when APP_PROFILE=board")
+        board_profile = self.app_profile == "board"
         classroom_enabled = not enabled or bool(
             enabled & {"classroom", "materials", "automation", "portal", "dashboard"}
         )
         automation_enabled = not enabled or bool(enabled & {"automation", "portal"})
+        if board_profile:
+            classroom_enabled = False
+            automation_enabled = False
         if self.app_env.lower() == "production":
             database = make_url(self.database_url)
             if database.get_backend_name() != "postgresql":
@@ -260,12 +275,17 @@ class Settings(BaseSettings):
                 enabled & {"materials", "automation", "portal", "dashboard"}
             )
             boards_enabled = not enabled or "boards" in enabled
+            if board_profile:
+                materials_enabled = False
+                boards_enabled = True
             if materials_enabled and self.document_engine_provider.lower() == "local":
                 raise ValueError(
                     "DOCUMENT_ENGINE_PROVIDER must use a production compiler for materials"
                 )
             if automation_enabled and self.task_eager:
                 raise ValueError("TASK_EAGER must be false in production")
+            if board_profile and self.task_eager:
+                raise ValueError("TASK_EAGER must be false for the production board profile")
             if (
                 materials_enabled or boards_enabled
             ) and self.artifact_storage_provider.lower() != "s3":
