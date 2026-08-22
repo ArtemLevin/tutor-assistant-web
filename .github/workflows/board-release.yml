@@ -140,6 +140,8 @@ jobs:
         working-directory: tutorboard
         env:
           TUTOR_ASSISTANT_WEB_ROOT: ${{ github.workspace }}/tutor-assistant-web
+          VITE_BOARD_API_BASE_URL: /api/v1
+          VITE_FEATURE_SERVER_SYNC: "true"
 
   images:
     needs: [quality-and-profile-contract, postgres-redis-s3-and-b3, tutorboard-quality-and-two-client-e2e]
