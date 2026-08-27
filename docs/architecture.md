@@ -2,8 +2,10 @@
 
 ## Принцип
 
-Приложение развивается как модульный монолит. FastAPI, PostgreSQL и один deployment сохраняются,
-а бизнес-функции имеют явные границы. Внешние системы подключаются через provider-контракты.
+Полный профиль развивается как модульный монолит: FastAPI и PostgreSQL
+сохраняются, а бизнес-функции имеют явные границы. Дополнительно существует
+строгий `APP_PROFILE=board` с отдельным composition root, route allowlist и
+deployment-контуром. Внешние системы подключаются через provider-контракты.
 
 ```mermaid
 flowchart TB
@@ -26,20 +28,24 @@ flowchart TB
 
 ## Модули
 
-| Модуль | Ответственность | Зависимости |
-|---|---|---|
-| `audit` | неизменяемый журнал действий организации | — |
-| `identity` | организации, пользователи, роли, сессии, CSRF | audit |
-| `students` | профиль и контакты ученика | identity |
-| `scheduling` | недельная сетка и конфликты | students |
-| `classroom` | комната, роли, записи, заметки | scheduling |
-| `materials` | evidence, jobs и артефакты | classroom |
-| `automation` | BBB callback, outbox, транскрипт, post-lesson workflow | materials |
-| `portal` | связи получателей, доставки, уведомления и кабинеты | automation |
-| `dashboard` | сводка и диагностика | materials |
+| Модуль       | Ответственность                                                                        | Зависимости               |
+| ------------ | -------------------------------------------------------------------------------------- | ------------------------- |
+| `audit`      | неизменяемый журнал действий организации                                               | —                         |
+| `identity`   | организации, пользователи, роли, сессии, CSRF                                          | audit                     |
+| `students`   | профиль и контакты ученика                                                             | identity                  |
+| `scheduling` | недельная сетка и конфликты                                                            | students                  |
+| `classroom`  | комната, роли, записи, заметки                                                         | scheduling                |
+| `materials`  | evidence, jobs и артефакты                                                             | classroom                 |
+| `automation` | BBB callback, outbox, транскрипт, post-lesson workflow                                 | materials                 |
+| `portal`     | связи получателей, доставки, уведомления и кабинеты                                    | automation                |
+| `dashboard`  | сводка и диагностика                                                                   | materials                 |
+| `boards`     | lesson-bound и standalone documents, revisions, collaboration, guest access и evidence | scheduling в full profile |
 
 `ModuleRegistry` проверяет уникальность имён, отсутствующие зависимости и циклы. Выбор корневых
 модулей задаётся `ENABLED_MODULES`; транзитивные зависимости устанавливаются автоматически.
+`APP_PROFILE=board` намеренно не использует этот механизм: он собирает только
+identity, audit, standalone boards и health через `build_board_container()` и
+отклоняет непустой `ENABLED_MODULES`.
 
 ## Provider-контракты
 
@@ -48,7 +54,8 @@ flowchart TB
 - `TranscriptionProvider`: demo, локальный faster-whisper или HTTP webhook;
 - `JobDispatcher`: inline для разработки или Celery для production.
 - `DocumentEngine`: локальный preview или HTTP API `latex-for-everyone`;
-- `ArtifactStorage`: локальный каталог/volume; контракт готов для S3/MinIO.
+- `ArtifactStorage`: локальный каталог для development либо private S3/MinIO с
+  проверкой размера, MIME, SHA-256, retention и опциональным ClamAV.
 
 Application-слой зависит от протоколов из `shared/contracts.py`. Конкретные SDK и HTTP-клиенты
 остаются в `providers/`. Замена BBB или генератора не требует правок бизнес-модулей.
@@ -118,10 +125,15 @@ Alembic является владельцем схемы. Ревизия `0001_p
 аудит, `0004_post_lesson_automation` — webhook receipts, outbox, транскрипты и состояние workflow,
 `0005_materials_factory` — evidence bundles, generation runs, artifact versions и build logs,
 `0006_portal_delivery` — recipient access, deliveries и notifications,
-`0007_production_postgres` — tenant foreign keys, status constraints и составные индексы.
+`0007_production_postgres` — tenant foreign keys, status constraints и составные индексы,
+`0008_durable_workers`–`0010_security_observability` — durable jobs, production artifacts,
+security и telemetry, `0011_board_persistence`–`0014_board_command_origins` — board journal,
+collaboration/evidence и command ordering, `0015_standalone_boards`–`0016_board_guest_invites` —
+standalone ownership и guest invitations.
 При первом запуске версии 0.3+ база,
 ранее созданная через `create_all`, автоматически получает stamp `0001_pilot`; все существующие
-строки переносятся в организацию по умолчанию. Новая база проходит обе ревизии с нуля.
+строки переносятся в организацию по умолчанию. Новая база проходит всю цепочку
+Alembic-ревизий с нуля.
 
 ## Контейнеры
 
@@ -136,7 +148,7 @@ flowchart TB
     Worker --> BBB
     Worker --> AI[Materials provider]
     Worker --> Latex[latex-for-everyone]
-    Worker --> Files[(Artifact volume)]
+    Worker --> Files[(Private S3 / MinIO)]
     App --> Files
     Worker --> Postgres
 ```
@@ -148,7 +160,7 @@ BigBlueButton работает отдельно. Shared secret остаётся 
 
 ## Следующие архитектурные задачи
 
-1. S3/MinIO adapter, retention и антивирусная проверка артефактов.
-2. Внешние каналы уведомлений и пользовательские предпочтения.
-3. OpenTelemetry traces и метрики очередей/workflow.
-4. Удаление записей и экспорт audit events.
+1. Внешние каналы уведомлений и пользовательские предпочтения.
+2. Централизованный secrets manager и автоматическая ротация.
+3. Удаление записей, retention policy и экспорт audit events.
+4. Регулярный off-host DR drill, включающий observability state.
