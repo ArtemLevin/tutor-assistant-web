@@ -91,7 +91,7 @@ def downgrade() -> None:
     if event_count or profile_count:
         raise RuntimeError(
             "Cannot downgrade practice sync while canonical PracticeState data exists. "
-            "Keep migration 0017 during application rollback or export/remove practice data explicitly."
+            "Preserve migration 0017 until practice data has been migrated safely."
         )
     op.drop_index("ix_practice_events_student_outcome_occurred", table_name="practice_events")
     op.drop_index("ix_practice_events_student_competency_occurred", table_name="practice_events")
