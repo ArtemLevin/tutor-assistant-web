@@ -37,7 +37,9 @@ def make_student_service(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'practice.db'}")
     database.migrate()
     identity = IdentityService(database)
-    identity.bootstrap(Settings(seed_demo_data=False, bootstrap_admin_password="admin-password"))
+    identity.bootstrap(
+        Settings(seed_demo_data=False, bootstrap_admin_password="admin-password")
+    )
     student = StudentService(database, DEFAULT_ORGANIZATION_ID).create(
         StudentData(full_name="Practice Student")
     )
@@ -102,7 +104,9 @@ def test_first_binding_and_optimistic_conflict_return_canonical_state(tmp_path):
     assert created.revision == 1
     stale = state.model_copy(update={"revision": 0})
     with pytest.raises(PracticeRevisionConflict) as error:
-        service.update_state(StateUpdateRequest(schemaVersion=1, baseRevision=0, state=stale))
+        service.update_state(
+            StateUpdateRequest(schemaVersion=1, baseRevision=0, state=stale)
+        )
     assert error.value.response.revision == 1
     assert error.value.response.state.revision == 1
 
@@ -111,7 +115,9 @@ def test_event_batch_is_idempotent_and_conflicting_event_id_is_rejected(tmp_path
     database, _, service = make_student_service(tmp_path)
     state = PracticeStateDocument.model_validate(fixture_payload()["bootstrap"]["state"])
     state = state.model_copy(update={"revision": 0})
-    service.update_state(StateUpdateRequest(schemaVersion=1, baseRevision=0, state=state))
+    service.update_state(
+        StateUpdateRequest(schemaVersion=1, baseRevision=0, state=state)
+    )
     batch = EventBatchRequest.model_validate(fixture_payload()["eventBatch"])
     first = service.ingest_events(batch)
     assert first.acceptedEventIds == ["fixture-event-001"]
