@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
-    JSON,
     String,
     UniqueConstraint,
 )
@@ -24,9 +24,7 @@ JSON_DOCUMENT = JSON().with_variant(JSONB, "postgresql")
 class PracticeProfile(Base):
     __tablename__ = "practice_profiles"
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "student_id", name="uq_practice_profiles_org_student"
-        ),
+        UniqueConstraint("organization_id", "student_id", name="uq_practice_profiles_org_student"),
         ForeignKeyConstraint(
             ["organization_id", "student_id"],
             ["students.organization_id", "students.id"],
