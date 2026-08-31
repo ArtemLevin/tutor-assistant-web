@@ -29,6 +29,7 @@ from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
 from tutor_assistant_web.modules.identity.module import MODULE as IDENTITY_MODULE
 from tutor_assistant_web.modules.materials.module import MODULE as MATERIALS_MODULE
 from tutor_assistant_web.modules.portal.module import MODULE as PORTAL_MODULE
+from tutor_assistant_web.modules.practice.module import MODULE as PRACTICE_MODULE
 from tutor_assistant_web.modules.scheduling.module import MODULE as SCHEDULING_MODULE
 from tutor_assistant_web.modules.students.module import MODULE as STUDENTS_MODULE
 from tutor_assistant_web.observability import configure_logging, configure_telemetry
@@ -44,6 +45,7 @@ ALL_MODULES = (
     IDENTITY_MODULE,
     AUDIT_MODULE,
     STUDENTS_MODULE,
+    PRACTICE_MODULE,
     SCHEDULING_MODULE,
     BOARDS_MODULE,
     CLASSROOM_MODULE,
