@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "bootstrap": {
+    "schemaVersion": 1,
+    "profileExists": true,
+    "revision": 7,
+    "state": {
+      "schemaVersion": 2,
+      "revision": 7,
+      "clientInstanceId": "fixture-device-a",
+      "updatedAt": "2026-08-31T12:00:00.000Z",
+      "competencies": {},
+      "sessions": {},
+      "events": []
+    },
+    "serverTime": "2026-08-31T12:00:01.000Z"
+  },
+  "eventBatch": {
+    "schemaVersion": 1,
+    "clientInstanceId": "fixture-device-a",
+    "events": [
+      {
+        "eventVersion": 2,
+        "eventId": "fixture-event-001",
+        "timestamp": "2026-08-31T12:01:00.000Z",
+        "sessionId": "2026-08-31",
+        "exerciseId": "probability.independent-product:v1:fixture-seed",
+        "competencyId": "t5_product",
+        "generatorKey": "probability.independent-product",
+        "generatorVersion": 1,
+        "seed": "fixture-seed",
+        "difficulty": 2,
+        "attemptCount": 1,
+        "hintsUsed": 0,
+        "outcome": "correct",
+        "rating": "good",
+        "durationMs": 42000
+      }
+    ]
+  },
+  "stateUpdate": {
+    "schemaVersion": 1,
+    "baseRevision": 7,
+    "state": {
+      "schemaVersion": 2,
+      "revision": 7,
+      "clientInstanceId": "fixture-device-a",
+      "updatedAt": "2026-08-31T12:01:05.000Z",
+      "competencies": {},
+      "sessions": {},
+      "events": []
+    }
+  },
+  "conflict": {
+    "schemaVersion": 1,
+    "error": "revision-conflict",
+    "revision": 8,
+    "state": {
+      "schemaVersion": 2,
+      "revision": 8,
+      "clientInstanceId": "fixture-device-b",
+      "updatedAt": "2026-08-31T12:01:03.000Z",
+      "competencies": {},
+      "sessions": {},
+      "events": []
+    },
+    "serverTime": "2026-08-31T12:01:06.000Z"
+  }
+}
