@@ -23,9 +23,7 @@ def upgrade() -> None:
         sa.Column("state_jsonb", JSON_DOCUMENT, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["organization_id"], ["organizations.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["organization_id", "student_id"],
             ["students.organization_id", "students.id"],
@@ -55,9 +53,7 @@ def upgrade() -> None:
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("event_jsonb", JSON_DOCUMENT, nullable=False),
-        sa.ForeignKeyConstraint(
-            ["organization_id"], ["organizations.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["organization_id", "student_id"],
             ["students.organization_id", "students.id"],
@@ -67,13 +63,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("event_id", name="uq_practice_events_event_id"),
     )
-    op.create_index(
-        "ix_practice_events_organization_id", "practice_events", ["organization_id"]
-    )
+    op.create_index("ix_practice_events_organization_id", "practice_events", ["organization_id"])
     op.create_index("ix_practice_events_student_id", "practice_events", ["student_id"])
-    op.create_index(
-        "ix_practice_events_competency_id", "practice_events", ["competency_id"]
-    )
+    op.create_index("ix_practice_events_competency_id", "practice_events", ["competency_id"])
     op.create_index("ix_practice_events_outcome", "practice_events", ["outcome"])
     op.create_index("ix_practice_events_occurred_at", "practice_events", ["occurred_at"])
     op.create_index(
