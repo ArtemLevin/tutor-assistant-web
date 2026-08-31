@@ -37,7 +37,9 @@ def upgrade() -> None:
             "organization_id", "student_id", name="uq_practice_profiles_org_student"
         ),
     )
-    op.create_index("ix_practice_profiles_organization_id", "practice_profiles", ["organization_id"])
+    op.create_index(
+        "ix_practice_profiles_organization_id", "practice_profiles", ["organization_id"]
+    )
     op.create_index("ix_practice_profiles_student_id", "practice_profiles", ["student_id"])
 
     op.create_table(
@@ -65,9 +67,13 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("event_id", name="uq_practice_events_event_id"),
     )
-    op.create_index("ix_practice_events_organization_id", "practice_events", ["organization_id"])
+    op.create_index(
+        "ix_practice_events_organization_id", "practice_events", ["organization_id"]
+    )
     op.create_index("ix_practice_events_student_id", "practice_events", ["student_id"])
-    op.create_index("ix_practice_events_competency_id", "practice_events", ["competency_id"])
+    op.create_index(
+        "ix_practice_events_competency_id", "practice_events", ["competency_id"]
+    )
     op.create_index("ix_practice_events_outcome", "practice_events", ["outcome"])
     op.create_index("ix_practice_events_occurred_at", "practice_events", ["occurred_at"])
     op.create_index(
@@ -84,7 +90,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     connection = op.get_bind()
-    event_count = int(connection.execute(sa.text("SELECT COUNT(*) FROM practice_events")).scalar_one())
+    event_count = int(
+        connection.execute(sa.text("SELECT COUNT(*) FROM practice_events")).scalar_one()
+    )
     profile_count = int(
         connection.execute(sa.text("SELECT COUNT(*) FROM practice_profiles")).scalar_one()
     )
