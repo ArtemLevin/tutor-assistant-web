@@ -4,7 +4,10 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from tutor_assistant_web.bootstrap.container import AppContainer
-from tutor_assistant_web.modules.practice.application import PracticeRevisionConflict, PracticeSyncService
+from tutor_assistant_web.modules.practice.application import (
+    PracticeRevisionConflict,
+    PracticeSyncService,
+)
 from tutor_assistant_web.modules.practice.schemas import (
     BootstrapResponse,
     EventBatchRequest,
