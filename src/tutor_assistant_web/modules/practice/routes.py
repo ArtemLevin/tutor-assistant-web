@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from tutor_assistant_web.bootstrap.container import AppContainer
-from tutor_assistant_web.modules.practice.application import PracticeRevisionConflict
+from tutor_assistant_web.modules.practice.application import PracticeRevisionConflict, PracticeSyncService
 from tutor_assistant_web.modules.practice.schemas import (
     BootstrapResponse,
     EventBatchRequest,
@@ -17,9 +17,13 @@ from tutor_assistant_web.modules.practice.schemas import (
 def create_router(container: AppContainer) -> APIRouter:
     router = APIRouter(prefix="/api/v1/practice/me", tags=["practice"])
 
-    def service(request: Request):
+    def service(request: Request) -> PracticeSyncService:
         principal = container.web.principal_required(request)
-        return container.practice_service(principal)
+        return PracticeSyncService(
+            container.database,
+            principal,
+            container.audit_service(principal.organization_id),
+        )
 
     @router.get("/bootstrap", response_model=BootstrapResponse)
     def bootstrap(request: Request):
