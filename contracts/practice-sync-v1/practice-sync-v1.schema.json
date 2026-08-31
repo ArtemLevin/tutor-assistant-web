@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artemlevin.dev/contracts/practice-sync-v1/schema.json",
+  "title": "Practice sync v1 wire contract",
+  "$defs": {
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eventVersion","eventId","timestamp","sessionId","exerciseId","competencyId","generatorKey","generatorVersion","seed","difficulty","attemptCount","hintsUsed","outcome","rating","durationMs"],
+      "properties": {
+        "eventVersion": {"const": 2},
+        "eventId": {"type": "string", "minLength": 1},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "sessionId": {"type": "string", "minLength": 1},
+        "exerciseId": {"type": "string", "minLength": 1},
+        "competencyId": {"type": "string", "minLength": 1},
+        "generatorKey": {"type": "string"},
+        "generatorVersion": {"type": "integer", "minimum": 1},
+        "seed": {"type": "string"},
+        "difficulty": {"type": "integer", "minimum": 1, "maximum": 3},
+        "attemptCount": {"type": "integer", "minimum": 0},
+        "hintsUsed": {"type": "integer", "minimum": 0},
+        "outcome": {"enum": ["correct","incorrect"]},
+        "rating": {"enum": ["again","hard","good","easy"]},
+        "durationMs": {"type": "integer", "minimum": 0}
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion","revision","clientInstanceId","updatedAt","competencies","sessions","events"],
+      "properties": {
+        "schemaVersion": {"const": 2},
+        "revision": {"type": "integer", "minimum": 0},
+        "clientInstanceId": {"type": "string", "minLength": 1},
+        "updatedAt": {"type": "string", "format": "date-time"},
+        "competencies": {"type": "object"},
+        "sessions": {"type": "object"},
+        "events": {"type": "array", "maxItems": 200, "items": {"$ref": "#/$defs/event"}}
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion","bootstrap","eventBatch","stateUpdate","conflict"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion","profileExists","revision","state","serverTime"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "profileExists": {"type": "boolean"},
+        "revision": {"type": "integer", "minimum": 0},
+        "state": {"$ref": "#/$defs/state"},
+        "serverTime": {"type": "string", "format": "date-time"}
+      }
+    },
+    "eventBatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion","clientInstanceId","events"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "clientInstanceId": {"type": "string", "minLength": 1},
+        "events": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"$ref": "#/$defs/event"}}
+      }
+    },
+    "stateUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion","baseRevision","state"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "baseRevision": {"type": "integer", "minimum": 0},
+        "state": {"$ref": "#/$defs/state"}
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion","error","revision","state","serverTime"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "error": {"const": "revision-conflict"},
+        "revision": {"type": "integer", "minimum": 0},
+        "state": {"$ref": "#/$defs/state"},
+        "serverTime": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}
