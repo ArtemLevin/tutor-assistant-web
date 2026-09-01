@@ -24,7 +24,7 @@ from tutor_assistant_web.modules.practice.repository import PracticeRepository
 from tutor_assistant_web.modules.practice.retention import calculate_retention_index
 from tutor_assistant_web.modules.practice.schemas import PracticeAnalyticsMetadataDocument
 from tutor_assistant_web.modules.students.application import StudentData, StudentService
-from tutor_assistant_web.shared.errors import ForbiddenError
+from tutor_assistant_web.shared.errors import NotFoundError
 
 FIXTURE = Path("contracts/practice-analytics-v1/fixtures/metadata.json")
 TODAY = date(2026, 9, 1)
@@ -294,6 +294,5 @@ def test_student_parent_and_teacher_analytics_access_is_tenant_scoped(tmp_path):
         email=student_principal.email,
         full_name=student_principal.full_name,
     )
-    with pytest.raises((ForbiddenError, Exception)) as error:
+    with pytest.raises(NotFoundError):
         ensure_practice_analytics_access(database, wrong, student.id)
-    assert error.value is not None
