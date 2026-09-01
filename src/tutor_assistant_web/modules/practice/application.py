@@ -49,6 +49,10 @@ class PracticeSyncService:
             raise ForbiddenError("Student account must be bound to exactly one active student")
         return accesses[0].student_id
 
+    def student_id(self) -> str:
+        with self.database.sessions() as session:
+            return self._student_id(session)
+
     @staticmethod
     def _server_time() -> datetime:
         return datetime.now(UTC)
