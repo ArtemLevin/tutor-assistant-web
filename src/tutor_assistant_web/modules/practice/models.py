@@ -84,3 +84,31 @@ class PracticeEvent(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     event_jsonb: Mapped[dict] = mapped_column(JSON_DOCUMENT)
+
+
+class PracticeAnalyticsMetadata(Base):
+    __tablename__ = "practice_analytics_metadata"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "student_id", name="uq_practice_analytics_metadata_org_student"
+        ),
+        ForeignKeyConstraint(
+            ["organization_id", "student_id"],
+            ["students.organization_id", "students.id"],
+            name="fk_practice_analytics_metadata_org_student",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    student_id: Mapped[str] = mapped_column(String(36), index=True)
+    schema_version: Mapped[int] = mapped_column(BigInteger, default=1)
+    source_revision: Mapped[str] = mapped_column(String(160), default="")
+    metadata_jsonb: Mapped[dict] = mapped_column(JSON_DOCUMENT, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
