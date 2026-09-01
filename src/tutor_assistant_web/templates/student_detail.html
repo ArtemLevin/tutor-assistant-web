@@ -3,7 +3,7 @@
 {% block content %}
 <header class="page-header">
   <div><a class="back" href="/students">← Ученики</a><h1>{{ student.full_name }}</h1><p class="subtitle">{{ student.grade or 'Класс не указан' }} · {{ student.subject }}</p></div>
-  <a class="button primary" href="/schedule">Запланировать занятие</a>
+  <div><a class="button secondary" href="/students/{{ student.id }}/practice">Practice analytics</a> <a class="button primary" href="/schedule">Запланировать занятие</a></div>
 </header>
 <div class="two-columns">
   <section class="panel">
