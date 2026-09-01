@@ -23,9 +23,7 @@ def upgrade() -> None:
         sa.Column("metadata_jsonb", JSON_DOCUMENT, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["organization_id"], ["organizations.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["organization_id"], ["organizations.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["organization_id", "student_id"],
             ["students.organization_id", "students.id"],

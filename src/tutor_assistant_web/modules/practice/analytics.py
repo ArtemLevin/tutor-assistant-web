@@ -135,8 +135,7 @@ def teacher_actions(
                 "code": "mastery-retention-drop",
                 "label": "Проверить сохранность навыка",
                 "reason": (
-                    f"Mastery {mastery_level}/4 остаётся высоким, "
-                    f"retention category = {category}."
+                    f"Mastery {mastery_level}/4 остаётся высоким, retention category = {category}."
                 ),
             }
         )
@@ -299,7 +298,10 @@ class PracticeAnalytics:
         warmup = [item["competencyId"] for item in attention]
         if len(warmup) < 3:
             for item in report["competencies"]:
-                if item["dueStatus"] in {"overdue", "due-today"} and item["competencyId"] not in warmup:
+                if (
+                    item["dueStatus"] in {"overdue", "due-today"}
+                    and item["competencyId"] not in warmup
+                ):
                     warmup.append(item["competencyId"])
                 if len(warmup) >= 3:
                     break
@@ -319,7 +321,9 @@ class PracticeAnalytics:
             "overdueCount": summary["overdueCount"],
             "repeatedLapseCount": summary["repeatedLapseCount"],
             "masteryRetentionMismatchCount": len(mismatch),
-            "lastPracticeSession": report["recentSessions"][0] if report["recentSessions"] else None,
+            "lastPracticeSession": report["recentSessions"][0]
+            if report["recentSessions"]
+            else None,
             "recommendedWarmupCompetencies": warmup[:3],
             "generatedAt": report["generatedAt"],
         }
@@ -357,7 +361,9 @@ class PracticeAnalytics:
             for event in events
             if event.get("outcome") == "correct" and int(_number(event.get("attemptCount"), 1)) <= 1
         )
-        durations = [int(_number(event.get("durationMs"))) for event in events if event.get("durationMs")]
+        durations = [
+            int(_number(event.get("durationMs"))) for event in events if event.get("durationMs")
+        ]
         mastery = metadata.get("masteryLevel")
         actions = teacher_actions(
             mastery_level=mastery if isinstance(mastery, int) else None,
@@ -432,7 +438,9 @@ class PracticeAnalytics:
             if event.get("outcome") == "correct" and int(_number(event.get("attemptCount"), 1)) <= 1
         )
         durations = [
-            int(_number(event.get("durationMs"))) for event in covered_events if event.get("durationMs")
+            int(_number(event.get("durationMs")))
+            for event in covered_events
+            if event.get("durationMs")
         ]
         sessions = list((state.get("sessions") or {}).values())
         completed_sessions = sum(1 for session in sessions if session.get("status") == "completed")

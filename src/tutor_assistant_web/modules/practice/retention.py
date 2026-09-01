@@ -61,9 +61,7 @@ def _weighted_average(values: list[float]) -> float:
     if not values:
         return 0.0
     weights = list(range(1, len(values) + 1))
-    return sum(value * weight for value, weight in zip(values, weights, strict=True)) / sum(
-        weights
-    )
+    return sum(value * weight for value, weight in zip(values, weights, strict=True)) / sum(weights)
 
 
 def calculate_retention_index(
