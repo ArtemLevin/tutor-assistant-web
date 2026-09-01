@@ -36,7 +36,11 @@ from tutor_assistant_web.modules.materials.models import (
     ProcessingJob,
 )
 from tutor_assistant_web.modules.portal.models import MaterialDelivery, UserNotification
-from tutor_assistant_web.modules.practice.models import PracticeEvent, PracticeProfile
+from tutor_assistant_web.modules.practice.models import (
+    PracticeAnalyticsMetadata,
+    PracticeEvent,
+    PracticeProfile,
+)
 from tutor_assistant_web.modules.scheduling.models import Lesson, LessonStatus
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.shared.models import new_id, utcnow
@@ -59,6 +63,7 @@ __all__ = [
     "MaterialArtifact",
     "Membership",
     "Organization",
+    "PracticeAnalyticsMetadata",
     "PracticeEvent",
     "PracticeProfile",
     "ProcessingJob",
