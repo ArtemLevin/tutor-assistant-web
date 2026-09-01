@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import date
-from typing import Any, Iterable
+from typing import Any
 
 RETENTION_INDEX_VERSION = 1
 MIN_RETENTION_EVENTS = 3
