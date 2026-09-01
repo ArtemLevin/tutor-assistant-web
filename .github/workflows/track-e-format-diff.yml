@@ -1,0 +1,16 @@
+name: Track E format diff
+on:
+  push:
+    branches: [agent/track-e-retention-analytics]
+jobs:
+  format-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: uv sync --extra dev
+      - name: Show Ruff formatter diff
+        run: uv run ruff format --diff src/tutor_assistant_web/migrations/versions/0018_practice_analytics_metadata.py src/tutor_assistant_web/modules/practice/analytics.py src/tutor_assistant_web/modules/practice/retention.py tests/test_practice_analytics.py || true
