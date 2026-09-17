@@ -407,7 +407,7 @@ async def run_collaboration_socket(
             "type": "presence.snapshot",
             "protocolVersion": "1.1",
             "participants": [
-                participant
+                {key: value for key, value in participant.items() if key != "type"}
                 for participant in participants
                 if participant.get("clientId") != ticket.client_id
             ],
