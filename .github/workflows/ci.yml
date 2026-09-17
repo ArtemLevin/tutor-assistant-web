@@ -157,23 +157,21 @@ jobs:
     steps:
       - name: Check out backend
         uses: actions/checkout@v4
-      - name: Read pinned deployable TutorBoard commit
-        id: tutorboard-release
+      - name: Read pinned BoardDocument source commit
+        id: tutorboard-source
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           from pathlib import Path
 
-          source = json.loads(
-              Path("deploy/board-production/tutorboard-release.json").read_text()
-          )
+          source = json.loads(Path("schemas/board/source.json").read_text())
           print(f"ref={source['sourceCommit']}")
           PY
-      - name: Check out pinned TutorBoard release
+      - name: Check out pinned TutorBoard contract source
         uses: actions/checkout@v4
         with:
           repository: ArtemLevin/tutorboard
-          ref: ${{ steps.tutorboard-release.outputs.ref }}
+          ref: ${{ steps.tutorboard-source.outputs.ref }}
           path: integrations/tutorboard
           persist-credentials: false
       - uses: astral-sh/setup-uv@v6
