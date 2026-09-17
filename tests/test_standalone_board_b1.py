@@ -150,6 +150,8 @@ def test_standalone_create_list_update_archive_and_delete(standalone_api):
     assert payload["guestWritesEnabled"] is True
     assert payload["archivedAt"] is None
     assert payload["deletedAt"] is None
+    assert payload["createdAt"].endswith("Z")
+    assert payload["updatedAt"].endswith("Z")
     board_id = payload["boardId"]
 
     with database.sessions() as session:

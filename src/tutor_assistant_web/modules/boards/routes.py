@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket
@@ -51,6 +51,11 @@ from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import Boa
 from tutor_assistant_web.shared.errors import ApplicationError, NotFoundError
 
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
+
+
+def _utc_timestamp(value: datetime) -> str:
+    normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return normalized.isoformat().replace("+00:00", "Z")
 
 
 class CreateLessonBoardRequest(BaseModel):
@@ -1115,9 +1120,9 @@ def _board_payload(document: BoardDocument, snapshot_due: bool) -> dict:
         "currentDocumentSha256": document.current_document_sha256,
         "lastSnapshotRevision": document.last_snapshot_revision,
         "snapshotDue": snapshot_due,
-        "archivedAt": document.archived_at.isoformat() if document.archived_at else None,
-        "createdAt": document.created_at.isoformat(),
-        "updatedAt": document.updated_at.isoformat(),
+        "archivedAt": _utc_timestamp(document.archived_at) if document.archived_at else None,
+        "createdAt": _utc_timestamp(document.created_at),
+        "updatedAt": _utc_timestamp(document.updated_at),
     }
 
 
@@ -1164,10 +1169,10 @@ def _standalone_board_payload(document: BoardDocument) -> dict:
         "title": document.title,
         "currentRevision": document.current_revision,
         "guestWritesEnabled": document.guest_writes_enabled,
-        "archivedAt": document.archived_at.isoformat() if document.archived_at else None,
-        "deletedAt": document.deleted_at.isoformat() if document.deleted_at else None,
-        "createdAt": document.created_at.isoformat(),
-        "updatedAt": document.updated_at.isoformat(),
+        "archivedAt": _utc_timestamp(document.archived_at) if document.archived_at else None,
+        "deletedAt": _utc_timestamp(document.deleted_at) if document.deleted_at else None,
+        "createdAt": _utc_timestamp(document.created_at),
+        "updatedAt": _utc_timestamp(document.updated_at),
     }
 
 
