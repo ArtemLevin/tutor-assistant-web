@@ -135,8 +135,8 @@ jobs:
           VITE_BOARD_API_BASE_URL: /api/v1
       - run: npx playwright install --with-deps chromium
         working-directory: tutorboard
-      - name: Two-client collaboration, reconnect, and recovery
-        run: npm run e2e:collaboration
+      - name: Standalone teacher/guest controlled pilot E2E
+        run: npm run e2e:standalone-pilot
         working-directory: tutorboard
         env:
           TUTOR_ASSISTANT_WEB_ROOT: ${{ github.workspace }}/tutor-assistant-web
