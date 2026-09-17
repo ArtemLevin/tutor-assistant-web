@@ -84,7 +84,7 @@ jobs:
       - run: >-
           docker run -d --name board-minio -p 9000:9000
           -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
-          minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
       - run: uv sync --frozen --extra dev
       - run: uv run alembic upgrade head
       - run: uv run pytest -q tests/test_postgres_integration.py tests/test_minio_integration.py tests/test_redis_integration.py tests/test_board_collaboration.py
