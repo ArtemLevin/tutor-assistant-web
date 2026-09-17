@@ -934,6 +934,7 @@ def test_collaboration_relays_bounded_ephemeral_ink_and_transform_previews(board
             assert second.receive_json()["type"] == "ready"
             snapshot = second.receive_json()
             assert [item["clientId"] for item in snapshot["participants"]] == ["browser-preview-a"]
+            assert "type" not in snapshot["participants"][0]
             assert first.receive_json()["type"] == "presence.joined"
 
             first.send_json(
