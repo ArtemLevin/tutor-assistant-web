@@ -243,6 +243,8 @@ def test_invitation_secret_is_transient_and_guest_context_is_least_privilege(b2_
     assert recovered.json()["board"]["documentId"] == board_id
     assert recovered.json()["board"]["createdAt"].endswith("Z")
     assert recovered.json()["board"]["updatedAt"].endswith("Z")
+    assert len(recovered.json()["board"]["createdAt"]) == 24
+    assert len(recovered.json()["board"]["updatedAt"]) == 24
     assert recovered.headers["x-csrf-token"] == guest["csrfToken"]
     assert join_path.startswith("/j/")
 

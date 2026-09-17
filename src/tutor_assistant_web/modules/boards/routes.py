@@ -55,7 +55,7 @@ _CREATE_REQUEST_MAX_BYTES = 16 * 1024
 
 def _utc_timestamp(value: datetime) -> str:
     normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-    return normalized.isoformat().replace("+00:00", "Z")
+    return normalized.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 class CreateLessonBoardRequest(BaseModel):

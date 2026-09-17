@@ -152,6 +152,8 @@ def test_standalone_create_list_update_archive_and_delete(standalone_api):
     assert payload["deletedAt"] is None
     assert payload["createdAt"].endswith("Z")
     assert payload["updatedAt"].endswith("Z")
+    assert len(payload["createdAt"]) == 24
+    assert len(payload["updatedAt"]) == 24
     board_id = payload["boardId"]
 
     with database.sessions() as session:
