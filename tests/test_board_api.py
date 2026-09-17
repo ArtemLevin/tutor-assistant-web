@@ -987,6 +987,12 @@ def test_collaboration_relays_bounded_ephemeral_ink_and_transform_previews(board
                     "scale": {"x": 1.25, "y": 0.75},
                 }
             ]
+            second.close(code=1000)
+
+        left = first.receive_json()
+        assert left["type"] == "presence.left"
+        assert left["clientId"] == "browser-preview-b"
+        first.close(code=1000)
 
 
 def test_geometryos_gateway_is_authenticated_bounded_and_correlated(
