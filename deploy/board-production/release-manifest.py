@@ -40,7 +40,8 @@ def _validate_commit(value: object, name: str) -> str:
 
 
 def _expected_image_repositories(
-    backend_repository: str, frontend_repository: str
+    backend_repository: str,
+    frontend_repository: str,
 ) -> dict[str, str]:
     backend = f"ghcr.io/{backend_repository.lower()}"
     frontend = f"ghcr.io/{frontend_repository.lower()}"
@@ -181,9 +182,7 @@ def validate_manifest(payload: dict) -> dict:
             f"release manifest has unknown images: {', '.join(extra_images)}"
         )
 
-    expected_repositories = _expected_image_repositories(
-        backend_repository, frontend_repository
-    )
+    expected_repositories = _expected_image_repositories(backend_repository, frontend_repository)
     for key, repository in expected_repositories.items():
         _validate_image_ref(images[key], repository, key)
 
@@ -214,10 +213,7 @@ def _assemble(args: argparse.Namespace) -> int:
     validate_manifest(payload)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 
 
