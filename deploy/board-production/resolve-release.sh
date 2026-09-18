@@ -12,7 +12,8 @@ set -a
 set +a
 
 tag=${1:-}
-[ -n "$tag" ] || { echo "Usage: $0 <immutable-release-tag>" >&2; exit 2; }
+[ -n "$tag" ] || { echo "Usage: $0 <registry-image-tag>" >&2; exit 2; }
+echo "Diagnostic only: automated board promotion uses board-release-manifest digests." >&2
 case "$tag" in latest|*[!A-Za-z0-9._-]*) echo "Invalid release tag." >&2; exit 2 ;; esac
 : "${BACKEND_IMAGE_REPOSITORY:?set BACKEND_IMAGE_REPOSITORY}"
 : "${TUTORBOARD_IMAGE_REPOSITORY:?set TUTORBOARD_IMAGE_REPOSITORY}"

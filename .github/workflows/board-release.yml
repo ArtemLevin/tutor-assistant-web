@@ -21,6 +21,7 @@ permissions:
 
 env:
   RELEASE_TAG: ${{ github.sha }}
+  BOARD_IMAGE_TAG: board-${{ github.sha }}
 
 jobs:
   quality-and-profile-contract:
@@ -35,7 +36,13 @@ jobs:
       - run: uv sync --frozen --extra dev
       - run: uv run ruff format --check .
       - run: uv run ruff check .
-      - run: uv run pytest -q tests/test_board_profile.py tests/test_architecture.py tests/test_standalone_board_b1.py tests/test_standalone_board_b2.py
+      - run: >-
+          uv run pytest -q
+          tests/test_board_profile.py
+          tests/test_architecture.py
+          tests/test_standalone_board_b1.py
+          tests/test_standalone_board_b2.py
+          tests/test_board_release_manifest.py
       - run: uv run bandit -r src -ll
       - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/requirements.txt
       - run: uv run pip-audit --strict --requirement /tmp/requirements.txt
@@ -164,7 +171,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: image
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.target }}:${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.target }}"
+          echo "repository=$repository" >> "$GITHUB_OUTPUT"
+          echo "name=$repository:${BOARD_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         id: build
         with:
@@ -178,14 +189,32 @@ jobs:
             BUILD_DATE=${{ github.event.repository.updated_at }}
           cache-from: type=gha,scope=board-${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=board-${{ matrix.target }}
+      - name: Select exact image for supply-chain checks
+        id: scan
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            ref="${{ steps.image.outputs.name }}"
+          else
+            ref="${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: Record immutable image reference
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: >-
+          printf '%s@%s\n'
+          '${{ steps.image.outputs.repository }}'
+          '${{ steps.build.outputs.digest }}'
+          > '/tmp/${{ matrix.target }}.digest'
       - uses: anchore/sbom-action@v0
         with:
-          image: ${{ steps.image.outputs.name }}
+          image: ${{ steps.scan.outputs.ref }}
           artifact-name: board-${{ matrix.target }}.spdx.json
           output-file: /tmp/board-${{ matrix.target }}.spdx.json
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
-          image-ref: ${{ steps.image.outputs.name }}
+          image-ref: ${{ steps.scan.outputs.ref }}
           format: sarif
           output: /tmp/trivy-${{ matrix.target }}.sarif
           severity: HIGH,CRITICAL
@@ -229,6 +258,13 @@ jobs:
             /tmp/trivy-${{ matrix.target }}.sarif
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request' && success()
+        with:
+          name: board-release-digest-${{ matrix.target }}
+          path: /tmp/${{ matrix.target }}.digest
+          if-no-files-found: error
+          retention-days: 90
 
   tutorboard-image:
     needs: tutorboard-quality-and-two-client-e2e
@@ -264,8 +300,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: image
-        run: echo "name=ghcr.io/artemlevin/tutorboard:${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          repository="ghcr.io/artemlevin/tutorboard"
+          echo "repository=$repository" >> "$GITHUB_OUTPUT"
+          echo "name=$repository:${BOARD_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
+        id: build
         with:
           context: tutorboard
           push: ${{ github.event_name != 'pull_request' }}
@@ -275,29 +316,142 @@ jobs:
             BUILD_REVISION=${{ steps.tutorboard-release.outputs.ref }}
             BUILD_VERSION=${{ env.RELEASE_TAG }}
             VITE_APP_PROFILE=board
+      - name: Select exact image for supply-chain checks
+        id: scan
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            ref="${{ steps.image.outputs.name }}"
+          else
+            ref="${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: Record immutable image reference
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: >-
+          printf '%s@%s\n'
+          '${{ steps.image.outputs.repository }}'
+          '${{ steps.build.outputs.digest }}'
+          > /tmp/tutorboard.digest
       - uses: anchore/sbom-action@v0
         with:
-          image: ${{ steps.image.outputs.name }}
+          image: ${{ steps.scan.outputs.ref }}
           artifact-name: tutorboard.spdx.json
           output-file: /tmp/tutorboard.spdx.json
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
-          image-ref: ${{ steps.image.outputs.name }}
+          image-ref: ${{ steps.scan.outputs.ref }}
+          format: sarif
+          output: /tmp/trivy-tutorboard.sarif
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+          limit-severities-for-sarif: true
+      - name: Summarize Trivy findings
+        if: always()
+        env:
+          SARIF_PATH: /tmp/trivy-tutorboard.sarif
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["SARIF_PATH"])
+          if not path.exists():
+              raise SystemExit(f"{path} was not produced")
+          document = json.loads(path.read_text(encoding="utf-8"))
+          results = [
+              result
+              for run in document.get("runs", [])
+              for result in run.get("results", [])
+          ]
+          print(f"Trivy findings: {len(results)}")
+          for result in results[:100]:
+              rule = result.get("ruleId", "unknown")
+              message = result.get("message", {}).get("text", "").replace("\n", " ")
+              print(f"{rule}: {message}")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: board-supply-chain-tutorboard
+          path: |
+            /tmp/tutorboard.spdx.json
+            /tmp/trivy-tutorboard.sarif
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request' && success()
+        with:
+          name: board-release-digest-tutorboard
+          path: /tmp/tutorboard.digest
+          if-no-files-found: error
+          retention-days: 90
+
+  release-manifest:
+    if: github.event_name != 'pull_request'
+    needs: [images, tutorboard-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: board-release-digest-*
+          path: /tmp/board-release-digests
+          merge-multiple: true
+      - name: Assemble immutable release manifest
+        run: |
+          python3 deploy/board-production/release-manifest.py assemble \
+            --output /tmp/board-release-manifest.json \
+            --backend-repository "$GITHUB_REPOSITORY" \
+            --backend-commit "$GITHUB_SHA" \
+            --frontend-release deploy/board-production/tutorboard-release.json \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --digest board-api=/tmp/board-release-digests/board-api.digest \
+            --digest tutorboard=/tmp/board-release-digests/tutorboard.digest \
+            --digest migration=/tmp/board-release-digests/migration.digest \
+            --digest ops=/tmp/board-release-digests/ops.digest
+          python3 deploy/board-production/release-manifest.py verify \
+            --manifest /tmp/board-release-manifest.json \
+            --backend-repository "$GITHUB_REPOSITORY" \
+            --backend-commit "$GITHUB_SHA" \
+            --frontend-release deploy/board-production/tutorboard-release.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board-release-manifest
+          path: /tmp/board-release-manifest.json
+          if-no-files-found: error
+          retention-days: 90
 
   staging:
     if: github.event_name == 'workflow_dispatch'
-    needs: [images, tutorboard-image]
+    needs: release-manifest
     runs-on: [self-hosted, tutorboard-staging]
     environment: board-staging
     timeout-minutes: 1560
     steps:
       - uses: actions/checkout@v4
         with: {clean: false}
-      - name: Resolve immutable image digests
-        run: deploy/board-production/resolve-release.sh "$RELEASE_TAG" > deploy/board-production/runtime/resolved.env
+      - uses: actions/download-artifact@v4
+        with:
+          name: board-release-manifest
+          path: deploy/board-production/runtime/release-input
+      - name: Verify staging release manifest
+        run: |
+          manifest=deploy/board-production/runtime/release-input/board-release-manifest.json
+          python3 deploy/board-production/release-manifest.py verify \
+            --manifest "$manifest" \
+            --backend-repository "$GITHUB_REPOSITORY" \
+            --backend-commit "$GITHUB_SHA" \
+            --frontend-release deploy/board-production/tutorboard-release.json
+          python3 deploy/board-production/release-manifest.py env \
+            --manifest "$manifest" \
+            > deploy/board-production/runtime/resolved.env
       - name: Deploy inactive slot
         run: |
           . deploy/board-production/runtime/resolved.env
@@ -320,8 +474,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {clean: false}
-      - name: Resolve the staging-approved manifest
-        run: deploy/board-production/resolve-release.sh "$RELEASE_TAG" > deploy/board-production/runtime/resolved.env
+      - uses: actions/download-artifact@v4
+        with:
+          name: board-release-manifest
+          path: deploy/board-production/runtime/release-input
+      - name: Verify the staging-approved manifest
+        run: |
+          manifest=deploy/board-production/runtime/release-input/board-release-manifest.json
+          python3 deploy/board-production/release-manifest.py verify \
+            --manifest "$manifest" \
+            --backend-repository "$GITHUB_REPOSITORY" \
+            --backend-commit "$GITHUB_SHA" \
+            --frontend-release deploy/board-production/tutorboard-release.json
+          python3 deploy/board-production/release-manifest.py env \
+            --manifest "$manifest" \
+            > deploy/board-production/runtime/resolved.env
       - name: Blue/green production rollout
         run: |
           . deploy/board-production/runtime/resolved.env
