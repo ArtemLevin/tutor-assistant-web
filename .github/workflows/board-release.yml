@@ -191,13 +191,44 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+          limit-severities-for-sarif: true
+      - name: Summarize Trivy findings
+        if: always()
+        env:
+          SARIF_PATH: /tmp/trivy-${{ matrix.target }}.sarif
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["SARIF_PATH"])
+          if not path.exists():
+              raise SystemExit(f"{path} was not produced")
+          document = json.loads(path.read_text(encoding="utf-8"))
+          results = [
+              result
+              for run in document.get("runs", [])
+              for result in run.get("results", [])
+          ]
+          print(f"Trivy findings: {len(results)}")
+          for result in results[:100]:
+              rule = result.get("ruleId", "unknown")
+              message = result.get("message", {}).get("text", "").replace("\n", " ")
+              print(f"{rule}: {message}")
+          PY
       - name: Assert non-root board runtime
         run: test "$(docker inspect --format '{{.Config.User}}' '${{ steps.image.outputs.name }}')" = "tutor:tutor"
         if: github.event_name == 'pull_request'
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: board-supply-chain-${{ matrix.target }}
-          path: /tmp/board-${{ matrix.target }}.spdx.json
+          path: |
+            /tmp/board-${{ matrix.target }}.spdx.json
+            /tmp/trivy-${{ matrix.target }}.sarif
+          if-no-files-found: error
+          retention-days: 30
 
   tutorboard-image:
     needs: tutorboard-quality-and-two-client-e2e
