@@ -77,9 +77,7 @@ def _read_frontend_release(path: Path) -> dict:
     }
     missing = sorted(required - payload.keys())
     if missing:
-        raise ReleaseManifestError(
-            f"frontend release file is missing fields: {', '.join(missing)}"
-        )
+        raise ReleaseManifestError(f"frontend release file is missing fields: {', '.join(missing)}")
     repository = payload["repository"]
     if not isinstance(repository, str) or "/" not in repository:
         raise ReleaseManifestError("frontend release repository must be owner/name")
