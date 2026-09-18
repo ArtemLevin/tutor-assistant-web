@@ -1,6 +1,16 @@
 #!/bin/sh
 set -eu
 
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ENV_FILE="$HERE/.env.production"
+[ -s "$ENV_FILE" ] || {
+  echo "Missing $ENV_FILE. Run $HERE/init.sh and configure the deployment first." >&2
+  exit 2
+}
+set -a
+. "$ENV_FILE"
+set +a
+
 tag=${1:-}
 [ -n "$tag" ] || { echo "Usage: $0 <immutable-release-tag>" >&2; exit 2; }
 case "$tag" in latest|*[!A-Za-z0-9._-]*) echo "Invalid release tag." >&2; exit 2 ;; esac

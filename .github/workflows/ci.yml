@@ -145,7 +145,7 @@ jobs:
       - run: >-
           docker run -d --name minio -p 9000:9000
           -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
-          minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
       - run: uv sync --extra dev
       - run: uv run pytest tests/test_postgres_integration.py tests/test_redis_integration.py tests/test_minio_integration.py
 
@@ -157,8 +157,8 @@ jobs:
     steps:
       - name: Check out backend
         uses: actions/checkout@v4
-      - name: Read pinned TutorBoard commit
-        id: tutorboard-contract
+      - name: Read pinned BoardDocument source commit
+        id: tutorboard-source
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
@@ -167,11 +167,11 @@ jobs:
           source = json.loads(Path("schemas/board/source.json").read_text())
           print(f"ref={source['sourceCommit']}")
           PY
-      - name: Check out contract-matched TutorBoard
+      - name: Check out pinned TutorBoard contract source
         uses: actions/checkout@v4
         with:
           repository: ArtemLevin/tutorboard
-          ref: ${{ steps.tutorboard-contract.outputs.ref }}
+          ref: ${{ steps.tutorboard-source.outputs.ref }}
           path: integrations/tutorboard
           persist-credentials: false
       - uses: astral-sh/setup-uv@v6

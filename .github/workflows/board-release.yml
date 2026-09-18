@@ -13,7 +13,7 @@ on:
         required: true
 
 concurrency:
-  group: board-release-${{ github.ref }}
+  group: board-release-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
@@ -84,7 +84,7 @@ jobs:
       - run: >-
           docker run -d --name board-minio -p 9000:9000
           -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
-          minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
       - run: uv sync --frozen --extra dev
       - run: uv run alembic upgrade head
       - run: uv run pytest -q tests/test_postgres_integration.py tests/test_minio_integration.py tests/test_redis_integration.py tests/test_board_collaboration.py
@@ -94,22 +94,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {path: tutor-assistant-web}
-      - name: Read contract-matched TutorBoard commit
-        id: tutorboard-contract
+      - name: Read pinned deployable TutorBoard commit
+        id: tutorboard-release
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           from pathlib import Path
 
           source = json.loads(
-              Path("tutor-assistant-web/schemas/board/source.json").read_text()
+              Path("tutor-assistant-web/deploy/board-production/tutorboard-release.json").read_text()
           )
           print(f"ref={source['sourceCommit']}")
           PY
       - uses: actions/checkout@v4
         with:
           repository: ArtemLevin/tutorboard
-          ref: ${{ steps.tutorboard-contract.outputs.ref }}
+          ref: ${{ steps.tutorboard-release.outputs.ref }}
           path: tutorboard
       - uses: actions/setup-node@v5
         with:
@@ -135,8 +135,8 @@ jobs:
           VITE_BOARD_API_BASE_URL: /api/v1
       - run: npx playwright install --with-deps chromium
         working-directory: tutorboard
-      - name: Two-client collaboration, reconnect, and recovery
-        run: npm run e2e:collaboration
+      - name: Standalone teacher/guest controlled pilot E2E
+        run: npm run e2e:standalone-pilot
         working-directory: tutorboard
         env:
           TUTOR_ASSISTANT_WEB_ROOT: ${{ github.workspace }}/tutor-assistant-web
@@ -191,13 +191,44 @@ jobs:
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: "1"
+          limit-severities-for-sarif: true
+      - name: Summarize Trivy findings
+        if: always()
+        env:
+          SARIF_PATH: /tmp/trivy-${{ matrix.target }}.sarif
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["SARIF_PATH"])
+          if not path.exists():
+              raise SystemExit(f"{path} was not produced")
+          document = json.loads(path.read_text(encoding="utf-8"))
+          results = [
+              result
+              for run in document.get("runs", [])
+              for result in run.get("results", [])
+          ]
+          print(f"Trivy findings: {len(results)}")
+          for result in results[:100]:
+              rule = result.get("ruleId", "unknown")
+              message = result.get("message", {}).get("text", "").replace("\n", " ")
+              print(f"{rule}: {message}")
+          PY
       - name: Assert non-root board runtime
         run: test "$(docker inspect --format '{{.Config.User}}' '${{ steps.image.outputs.name }}')" = "tutor:tutor"
         if: github.event_name == 'pull_request'
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: board-supply-chain-${{ matrix.target }}
-          path: /tmp/board-${{ matrix.target }}.spdx.json
+          path: |
+            /tmp/board-${{ matrix.target }}.spdx.json
+            /tmp/trivy-${{ matrix.target }}.sarif
+          if-no-files-found: error
+          retention-days: 30
 
   tutorboard-image:
     needs: tutorboard-quality-and-two-client-e2e
@@ -208,22 +239,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {path: tutor-assistant-web}
-      - name: Read contract-matched TutorBoard commit
-        id: tutorboard-contract
+      - name: Read pinned deployable TutorBoard commit
+        id: tutorboard-release
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
           from pathlib import Path
 
           source = json.loads(
-              Path("tutor-assistant-web/schemas/board/source.json").read_text()
+              Path("tutor-assistant-web/deploy/board-production/tutorboard-release.json").read_text()
           )
           print(f"ref={source['sourceCommit']}")
           PY
       - uses: actions/checkout@v4
         with:
           repository: ArtemLevin/tutorboard
-          ref: ${{ steps.tutorboard-contract.outputs.ref }}
+          ref: ${{ steps.tutorboard-release.outputs.ref }}
           path: tutorboard
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -241,7 +272,7 @@ jobs:
           load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.image.outputs.name }}
           build-args: |
-            BUILD_REVISION=${{ github.sha }}
+            BUILD_REVISION=${{ steps.tutorboard-release.outputs.ref }}
             BUILD_VERSION=${{ env.RELEASE_TAG }}
             VITE_APP_PROFILE=board
       - uses: anchore/sbom-action@v0

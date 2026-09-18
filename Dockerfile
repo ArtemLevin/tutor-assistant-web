@@ -35,7 +35,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PATH="/home/tutor/.local/bin:${PATH}"
 
-RUN groupadd --gid "${APP_GID}" tutor \
+RUN apt-get update \
+    && apt-get upgrade --yes --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid "${APP_GID}" tutor \
     && useradd --uid "${APP_UID}" --gid "${APP_GID}" --create-home --shell /usr/sbin/nologin tutor
 
 WORKDIR /app
