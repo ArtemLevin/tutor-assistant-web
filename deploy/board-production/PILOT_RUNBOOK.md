@@ -12,6 +12,32 @@ The frontend used by the board release pipeline is pinned independently from the
 
 When promoting a newer TutorBoard commit, update `tutorboard-release.json` in a pull request and require the complete `TutorBoard standalone release` workflow to pass. The cross-repository job must verify frontend format/lint/typecheck/tests, strict board build, and the two-client collaboration/reconnect/recovery E2E against the current backend.
 
+## Immutable release provenance
+
+The deployable unit is the verified `board-release-manifest` artifact produced by the
+standalone release workflow. Registry tags are discovery aids only; staging and production
+must consume the exact `repository@sha256:<digest>` references recorded in that manifest.
+
+The trusted release chain is:
+
+1. exact backend commit;
+2. pinned frontend commit from `tutorboard-release.json`;
+3. GitHub Actions image build;
+4. digest returned by that exact build;
+5. SBOM and Trivy scan against that exact digest;
+6. immutable release manifest containing all four digests;
+7. staging deployment from that manifest;
+8. restart, backup/restore, rollback, and soak gates;
+9. production deployment from the same workflow-run manifest.
+
+The standalone workflow uses `board-<backend-sha>` tags to keep its migration and ops tags
+separate from the general production workflow. A rerun may still create a new tag target, so
+the manifest digest remains the only deployment authority.
+
+`resolve-release.sh` is retained for registry diagnostics and manual comparison. Automated
+staging and production promotion must not resolve mutable tags again after the release
+manifest has been created.
+
 ## Pilot GO gate
 
 The pilot is GO only when all of the following are true:
