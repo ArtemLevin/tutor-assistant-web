@@ -1,0 +1,30 @@
+name: Temporary PyJWT lock refresh
+
+on:
+  push:
+    branches:
+      - agent/media-m1-contract-compat
+
+permissions:
+  contents: write
+
+jobs:
+  lock:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv lock --upgrade-package pyjwt
+      - name: Commit lock refresh and remove temporary workflow
+        run: |
+          rm .github/workflows/tmp-refresh-pyjwt-lock.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock .github/workflows/tmp-refresh-pyjwt-lock.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: refresh PyJWT lock"
+          git push origin HEAD:agent/media-m1-contract-compat
