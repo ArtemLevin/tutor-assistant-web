@@ -119,11 +119,14 @@ class BoardCommandEnvelopeInput(RootModel[BoardCommandEnvelope]):
 
 
 def envelope_commands(envelope: BoardCommandEnvelope) -> list[BoardCommand]:
-    if isinstance(envelope, (
+    if isinstance(
+        envelope,
+        (
             LegacyOrderedBoardCommandEnvelope,
             PreviousOrderedBoardCommandEnvelope,
             BoardCommandEnvelope16,
-        )):
+        ),
+    ):
         return [item.command for item in envelope.commands]
     return list(envelope.commands)
 
@@ -133,11 +136,14 @@ def envelope_actor_ids(envelope: BoardCommandEnvelope) -> list[str]:
 
 
 def envelope_base_revisions(envelope: BoardCommandEnvelope) -> list[int]:
-    if isinstance(envelope, (
+    if isinstance(
+        envelope,
+        (
             LegacyOrderedBoardCommandEnvelope,
             PreviousOrderedBoardCommandEnvelope,
             BoardCommandEnvelope16,
-        )):
+        ),
+    ):
         return [item.order.base_revision_at_creation for item in envelope.commands]
     return [envelope.base_revision for _ in envelope.commands]
 
@@ -147,11 +153,14 @@ def envelope_lamport_range(
 ) -> tuple[int, int] | None:
     """Return the actor-local Lamport range carried by an ordered envelope."""
 
-    if not isinstance(envelope, (
+    if not isinstance(
+        envelope,
+        (
             LegacyOrderedBoardCommandEnvelope,
             PreviousOrderedBoardCommandEnvelope,
             BoardCommandEnvelope16,
-        )):
+        ),
+    ):
         return None
 
     orders = [item.order for item in envelope.commands]
