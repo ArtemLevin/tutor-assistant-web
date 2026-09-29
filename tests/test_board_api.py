@@ -36,6 +36,9 @@ from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
 from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument
+from tutor_assistant_web.shared.board_contracts.board_snapshot_1_4_schema import (
+    BoardSnapshot14,
+)
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "schemas" / "board" / "v1" / "fixtures"
@@ -146,6 +149,42 @@ def _snapshot_payload(*, revision: int = 0):
     document = BoardDocument.model_validate(payload["document"])
     payload["documentSha256"] = canonical_json(document)[2]
     return payload
+
+
+def _legacy_snapshot_payload(*, revision: int = 0):
+    payload = _snapshot_payload(revision=revision)
+    payload["schemaVersion"] = "1.4"
+    payload["document"]["schemaVersion"] = "1.4"
+    legacy = BoardSnapshot14.model_validate(payload)
+    payload["documentSha256"] = canonical_json(legacy.document)[2]
+    return payload
+
+
+def _media_asset_payload() -> dict:
+    return {
+        "groupId": None,
+        "id": "object:api-media",
+        "assetId": "asset:api-media",
+        "byteSize": 12345,
+        "contentSha256": "a" * 64,
+        "fileName": "lesson.gif",
+        "intrinsicSize": {"height": 100, "width": 160},
+        "kind": "media.asset",
+        "locked": False,
+        "mimeType": "image/gif",
+        "position": {"x": 0, "y": 0},
+        "rotation": 0,
+        "scale": {"x": 1, "y": 1},
+        "size": {"height": 100, "width": 160},
+        "source": {"kind": "user"},
+        "style": {
+            "fill": None,
+            "opacity": 1,
+            "stroke": None,
+            "strokeWidth": 0,
+        },
+        "visible": True,
+    }
 
 
 def _seed_lesson(database: Database, *, organization_id: str = DEFAULT_ORGANIZATION_ID):
@@ -305,6 +344,69 @@ def test_teacher_board_flow_revision_conflict_snapshot_and_audit(board_api):
     }.issubset(set(actions))
     assert actions.count("board.created") == 1
     assert actions.count("board.commands.appended") == 1
+
+
+def test_board_api_accepts_legacy_snapshot_14_during_rollout(board_api):
+    client, _, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+
+    payload = _legacy_snapshot_payload()
+    saved = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/snapshots",
+        json=payload,
+        headers={"x-csrf-token": csrf},
+    )
+
+    assert saved.status_code == 201
+    recovered = client.get(f"/api/v1/boards/{DOCUMENT_ID}")
+    assert recovered.status_code == 200
+    assert recovered.json()["snapshot"]["schemaVersion"] == "1.4"
+
+
+def test_board_api_gates_media_asset_until_authority_is_available(board_api):
+    client, _, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+
+    command = _command_payload(user_id)
+    command["commands"] = [
+        {
+            "command": {
+                "actorId": user_id,
+                "atIndex": 0,
+                "id": "command:api-media",
+                "kind": "core.objects.add",
+                "objects": [_media_asset_payload()],
+                "timestamp": "2026-09-30T00:00:00.000Z",
+            },
+            "order": {"baseRevisionAtCreation": 0, "lamport": 1},
+        }
+    ]
+    command["expectedDocumentSha256"] = _snapshot_payload()["documentSha256"]
+    rejected_command = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        json=command,
+        headers={"x-csrf-token": csrf},
+    )
+    assert rejected_command.status_code == 422
+    assert "media.asset requires board media authority" in rejected_command.text
+
+    snapshot = _snapshot_payload()
+    asset = _media_asset_payload()
+    snapshot["document"]["objects"][asset["id"]] = asset
+    snapshot["document"]["order"].append(asset["id"])
+    rejected_snapshot = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/snapshots",
+        json=snapshot,
+        headers={"x-csrf-token": csrf},
+    )
+    assert rejected_snapshot.status_code == 422
+    assert "media.asset requires board media authority" in rejected_snapshot.text
+
+    board = client.get(f"/api/v1/boards/{DOCUMENT_ID}")
+    assert board.status_code == 200
+    assert board.json()["board"]["currentRevision"] == 0
+    assert board.json()["snapshot"] is None
 
 
 def test_ordered_lamport_range_is_persisted_and_replay_is_rejected(board_api):
