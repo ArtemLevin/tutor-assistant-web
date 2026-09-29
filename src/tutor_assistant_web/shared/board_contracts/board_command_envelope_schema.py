@@ -90,6 +90,13 @@ class Size1(BaseModel):
     width: float = Field(..., gt=0.0, le=16384.0)
 
 
+class MimeType1(Enum):
+    image_png = "image/png"
+    image_jpeg = "image/jpeg"
+    image_gif = "image/gif"
+    video_mp4 = "video/mp4"
+
+
 Identifier = RootModel[str]
 
 
@@ -1376,6 +1383,29 @@ class EmbeddedImageObject(BaseModel):
     size: Size1
 
 
+class MediaAssetObject(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    group_id: Identifier | None = Field(..., alias="groupId")
+    id: Identifier
+    locked: bool
+    position: Vec2
+    rotation: float
+    scale: PositiveVec2
+    source: UserObjectSource | GeometryOsObjectSource
+    style: ObjectStyle
+    visible: bool
+    kind: Literal["media.asset"]
+    asset_id: Identifier = Field(..., alias="assetId")
+    byte_size: int = Field(..., alias="byteSize", ge=1, le=9007199254740991)
+    content_sha256: str = Field(..., alias="contentSha256", pattern="^[a-f0-9]{64}$")
+    file_name: str = Field(..., alias="fileName", max_length=256, min_length=1)
+    intrinsic_size: IntrinsicSize = Field(..., alias="intrinsicSize")
+    mime_type: MimeType1 = Field(..., alias="mimeType")
+    size: Size1
+
+
 class GeometryImportRecord(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1533,6 +1563,7 @@ BoardObject = RootModel[
     | EllipseObject
     | TextObject
     | EmbeddedImageObject
+    | MediaAssetObject
     | SvgObject
     | CoordinatePlotObject
 ]
@@ -1659,7 +1690,7 @@ class OrderedBoardCommand(BaseModel):
     order: BoardCommandOrder
 
 
-class BoardCommandEnvelope15(BaseModel):
+class BoardCommandEnvelope16(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1674,7 +1705,7 @@ class BoardCommandEnvelope15(BaseModel):
         ..., alias="idempotencyKey", max_length=128, min_length=1, pattern="^[A-Za-z0-9._:-]+$"
     )
     origin_id: Identifier = Field(..., alias="originId")
-    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.6"] = Field(..., alias="schemaVersion")
 
 
 class BoardDocument(BaseModel):
@@ -1703,7 +1734,7 @@ class BoardDocument(BaseModel):
         BoardObject,
     ]
     order: list[Identifier]
-    schema_version: Literal["1.4"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
     solid_learning_attempts: dict[
         constr(
             pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
