@@ -22,6 +22,7 @@ from tutor_assistant_web.modules.boards.collaboration import (
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
     BoardCommandEnvelopeInput,
+    BoardSnapshotInput,
     envelope_commands,
 )
 from tutor_assistant_web.modules.boards.evidence import FinalizeBoardEvidenceRequest
