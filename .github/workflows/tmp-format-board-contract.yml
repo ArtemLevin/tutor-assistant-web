@@ -1,0 +1,31 @@
+name: Temporary Ruff format board contract
+
+on:
+  push:
+    branches:
+      - agent/media-m1-contract-compat
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - run: uv run ruff format src/tutor_assistant_web/modules/boards/contracts.py src/tutor_assistant_web/modules/boards/application.py src/tutor_assistant_web/modules/boards/routes.py tests/test_board_contracts.py tests/test_board_api.py tests/test_board_persistence.py scripts/generate_board_contract_models.py
+      - name: Commit formatting and remove temporary workflow
+        run: |
+          rm .github/workflows/tmp-format-board-contract.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tutor_assistant_web/modules/boards tests/test_board_contracts.py tests/test_board_api.py tests/test_board_persistence.py scripts/generate_board_contract_models.py .github/workflows/tmp-format-board-contract.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "style: format board contract compatibility changes"
+          git push origin HEAD:agent/media-m1-contract-compat
