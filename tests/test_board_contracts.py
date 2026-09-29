@@ -35,6 +35,12 @@ def test_vendored_contract_manifest_is_complete_and_fresh() -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     assert source["contract"] == manifest["contract"] == "board/v1"
+    assert manifest["schemas"] == {
+        "boardCommandEnvelope": "1.6",
+        "boardDocument": "1.5",
+        "boardGeometryImport": "1.0",
+        "boardSnapshot": "1.5",
+    }
     assert source["sourceRepository"] == "https://github.com/ArtemLevin/tutorboard"
     assert re.fullmatch(r"[a-f0-9]{40}", source["sourceCommit"])
     assert hashlib.sha256(manifest_path.read_bytes()).hexdigest() == source["manifestSha256"]
