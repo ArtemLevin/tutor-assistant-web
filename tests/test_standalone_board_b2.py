@@ -23,7 +23,7 @@ from tutor_assistant_web.modules.boards.standalone_contracts import (
     TeacherBoardAccessContext,
 )
 from tutor_assistant_web.observability import redact
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument14
+from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "schemas" / "board" / "v1" / "fixtures"
@@ -174,7 +174,7 @@ def _snapshot_payload(board_id: str, *, revision: int = 0) -> dict:
     payload["documentId"] = board_id
     payload["revision"] = revision
     payload["document"]["id"] = board_id
-    document = BoardDocument14.model_validate(payload["document"])
+    document = BoardDocument.model_validate(payload["document"])
     payload["documentSha256"] = canonical_json(document)[2]
     return payload
 
