@@ -6,11 +6,17 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 
 from tutor_assistant_web.shared.board_contracts.board_command_envelope_1_6_schema import (
     BoardCommand as BoardCommand16,
+)
+from tutor_assistant_web.shared.board_contracts.board_command_envelope_1_6_schema import (
     BoardCommandEnvelope16,
+)
+from tutor_assistant_web.shared.board_contracts.board_command_envelope_1_6_schema import (
     OrderedBoardCommand as OrderedBoardCommand16,
 )
 from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
     BoardCommand as BoardCommand17,
+)
+from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
     BoardCommandEnvelope17,
     Identifier,
 )
