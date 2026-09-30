@@ -23,7 +23,8 @@ from tutor_assistant_web.modules.students.models import Student
 LESSON_ID = "20000000-0000-4000-8000-000000000001"
 STUDENT_ID = "20000000-0000-4000-8000-000000000002"
 STUDENT_USER_ID = "20000000-0000-4000-8000-000000000003"
-PASSWORD = "collaboration-e2e-password"
+PASSWORD = "standalone-pilot-e2e-password"
+TEACHER_EMAIL = "standalone-pilot-teacher@example.test"
 
 
 def settings(database_path: Path, artifact_path: Path) -> Settings:
@@ -33,7 +34,7 @@ def settings(database_path: Path, artifact_path: Path) -> Settings:
         artifact_storage_provider="local",
         artifact_storage_root=str(artifact_path),
         auto_migrate=False,
-        bootstrap_admin_email="collaboration-tutor@example.test",
+        bootstrap_admin_email=TEACHER_EMAIL,
         bootstrap_admin_name="E2E Преподаватель",
         bootstrap_admin_password=PASSWORD,
         database_url=f"sqlite:///{database_path}",
