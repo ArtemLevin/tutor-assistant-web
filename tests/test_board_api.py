@@ -426,6 +426,7 @@ def test_api_accepts_atomic_batch_replace_envelope_17(board_api):
     payload = {
         **fixture,
         "actorId": user_id,
+        "baseRevision": 0,
         "commands": [batch],
         "documentId": DOCUMENT_ID,
         "expectedDocumentSha256": _snapshot_payload()["documentSha256"],
