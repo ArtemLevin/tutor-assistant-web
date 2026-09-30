@@ -19,16 +19,16 @@ RUN set -eux; \
     esac; \
     mkdir -p /out; \
     curl -fsSL --retry 3 \
-      "https://dl.min.io/server/minio/release/linux-$arch/archive/minio.${MINIO_RELEASE}" \
+      "https://github.com/minio/minio/releases/download/${MINIO_RELEASE}/minio.linux-$arch.${MINIO_RELEASE}" \
       -o /out/minio; \
     curl -fsSL --retry 3 \
-      "https://dl.min.io/server/minio/release/linux-$arch/archive/minio.${MINIO_RELEASE}.minisig" \
+      "https://github.com/minio/minio/releases/download/${MINIO_RELEASE}/minio.linux-$arch.${MINIO_RELEASE}.minisig" \
       -o /out/minio.minisig; \
     curl -fsSL --retry 3 \
-      "https://dl.min.io/client/mc/release/linux-$arch/archive/mc.${MC_RELEASE}" \
+      "https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.linux-$arch.${MC_RELEASE}" \
       -o /out/mc; \
     curl -fsSL --retry 3 \
-      "https://dl.min.io/client/mc/release/linux-$arch/archive/mc.${MC_RELEASE}.minisig" \
+      "https://github.com/minio/mc/releases/download/${MC_RELEASE}/mc.linux-$arch.${MC_RELEASE}.minisig" \
       -o /out/mc.minisig; \
     minisign -Vqm /out/minio -x /out/minio.minisig -P "${MINIO_MINISIGN_PUBKEY}"; \
     minisign -Vqm /out/mc -x /out/mc.minisig -P "${MINIO_MINISIGN_PUBKEY}"
