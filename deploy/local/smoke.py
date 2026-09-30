@@ -12,7 +12,9 @@ import httpx
 import websockets
 
 from tutor_assistant_web.modules.boards.application import canonical_json
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument14
+from tutor_assistant_web.shared.board_contracts.board_snapshot_1_4_schema import (
+    BoardDocument as BoardDocument14,
+)
 
 BASE_URL = os.getenv("LOCAL_BASE_URL", "http://gateway:8080").rstrip("/")
 PUBLIC_ORIGIN = os.getenv("LOCAL_PUBLIC_ORIGIN", "http://localhost:8080").rstrip("/")
