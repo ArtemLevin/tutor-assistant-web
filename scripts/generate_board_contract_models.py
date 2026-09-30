@@ -16,7 +16,11 @@ SCHEMA_NAMES = (
     "board-geometry-import.schema.json",
     "board-snapshot.schema.json",
 )
-LEGACY_SCHEMA_NAMES = ("board-snapshot-1.4.schema.json",)
+LEGACY_SCHEMA_NAMES = (
+    "board-command-envelope-1.6.schema.json",
+    "board-snapshot-1.4.schema.json",
+    "board-snapshot-1.5.schema.json",
+)
 
 
 def _generate(output_root: Path) -> None:

@@ -1,34 +1,5 @@
 {
   "$defs": {
-    "BatchObjectReplacement": {
-      "additionalProperties": false,
-      "properties": {
-        "atIndex": {
-          "minimum": 0,
-          "type": "integer"
-        },
-        "originals": {
-          "items": {
-            "$ref": "#/$defs/BoardObject"
-          },
-          "type": "array",
-          "maxItems": 5000
-        },
-        "replacements": {
-          "items": {
-            "$ref": "#/$defs/BoardObject"
-          },
-          "type": "array",
-          "maxItems": 5000
-        }
-      },
-      "required": [
-        "atIndex",
-        "originals",
-        "replacements"
-      ],
-      "type": "object"
-    },
     "BoardDocument": {
       "additionalProperties": false,
       "properties": {
@@ -74,7 +45,7 @@
           "uniqueItems": true
         },
         "schemaVersion": {
-          "const": "1.6"
+          "const": "1.5"
         },
         "solidLearningAttempts": {
           "additionalProperties": {
@@ -1316,7 +1287,7 @@
           },
           "type": "array",
           "maxItems": 100000,
-          "minItems": 1
+          "minItems": 2
         }
       },
       "required": [
@@ -1360,75 +1331,38 @@
       "type": "object"
     },
     "VectorInkData": {
-      "oneOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "centerline": {
-              "items": {
-                "$ref": "#/$defs/CubicBezierSegment"
-              },
-              "type": "array",
-              "maxItems": 0
-            },
-            "closed": {
-              "const": false
-            },
-            "samples": {
-              "items": {
-                "$ref": "#/$defs/VectorInkSample"
-              },
-              "type": "array",
-              "maxItems": 1,
-              "minItems": 1
-            },
-            "version": {
-              "const": "1.0"
-            }
+      "additionalProperties": false,
+      "properties": {
+        "centerline": {
+          "items": {
+            "$ref": "#/$defs/CubicBezierSegment"
           },
-          "required": [
-            "centerline",
-            "closed",
-            "samples",
-            "version"
-          ],
-          "type": "object"
+          "type": "array",
+          "maxItems": 100000,
+          "minItems": 1
         },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "centerline": {
-              "items": {
-                "$ref": "#/$defs/CubicBezierSegment"
-              },
-              "type": "array",
-              "maxItems": 100000,
-              "minItems": 1
-            },
-            "closed": {
-              "type": "boolean"
-            },
-            "samples": {
-              "items": {
-                "$ref": "#/$defs/VectorInkSample"
-              },
-              "type": "array",
-              "maxItems": 100000,
-              "minItems": 2
-            },
-            "version": {
-              "const": "1.0"
-            }
+        "closed": {
+          "type": "boolean"
+        },
+        "samples": {
+          "items": {
+            "$ref": "#/$defs/VectorInkSample"
           },
-          "required": [
-            "centerline",
-            "closed",
-            "samples",
-            "version"
-          ],
-          "type": "object"
+          "type": "array",
+          "maxItems": 100000,
+          "minItems": 2
+        },
+        "version": {
+          "const": "1.0"
         }
-      ]
+      },
+      "required": [
+        "centerline",
+        "closed",
+        "samples",
+        "version"
+      ],
+      "type": "object"
     },
     "VectorInkSample": {
       "additionalProperties": false,
@@ -3552,8 +3486,40 @@
       "type": "object"
     }
   },
-  "$id": "https://contracts.tutorboard.dev/board/v1/board-document.schema.json",
+  "$id": "https://contracts.tutorboard.dev/board/v1/board-snapshot.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "BoardDocument 1.6",
-  "$ref": "#/$defs/BoardDocument"
+  "title": "BoardSnapshot 1.5",
+  "additionalProperties": false,
+  "properties": {
+    "createdAt": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "document": {
+      "$ref": "#/$defs/BoardDocument"
+    },
+    "documentId": {
+      "$ref": "#/$defs/Identifier"
+    },
+    "documentSha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": "1.5"
+    }
+  },
+  "required": [
+    "createdAt",
+    "document",
+    "documentId",
+    "documentSha256",
+    "revision",
+    "schemaVersion"
+  ],
+  "type": "object"
 }
