@@ -1,0 +1,49 @@
+name: Input UX backend compatibility focused gate
+
+on:
+  push:
+    branches: [feat/input-ux-contract-compat]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: input-ux-backend-compat-focused
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/input-ux-contract-compat
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --frozen --extra dev
+      - name: Regenerate rolling contract DTOs
+        run: uv run python scripts/generate_board_contract_models.py
+      - name: Format compatibility sources
+        run: |
+          uv run ruff format             scripts/generate_board_contract_models.py             src/tutor_assistant_web/modules/boards/contracts.py             tests/test_board_contracts.py
+          uv run ruff check --fix --select I             scripts/generate_board_contract_models.py             src/tutor_assistant_web/modules/boards/contracts.py             tests/test_board_contracts.py
+          uv run ruff format             scripts/generate_board_contract_models.py             src/tutor_assistant_web/modules/boards/contracts.py             tests/test_board_contracts.py
+      - name: Commit generated DTOs and remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/input-ux-backend-compat-focused.yml
+          git add schemas scripts src tests
+          git commit -m "chore: generate input UX rolling contract DTOs" || true
+          git push origin HEAD:feat/input-ux-contract-compat
+      - run: uv run python scripts/generate_board_contract_models.py --check
+      - run: uv run ruff format --check .
+      - run: uv run ruff check .
+      - name: Focused board contract tests
+        run: uv run pytest -q tests/test_board_contracts.py tests/test_board_api.py tests/test_board_persistence.py tests/test_board_collaboration.py
