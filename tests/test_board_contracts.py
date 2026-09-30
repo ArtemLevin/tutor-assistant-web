@@ -3,9 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelopeInput,
