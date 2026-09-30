@@ -4,16 +4,23 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 
-from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
-    BoardCommand,
+from tutor_assistant_web.shared.board_contracts.board_command_envelope_1_6_schema import (
+    BoardCommand as BoardCommand16,
     BoardCommandEnvelope16,
+    OrderedBoardCommand as OrderedBoardCommand16,
+)
+from tutor_assistant_web.shared.board_contracts.board_command_envelope_schema import (
+    BoardCommand as BoardCommand17,
+    BoardCommandEnvelope17,
     Identifier,
-    OrderedBoardCommand,
 )
 from tutor_assistant_web.shared.board_contracts.board_snapshot_1_4_schema import (
     BoardSnapshot14,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot15
+from tutor_assistant_web.shared.board_contracts.board_snapshot_1_5_schema import (
+    BoardSnapshot15,
+)
+from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot16
 
 
 class LegacyBoardCommandEnvelope(BaseModel):
@@ -23,7 +30,7 @@ class LegacyBoardCommandEnvelope(BaseModel):
 
     actor_id: Identifier = Field(alias="actorId")
     base_revision: int = Field(alias="baseRevision", ge=0)
-    commands: list[BoardCommand] = Field(min_length=1, max_length=100)
+    commands: list[BoardCommand16] = Field(min_length=1, max_length=100)
     document_id: Identifier = Field(alias="documentId")
     expected_document_sha256: str = Field(
         alias="expectedDocumentSha256",
@@ -45,7 +52,7 @@ class LegacyOrderedBoardCommandEnvelope(BaseModel):
 
     actor_id: Identifier = Field(alias="actorId")
     base_revision: int = Field(alias="baseRevision", ge=0)
-    commands: list[OrderedBoardCommand] = Field(min_length=1, max_length=100)
+    commands: list[OrderedBoardCommand16] = Field(min_length=1, max_length=100)
     document_id: Identifier = Field(alias="documentId")
     expected_document_sha256: str = Field(
         alias="expectedDocumentSha256",
@@ -82,7 +89,7 @@ class PreviousOrderedBoardCommandEnvelope(BaseModel):
 
     actor_id: Identifier = Field(alias="actorId")
     base_revision: int = Field(alias="baseRevision", ge=0)
-    commands: list[OrderedBoardCommand] = Field(min_length=1, max_length=100)
+    commands: list[OrderedBoardCommand16] = Field(min_length=1, max_length=100)
     document_id: Identifier = Field(alias="documentId")
     expected_document_sha256: str = Field(
         alias="expectedDocumentSha256",
@@ -102,7 +109,8 @@ type BoardCommandEnvelope = Annotated[
     LegacyBoardCommandEnvelope
     | LegacyOrderedBoardCommandEnvelope
     | PreviousOrderedBoardCommandEnvelope
-    | BoardCommandEnvelope16,
+    | BoardCommandEnvelope16
+    | BoardCommandEnvelope17,
     Field(discriminator="schema_version"),
 ]
 
@@ -118,13 +126,17 @@ class BoardCommandEnvelopeInput(RootModel[BoardCommandEnvelope]):
         return self
 
 
-def envelope_commands(envelope: BoardCommandEnvelope) -> list[BoardCommand]:
+type CompatibleBoardCommand = BoardCommand16 | BoardCommand17
+
+
+def envelope_commands(envelope: BoardCommandEnvelope) -> list[CompatibleBoardCommand]:
     if isinstance(
         envelope,
         (
             LegacyOrderedBoardCommandEnvelope,
             PreviousOrderedBoardCommandEnvelope,
             BoardCommandEnvelope16,
+            BoardCommandEnvelope17,
         ),
     ):
         return [item.command for item in envelope.commands]
@@ -174,40 +186,41 @@ def envelope_lamport_range(
 
 
 def envelope_origin_id(envelope: BoardCommandEnvelope) -> str | None:
-    if isinstance(envelope, (PreviousOrderedBoardCommandEnvelope, BoardCommandEnvelope16)):
+    if isinstance(
+        envelope,
+        (
+            PreviousOrderedBoardCommandEnvelope,
+            BoardCommandEnvelope16,
+            BoardCommandEnvelope17,
+        ),
+    ):
         return envelope.origin_id.root
     return None
 
 
-_MEDIA_OBJECT_FIELDS: dict[str, tuple[str, ...]] = {
-    "core.objects.add": ("objects",),
-    "core.clipboard.paste": ("objects",),
-    "core.objects.replace": ("originals", "replacements"),
-    "core.geometry.import": ("objects",),
-    "core.solid-3d.create": ("objects",),
-    "core.solid-3d.project-section": ("objects",),
-}
-
-
-def _command_contains_media_asset(command: BoardCommand) -> bool:
-    payload = command.root.model_dump(mode="json", by_alias=True)
-    for field in _MEDIA_OBJECT_FIELDS.get(command.root.kind, ()):
-        objects = payload.get(field, [])
-        if isinstance(objects, list) and any(
-            isinstance(item, dict) and item.get("kind") == "media.asset" for item in objects
-        ):
+def _value_contains_media_asset(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("kind") == "media.asset":
             return True
+        return any(_value_contains_media_asset(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_value_contains_media_asset(item) for item in value)
     return False
 
 
+def _command_contains_media_asset(command: CompatibleBoardCommand) -> bool:
+    payload = command.root.model_dump(mode="json", by_alias=True)
+    return _value_contains_media_asset(payload)
+
+
 type BoardSnapshotContract = Annotated[
-    BoardSnapshot14 | BoardSnapshot15,
+    BoardSnapshot14 | BoardSnapshot15 | BoardSnapshot16,
     Field(discriminator="schema_version"),
 ]
 
 
 class BoardSnapshotInput(RootModel[BoardSnapshotContract]):
-    """Strict rolling-upgrade reader for BoardSnapshot 1.4 and 1.5."""
+    """Strict rolling-upgrade reader for BoardSnapshot 1.4, 1.5 and 1.6."""
 
     @model_validator(mode="after")
     def reject_media_assets_until_authority_exists(self) -> BoardSnapshotInput:
