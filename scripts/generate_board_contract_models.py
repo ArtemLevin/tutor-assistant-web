@@ -8,12 +8,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_ROOT = ROOT / "schemas" / "board" / "v1"
+LEGACY_SCHEMA_ROOT = ROOT / "schemas" / "board" / "legacy"
 OUTPUT_ROOT = ROOT / "src" / "tutor_assistant_web" / "shared" / "board_contracts"
 SCHEMA_NAMES = (
     "board-command-envelope.schema.json",
     "board-document.schema.json",
     "board-geometry-import.schema.json",
     "board-snapshot.schema.json",
+)
+LEGACY_SCHEMA_NAMES = (
+    "board-command-envelope-1.6.schema.json",
+    "board-snapshot-1.4.schema.json",
+    "board-snapshot-1.5.schema.json",
 )
 
 
@@ -22,6 +28,8 @@ def _generate(output_root: Path) -> None:
         input_root = Path(temporary)
         for name in SCHEMA_NAMES:
             shutil.copy2(SCHEMA_ROOT / name, input_root / name)
+        for name in LEGACY_SCHEMA_NAMES:
+            shutil.copy2(LEGACY_SCHEMA_ROOT / name, input_root / name)
         subprocess.run(
             [
                 "datamodel-codegen",

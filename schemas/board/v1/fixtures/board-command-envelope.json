@@ -226,11 +226,228 @@
         "baseRevisionAtCreation": 7,
         "lamport": 9
       }
+    },
+    {
+      "command": {
+        "actorId": "actor:tutor-01",
+        "changes": [
+          {
+            "atIndex": 0,
+            "originals": [
+              {
+                "groupId": null,
+                "id": "object:smart-ink-01",
+                "kind": "drawing.pen-stroke",
+                "ink": {
+                  "centerline": [
+                    {
+                      "start": {
+                        "x": 10,
+                        "y": 40
+                      },
+                      "control1": {
+                        "x": 10,
+                        "y": 30
+                      },
+                      "control2": {
+                        "x": 30,
+                        "y": 10
+                      },
+                      "end": {
+                        "x": 40,
+                        "y": 10
+                      }
+                    },
+                    {
+                      "start": {
+                        "x": 40,
+                        "y": 10
+                      },
+                      "control1": {
+                        "x": 50,
+                        "y": 10
+                      },
+                      "control2": {
+                        "x": 70,
+                        "y": 30
+                      },
+                      "end": {
+                        "x": 70,
+                        "y": 40
+                      }
+                    },
+                    {
+                      "start": {
+                        "x": 70,
+                        "y": 40
+                      },
+                      "control1": {
+                        "x": 70,
+                        "y": 50
+                      },
+                      "control2": {
+                        "x": 50,
+                        "y": 70
+                      },
+                      "end": {
+                        "x": 40,
+                        "y": 70
+                      }
+                    },
+                    {
+                      "start": {
+                        "x": 40,
+                        "y": 70
+                      },
+                      "control1": {
+                        "x": 30,
+                        "y": 70
+                      },
+                      "control2": {
+                        "x": 10,
+                        "y": 50
+                      },
+                      "end": {
+                        "x": 10,
+                        "y": 40
+                      }
+                    }
+                  ],
+                  "closed": true,
+                  "samples": [
+                    {
+                      "point": {
+                        "x": 10,
+                        "y": 40
+                      },
+                      "pressure": 0.5,
+                      "timestampMs": 0
+                    },
+                    {
+                      "point": {
+                        "x": 40,
+                        "y": 10
+                      },
+                      "pressure": 0.5,
+                      "timestampMs": 8
+                    },
+                    {
+                      "point": {
+                        "x": 70,
+                        "y": 40
+                      },
+                      "pressure": 0.5,
+                      "timestampMs": 16
+                    },
+                    {
+                      "point": {
+                        "x": 40,
+                        "y": 70
+                      },
+                      "pressure": 0.5,
+                      "timestampMs": 24
+                    },
+                    {
+                      "point": {
+                        "x": 10,
+                        "y": 40
+                      },
+                      "pressure": 0.5,
+                      "timestampMs": 32
+                    }
+                  ],
+                  "version": "1.0"
+                },
+                "locked": false,
+                "points": [
+                  {
+                    "x": 10,
+                    "y": 40
+                  },
+                  {
+                    "x": 40,
+                    "y": 10
+                  },
+                  {
+                    "x": 70,
+                    "y": 40
+                  },
+                  {
+                    "x": 40,
+                    "y": 70
+                  },
+                  {
+                    "x": 10,
+                    "y": 40
+                  }
+                ],
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "rotation": 0,
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "source": {
+                  "kind": "user"
+                },
+                "style": {
+                  "fill": null,
+                  "opacity": 1,
+                  "stroke": "#245d6b",
+                  "strokeWidth": 3
+                },
+                "visible": true
+              }
+            ],
+            "replacements": [
+              {
+                "groupId": null,
+                "id": "object:smart-ink-01",
+                "kind": "drawing.ellipse",
+                "locked": false,
+                "position": {
+                  "x": 40,
+                  "y": 40
+                },
+                "rotation": 0,
+                "scale": {
+                  "x": 1,
+                  "y": 1
+                },
+                "source": {
+                  "kind": "user"
+                },
+                "style": {
+                  "fill": null,
+                  "opacity": 1,
+                  "stroke": "#245d6b",
+                  "strokeWidth": 3
+                },
+                "visible": true,
+                "radius": {
+                  "x": 30,
+                  "y": 30
+                }
+              }
+            ]
+          }
+        ],
+        "id": "command:batch-replace-10",
+        "kind": "core.objects.batch-replace",
+        "timestamp": "2026-07-28T17:00:02.000Z"
+      },
+      "order": {
+        "baseRevisionAtCreation": 7,
+        "lamport": 10
+      }
     }
   ],
   "documentId": "document:lesson-01",
-  "expectedDocumentSha256": "345752ea491442cf40d590a091764c0196bcc993b1d07e78514af96d6954c337",
+  "expectedDocumentSha256": "23ed48cda95cef818a15aac5d2db6a041da3fceb10c3db66d64cee41dfeb2800",
   "idempotencyKey": "client:tutor-01:batch-08",
   "originId": "origin:tutor-browser-01",
-  "schemaVersion": "1.5"
+  "schemaVersion": "1.7"
 }

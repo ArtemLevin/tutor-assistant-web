@@ -82,12 +82,19 @@ class MimeType(Enum):
     image_gif = "image/gif"
 
 
-class Size5(BaseModel):
+class Size9(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     height: float = Field(..., gt=0.0, le=16384.0)
     width: float = Field(..., gt=0.0, le=16384.0)
+
+
+class MimeType5(Enum):
+    image_png = "image/png"
+    image_jpeg = "image/jpeg"
+    image_gif = "image/gif"
+    video_mp4 = "video/mp4"
 
 
 Identifier = RootModel[str]
@@ -154,7 +161,7 @@ class PlotParameter(BaseModel):
     value: float
 
 
-class LineStyle3(Enum):
+class LineStyle5(Enum):
     solid = "solid"
     dashed = "dashed"
     dash_dot = "dash-dot"
@@ -164,7 +171,7 @@ class PlotSeriesStyle(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    line_style: LineStyle3 = Field(..., alias="lineStyle")
+    line_style: LineStyle5 = Field(..., alias="lineStyle")
     opacity: float = Field(..., ge=0.0, le=1.0)
     stroke: str = Field(..., max_length=256, min_length=1)
     stroke_width: float = Field(..., alias="strokeWidth", ge=0.25, le=32.0)
@@ -215,7 +222,7 @@ class Solid3DDefinition(BaseModel):
     kind: Literal["cube"]
 
 
-class Solid3DDefinition13(BaseModel):
+class Solid3DDefinition23(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -223,7 +230,7 @@ class Solid3DDefinition13(BaseModel):
     kind: Literal["tetrahedron"]
 
 
-class Solid3DDefinition16(BaseModel):
+class Solid3DDefinition26(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -232,7 +239,7 @@ class Solid3DDefinition16(BaseModel):
     radius: float = Field(..., gt=0.0)
 
 
-class Solid3DDefinition17(BaseModel):
+class Solid3DDefinition27(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -241,7 +248,7 @@ class Solid3DDefinition17(BaseModel):
     radius: float = Field(..., gt=0.0)
 
 
-class Solid3DDefinition18(BaseModel):
+class Solid3DDefinition28(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -251,7 +258,7 @@ class Solid3DDefinition18(BaseModel):
     top_radius: float = Field(..., alias="topRadius", gt=0.0)
 
 
-class Solid3DDefinition19(BaseModel):
+class Solid3DDefinition29(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -274,7 +281,7 @@ class Solid3DSectionDefinition(BaseModel):
     visible: bool
 
 
-class Solid3DSource4(BaseModel):
+class Solid3DSource7(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -282,7 +289,7 @@ class Solid3DSource4(BaseModel):
     template_id: str = Field(..., alias="templateId", max_length=128, min_length=1)
 
 
-class Solid3DSource5(BaseModel):
+class Solid3DSource8(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -290,7 +297,7 @@ class Solid3DSource5(BaseModel):
     recognizer_version: str = Field(..., alias="recognizerVersion", max_length=128, min_length=1)
 
 
-class Solid3DSource6(BaseModel):
+class Solid3DSource9(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -298,10 +305,10 @@ class Solid3DSource6(BaseModel):
     kind: Literal["geometryos"]
 
 
-Solid3DSource = RootModel[Solid3DSource4 | Solid3DSource5 | Solid3DSource6]
+Solid3DSource = RootModel[Solid3DSource7 | Solid3DSource8 | Solid3DSource9]
 
 
-class SolidPointAnchor5(BaseModel):
+class SolidPointAnchor9(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -309,7 +316,7 @@ class SolidPointAnchor5(BaseModel):
     vertex_id: Identifier = Field(..., alias="vertexId")
 
 
-class SolidPointAnchor6(BaseModel):
+class SolidPointAnchor10(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -318,7 +325,7 @@ class SolidPointAnchor6(BaseModel):
     parameter: float = Field(..., ge=0.0, le=1.0)
 
 
-class SolidPointAnchor8(BaseModel):
+class SolidPointAnchor12(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -336,7 +343,7 @@ class ExactValue(BaseModel):
     numerator: int
 
 
-class ExactValue6(BaseModel):
+class ExactValue10(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -346,7 +353,7 @@ class ExactValue6(BaseModel):
     radicand: int = Field(..., ge=0)
 
 
-class ExactValue7(BaseModel):
+class ExactValue11(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -354,7 +361,7 @@ class ExactValue7(BaseModel):
     value: float
 
 
-ExactValue4 = RootModel[ExactValue | ExactValue6 | ExactValue7]
+ExactValue8 = RootModel[ExactValue | ExactValue10 | ExactValue11]
 
 
 class SolidConstructionAction(BaseModel):
@@ -365,7 +372,7 @@ class SolidConstructionAction(BaseModel):
     kind: Literal["select-face"]
 
 
-class SolidConstructionAction7(BaseModel):
+class SolidConstructionAction12(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -374,7 +381,7 @@ class SolidConstructionAction7(BaseModel):
     parameter: float
 
 
-class SolidConstructionAction8(BaseModel):
+class SolidConstructionAction13(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -384,7 +391,7 @@ class SolidConstructionAction8(BaseModel):
     to_point_id: Identifier = Field(..., alias="toPointId")
 
 
-class SolidConstructionAction9(BaseModel):
+class SolidConstructionAction14(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -394,11 +401,11 @@ class SolidConstructionAction9(BaseModel):
     )
 
 
-SolidConstructionAction5 = RootModel[
+SolidConstructionAction10 = RootModel[
     SolidConstructionAction
-    | SolidConstructionAction7
-    | SolidConstructionAction8
-    | SolidConstructionAction9
+    | SolidConstructionAction12
+    | SolidConstructionAction13
+    | SolidConstructionAction14
 ]
 
 
@@ -410,7 +417,7 @@ class SolidElementRef(BaseModel):
     kind: Literal["vertex"]
 
 
-class SolidElementRef8(BaseModel):
+class SolidElementRef14(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -418,7 +425,7 @@ class SolidElementRef8(BaseModel):
     kind: Literal["edge"]
 
 
-class SolidElementRef9(BaseModel):
+class SolidElementRef15(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -426,7 +433,7 @@ class SolidElementRef9(BaseModel):
     kind: Literal["face"]
 
 
-class SolidElementRef10(BaseModel):
+class SolidElementRef16(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -434,7 +441,7 @@ class SolidElementRef10(BaseModel):
     kind: Literal["point"]
 
 
-class SolidElementRef11(BaseModel):
+class SolidElementRef17(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -442,8 +449,8 @@ class SolidElementRef11(BaseModel):
     kind: Literal["section-segment"]
 
 
-SolidElementRef6 = RootModel[
-    SolidElementRef | SolidElementRef8 | SolidElementRef9 | SolidElementRef10 | SolidElementRef11
+SolidElementRef12 = RootModel[
+    SolidElementRef | SolidElementRef14 | SolidElementRef15 | SolidElementRef16 | SolidElementRef17
 ]
 
 
@@ -495,7 +502,7 @@ class Prediction(BaseModel):
     vertex_count: VertexCount | None = Field(..., alias="vertexCount")
 
 
-class SolidLearningAttemptAction13(BaseModel):
+class SolidLearningAttemptAction24(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -513,7 +520,7 @@ class Step(BaseModel):
     statement_id: Identifier = Field(..., alias="statementId")
 
 
-class SolidLearningAttemptAction15(BaseModel):
+class SolidLearningAttemptAction26(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -527,14 +534,14 @@ class Answer(BaseModel):
     )
     correct: bool
     formula_id: Identifier | None = Field(..., alias="formulaId")
-    parsed: ExactValue4 | None
+    parsed: ExactValue8 | None
     raw: str = Field(..., max_length=256)
     task_id: Identifier = Field(..., alias="taskId")
     timestamp: AwareDatetime
     unit: str = Field(..., max_length=32)
 
 
-class SolidLearningAttemptAction16(BaseModel):
+class SolidLearningAttemptAction27(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -555,11 +562,11 @@ class Hint(BaseModel):
     id: Identifier
     ladder_id: Identifier = Field(..., alias="ladderId")
     level: Level
-    related_element: SolidElementRef6 | None = Field(..., alias="relatedElement")
+    related_element: SolidElementRef12 | None = Field(..., alias="relatedElement")
     timestamp: AwareDatetime
 
 
-class SolidLearningAttemptAction17(BaseModel):
+class SolidLearningAttemptAction28(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -578,7 +585,7 @@ class Checkpoint(BaseModel):
     vertex_count: int = Field(..., alias="vertexCount", ge=0)
 
 
-class SolidLearningAttemptAction19(BaseModel):
+class SolidLearningAttemptAction30(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -586,7 +593,7 @@ class SolidLearningAttemptAction19(BaseModel):
     kind: Literal["add-checkpoint"]
 
 
-class SolidLearningAttemptAction20(BaseModel):
+class SolidLearningAttemptAction31(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -613,20 +620,20 @@ class Diagnostic(BaseModel):
         extra="forbid",
     )
     code: SolidLearningDiagnosticCode
-    element: SolidElementRef6 | None
+    element: SolidElementRef12 | None
     id: Identifier
     message: str = Field(..., max_length=1000)
     timestamp: AwareDatetime
 
 
-class Hint3(BaseModel):
+class Hint5(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     id: Identifier
     ladder_id: Identifier = Field(..., alias="ladderId")
     level: Level
-    related_element: SolidElementRef6 | None = Field(..., alias="relatedElement")
+    related_element: SolidElementRef12 | None = Field(..., alias="relatedElement")
     timestamp: AwareDatetime
 
 
@@ -636,7 +643,7 @@ class Mode(Enum):
     teacher_demo = "teacher-demo"
 
 
-class Prediction3(BaseModel):
+class Prediction5(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -850,7 +857,7 @@ class SvgObject(BaseModel):
     sanitizer_policy_version: Literal["tutorboard.svg-sanitizer/1"] = Field(
         ..., alias="sanitizerPolicyVersion"
     )
-    size: Size5
+    size: Size9
     view_box: SvgViewBox = Field(..., alias="viewBox")
 
 
@@ -865,7 +872,7 @@ class Solid3DBoardProjection(BaseModel):
     viewport_scale: float = Field(..., alias="viewportScale", gt=0.0)
 
 
-class Solid3DDefinition12(BaseModel):
+class Solid3DDefinition22(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -873,7 +880,7 @@ class Solid3DDefinition12(BaseModel):
     size: Vec3
 
 
-class Solid3DDefinition14(BaseModel):
+class Solid3DDefinition24(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -882,7 +889,7 @@ class Solid3DDefinition14(BaseModel):
     kind: Literal["prism"]
 
 
-class Solid3DDefinition15(BaseModel):
+class Solid3DDefinition25(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -891,20 +898,20 @@ class Solid3DDefinition15(BaseModel):
     kind: Literal["pyramid"]
 
 
-Solid3DDefinition10 = RootModel[
+Solid3DDefinition20 = RootModel[
     Solid3DDefinition
-    | Solid3DDefinition12
-    | Solid3DDefinition13
-    | Solid3DDefinition14
-    | Solid3DDefinition15
-    | Solid3DDefinition16
-    | Solid3DDefinition17
-    | Solid3DDefinition18
-    | Solid3DDefinition19
+    | Solid3DDefinition22
+    | Solid3DDefinition23
+    | Solid3DDefinition24
+    | Solid3DDefinition25
+    | Solid3DDefinition26
+    | Solid3DDefinition27
+    | Solid3DDefinition28
+    | Solid3DDefinition29
 ]
 
 
-class SolidPointAnchor7(BaseModel):
+class SolidPointAnchor11(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -914,7 +921,7 @@ class SolidPointAnchor7(BaseModel):
 
 
 SolidPointAnchor = RootModel[
-    SolidPointAnchor5 | SolidPointAnchor6 | SolidPointAnchor7 | SolidPointAnchor8
+    SolidPointAnchor9 | SolidPointAnchor10 | SolidPointAnchor11 | SolidPointAnchor12
 ]
 
 
@@ -923,14 +930,14 @@ class SolidConstructionTraceEntry(BaseModel):
         extra="forbid",
     )
     accepted: bool
-    action: SolidConstructionAction5
+    action: SolidConstructionAction10
     diagnostic_code: SolidLearningDiagnosticCode | None = Field(..., alias="diagnosticCode")
     explanation: str = Field(..., max_length=1000)
     id: Identifier
     timestamp: AwareDatetime
 
 
-class SolidLearningAttemptAction14(BaseModel):
+class SolidLearningAttemptAction25(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -938,7 +945,7 @@ class SolidLearningAttemptAction14(BaseModel):
     kind: Literal["construction-step"]
 
 
-class SolidLearningAttemptAction18(BaseModel):
+class SolidLearningAttemptAction29(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -964,11 +971,11 @@ class Solid3DLearningAttempt(BaseModel):
     checkpoints: list[Checkpoint] = Field(..., max_length=32)
     construction: Construction
     diagnostics: list[Diagnostic] = Field(..., max_length=64)
-    hints: list[Hint3] = Field(..., max_length=24)
+    hints: list[Hint5] = Field(..., max_length=24)
     id: Identifier
     mode: Mode
     phase: Phase
-    prediction: Prediction3 | None
+    prediction: Prediction5 | None
     quiz_answers: dict[
         constr(
             pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -1105,7 +1112,30 @@ class EmbeddedImageObject(BaseModel):
     file_name: str = Field(..., alias="fileName", max_length=256, min_length=1)
     intrinsic_size: IntrinsicSize = Field(..., alias="intrinsicSize")
     mime_type: MimeType = Field(..., alias="mimeType")
-    size: Size5
+    size: Size9
+
+
+class MediaAssetObject(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    group_id: Identifier | None = Field(..., alias="groupId")
+    id: Identifier
+    locked: bool
+    position: Vec2
+    rotation: float
+    scale: PositiveVec2
+    source: UserObjectSource | GeometryOsObjectSource
+    style: ObjectStyle
+    visible: bool
+    kind: Literal["media.asset"]
+    asset_id: Identifier = Field(..., alias="assetId")
+    byte_size: int = Field(..., alias="byteSize", ge=1, le=9007199254740991)
+    content_sha256: str = Field(..., alias="contentSha256", pattern="^[a-f0-9]{64}$")
+    file_name: str = Field(..., alias="fileName", max_length=256, min_length=1)
+    intrinsic_size: IntrinsicSize = Field(..., alias="intrinsicSize")
+    mime_type: MimeType5 = Field(..., alias="mimeType")
+    size: Size9
 
 
 class GeometryImportRecord(BaseModel):
@@ -1133,7 +1163,17 @@ class GeometryImportRecord(BaseModel):
     visual_transform: Transform2D = Field(..., alias="visualTransform")
 
 
-class VectorInkData(BaseModel):
+class VectorInkData3(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    centerline: list[CubicBezierSegment] = Field(..., max_length=0)
+    closed: Literal[False]
+    samples: list[VectorInkSample] = Field(..., max_length=1, min_length=1)
+    version: Literal["1.0"]
+
+
+class VectorInkData4(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1141,6 +1181,9 @@ class VectorInkData(BaseModel):
     closed: bool
     samples: list[VectorInkSample] = Field(..., max_length=100000, min_length=2)
     version: Literal["1.0"]
+
+
+VectorInkData = RootModel[VectorInkData3 | VectorInkData4]
 
 
 class Solid3DPoint(BaseModel):
@@ -1158,7 +1201,7 @@ class Solid3DRecord(BaseModel):
         extra="forbid",
     )
     board_object_ids: list[Identifier] = Field(..., alias="boardObjectIds", max_length=5000)
-    definition: Solid3DDefinition10
+    definition: Solid3DDefinition20
     id: Identifier
     points: list[Solid3DPoint] = Field(..., max_length=32)
     projection: Solid3DBoardProjection
@@ -1168,7 +1211,7 @@ class Solid3DRecord(BaseModel):
     source: Solid3DSource
 
 
-class SolidLearningAttemptAction21(BaseModel):
+class SolidLearningAttemptAction32(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1176,17 +1219,17 @@ class SolidLearningAttemptAction21(BaseModel):
     snapshot: Solid3DLearningAttempt
 
 
-SolidLearningAttemptAction11 = RootModel[
+SolidLearningAttemptAction22 = RootModel[
     SolidLearningAttemptAction
-    | SolidLearningAttemptAction13
-    | SolidLearningAttemptAction14
-    | SolidLearningAttemptAction15
-    | SolidLearningAttemptAction16
-    | SolidLearningAttemptAction17
-    | SolidLearningAttemptAction18
-    | SolidLearningAttemptAction19
-    | SolidLearningAttemptAction20
-    | SolidLearningAttemptAction21
+    | SolidLearningAttemptAction24
+    | SolidLearningAttemptAction25
+    | SolidLearningAttemptAction26
+    | SolidLearningAttemptAction27
+    | SolidLearningAttemptAction28
+    | SolidLearningAttemptAction29
+    | SolidLearningAttemptAction30
+    | SolidLearningAttemptAction31
+    | SolidLearningAttemptAction32
 ]
 
 
@@ -1205,7 +1248,7 @@ class PenStrokeObject(BaseModel):
     visible: bool
     kind: Literal["drawing.pen-stroke"]
     ink: VectorInkData
-    points: list[Vec2] = Field(..., max_length=100000, min_length=2)
+    points: list[Vec2] = Field(..., max_length=100000, min_length=1)
 
 
 BoardObject = RootModel[
@@ -1215,9 +1258,19 @@ BoardObject = RootModel[
     | EllipseObject
     | TextObject
     | EmbeddedImageObject
+    | MediaAssetObject
     | SvgObject
     | CoordinatePlotObject
 ]
+
+
+class BatchObjectReplacement(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    at_index: int = Field(..., alias="atIndex", ge=0)
+    originals: list[BoardObject] = Field(..., max_length=5000)
+    replacements: list[BoardObject] = Field(..., max_length=5000)
 
 
 class BoardDocument(BaseModel):
@@ -1246,7 +1299,7 @@ class BoardDocument(BaseModel):
         BoardObject,
     ]
     order: list[Identifier]
-    schema_version: Literal["1.4"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.6"] = Field(..., alias="schemaVersion")
     solid_learning_attempts: dict[
         constr(
             pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -1264,4 +1317,4 @@ class BoardDocument(BaseModel):
     viewport: Viewport
 
 
-BoardDocument14 = RootModel[BoardDocument]
+BoardDocument16 = RootModel[BoardDocument]

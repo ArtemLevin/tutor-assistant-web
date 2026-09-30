@@ -424,4 +424,6 @@ ENABLED_MODULES=students,scheduling
 2. Diarization говорящих и словарь терминов конкретного ученика.
 3. Повторяющееся расписание, уведомления и iCal.
 4. Централизованный secrets manager и автоматическая ротация ключей.
-5. Backup/restore и disaster recovery drill для PostgreSQL, S3 и Tempo.
+5. Регулярный off-host disaster-recovery drill, включающий PostgreSQL, S3 и
+   observability state; PostgreSQL/S3 backup и isolated restore tooling уже
+   реализованы.

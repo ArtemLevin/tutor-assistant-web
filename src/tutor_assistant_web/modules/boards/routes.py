@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket
@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tutor_assistant_web.bootstrap.container import AppContainer
-from tutor_assistant_web.modules.boards.access import BoardAccessPolicy
+from tutor_assistant_web.modules.boards.access import BoardAccessPolicy, StandaloneBoardAccessPolicy
 from tutor_assistant_web.modules.boards.application import (
     BoardLamportConflict,
     BoardPersistenceService,
@@ -22,6 +22,7 @@ from tutor_assistant_web.modules.boards.collaboration import (
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
     BoardCommandEnvelopeInput,
+    BoardSnapshotInput,
     envelope_commands,
 )
 from tutor_assistant_web.modules.boards.evidence import FinalizeBoardEvidenceRequest
@@ -47,10 +48,14 @@ from tutor_assistant_web.observability import (
     BOARD_EVIDENCE_DURATION,
     BOARD_SYNC_EVENTS,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 from tutor_assistant_web.shared.errors import ApplicationError, NotFoundError
 
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
+
+
+def _utc_timestamp(value: datetime) -> str:
+    normalized = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    return normalized.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 class CreateLessonBoardRequest(BaseModel):
@@ -123,7 +128,11 @@ def create_router(container: AppContainer) -> APIRouter:
     root = APIRouter()
     router = APIRouter(prefix="/api/v1", tags=["boards"])
     web = container.web
-    access = BoardAccessPolicy(container.database)
+    access = (
+        StandaloneBoardAccessPolicy()
+        if container.settings.app_profile == "board"
+        else BoardAccessPolicy(container.database)
+    )
     guest_access = container.board_guest_access_service()
     router.include_router(create_geometry_gateway_router(container))
 
@@ -1003,9 +1012,10 @@ def create_router(container: AppContainer) -> APIRouter:
         validate_mutation(request, actor)
         snapshot = await _validated_body(
             request,
-            BoardSnapshot14,
+            BoardSnapshotInput,
             container.settings.board_snapshot_max_size_mb * 1024 * 1024,
         )
+        snapshot = snapshot.root
         if snapshot.document_id.root != document_id:
             raise HTTPException(422, "documentId не совпадает с идентификатором маршрута")
         stored = boards.save_snapshot(snapshot)
@@ -1111,9 +1121,9 @@ def _board_payload(document: BoardDocument, snapshot_due: bool) -> dict:
         "currentDocumentSha256": document.current_document_sha256,
         "lastSnapshotRevision": document.last_snapshot_revision,
         "snapshotDue": snapshot_due,
-        "archivedAt": document.archived_at.isoformat() if document.archived_at else None,
-        "createdAt": document.created_at.isoformat(),
-        "updatedAt": document.updated_at.isoformat(),
+        "archivedAt": _utc_timestamp(document.archived_at) if document.archived_at else None,
+        "createdAt": _utc_timestamp(document.created_at),
+        "updatedAt": _utc_timestamp(document.updated_at),
     }
 
 
@@ -1160,10 +1170,10 @@ def _standalone_board_payload(document: BoardDocument) -> dict:
         "title": document.title,
         "currentRevision": document.current_revision,
         "guestWritesEnabled": document.guest_writes_enabled,
-        "archivedAt": document.archived_at.isoformat() if document.archived_at else None,
-        "deletedAt": document.deleted_at.isoformat() if document.deleted_at else None,
-        "createdAt": document.created_at.isoformat(),
-        "updatedAt": document.updated_at.isoformat(),
+        "archivedAt": _utc_timestamp(document.archived_at) if document.archived_at else None,
+        "deletedAt": _utc_timestamp(document.deleted_at) if document.deleted_at else None,
+        "createdAt": _utc_timestamp(document.created_at),
+        "updatedAt": _utc_timestamp(document.updated_at),
     }
 
 

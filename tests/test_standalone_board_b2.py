@@ -23,7 +23,7 @@ from tutor_assistant_web.modules.boards.standalone_contracts import (
     TeacherBoardAccessContext,
 )
 from tutor_assistant_web.observability import redact
-from tutor_assistant_web.shared.board_contracts.board_document_schema import BoardDocument14
+from tutor_assistant_web.shared.board_contracts import board_document_schema
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "schemas" / "board" / "v1" / "fixtures"
@@ -174,7 +174,7 @@ def _snapshot_payload(board_id: str, *, revision: int = 0) -> dict:
     payload["documentId"] = board_id
     payload["revision"] = revision
     payload["document"]["id"] = board_id
-    document = BoardDocument14.model_validate(payload["document"])
+    document = board_document_schema.BoardDocument.model_validate(payload["document"])
     payload["documentSha256"] = canonical_json(document)[2]
     return payload
 
@@ -241,6 +241,10 @@ def test_invitation_secret_is_transient_and_guest_context_is_least_privilege(b2_
     recovered = client.get(f"/api/v1/boards/{board_id}")
     assert recovered.status_code == 200
     assert recovered.json()["board"]["documentId"] == board_id
+    assert recovered.json()["board"]["createdAt"].endswith("Z")
+    assert recovered.json()["board"]["updatedAt"].endswith("Z")
+    assert len(recovered.json()["board"]["createdAt"]) == 24
+    assert len(recovered.json()["board"]["updatedAt"]) == 24
     assert recovered.headers["x-csrf-token"] == guest["csrfToken"]
     assert join_path.startswith("/j/")
 
