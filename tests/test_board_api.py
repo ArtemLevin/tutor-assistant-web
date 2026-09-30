@@ -105,6 +105,7 @@ def _command_payload(
     origin_id: str = "origin:test",
 ):
     payload = json.loads((FIXTURES / "board-command-envelope.json").read_text())
+    payload["commands"] = payload["commands"][:2]
     payload.update(
         {
             "documentId": DOCUMENT_ID,
@@ -409,6 +410,49 @@ def test_board_api_gates_media_asset_until_authority_is_available(board_api):
     assert board.json()["snapshot"] is None
 
 
+def test_api_accepts_atomic_batch_replace_envelope_17(board_api):
+    client, database, _, _, _, context = board_api
+    csrf = context["csrfToken"]
+    user_id = context["userId"]
+    fixture = json.loads((FIXTURES / "board-command-envelope.json").read_text())
+    batch = next(
+        item
+        for item in fixture["commands"]
+        if item["command"]["kind"] == "core.objects.batch-replace"
+    )
+    batch["command"]["actorId"] = user_id
+    batch["order"]["baseRevisionAtCreation"] = 0
+    batch["order"]["lamport"] = 1
+    payload = {
+        **fixture,
+        "actorId": user_id,
+        "commands": [batch],
+        "documentId": DOCUMENT_ID,
+        "expectedDocumentSha256": _snapshot_payload()["documentSha256"],
+        "idempotencyKey": "api:batch-replace",
+        "originId": "origin:batch-replace",
+    }
+
+    response = client.post(
+        f"/api/v1/boards/{DOCUMENT_ID}/commands",
+        json=payload,
+        headers={"x-csrf-token": csrf},
+    )
+    assert response.status_code == 200
+    assert response.json()["revision"] == 1
+
+    with database.sessions() as session:
+        stored = session.scalar(
+            select(BoardCommandBatch).where(
+                BoardCommandBatch.board_document_id == DOCUMENT_ID,
+                BoardCommandBatch.revision == 1,
+            )
+        )
+        assert stored is not None
+        assert stored.schema_version == "1.7"
+        assert (stored.lamport_min, stored.lamport_max) == (1, 1)
+
+
 def test_ordered_lamport_range_is_persisted_and_replay_is_rejected(board_api):
     client, database, _, _, _, context = board_api
     csrf = context["csrfToken"]
@@ -549,7 +593,7 @@ def test_mixed_legacy_and_ordered_journal_remains_recoverable(board_api):
     assert recovered.status_code == 200
     items = recovered.json()["items"]
     assert [item["revision"] for item in items] == [1, 2]
-    assert [item["schemaVersion"] for item in items] == ["1.2", "1.6"]
+    assert [item["schemaVersion"] for item in items] == ["1.2", "1.7"]
     assert items[0]["lamportMin"] is None
     assert items[1]["lamportMin"] == 1
 
