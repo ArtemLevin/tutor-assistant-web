@@ -122,3 +122,29 @@ class BootstrapResponse(StrictModel):
     revision: int = Field(ge=0)
     state: PracticeStateDocument | None
     serverTime: datetime
+
+
+class PracticeCompetencyMetadata(StrictModel):
+    competencyId: str = Field(min_length=1, max_length=160)
+    title: str = Field(min_length=1, max_length=240)
+    groupTitle: str = Field(default="", max_length=240)
+    masteryLevel: int | None = Field(default=None, ge=0, le=4)
+    sourceLessonDate: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    sourceLessonHref: str | None = Field(default=None, max_length=512)
+    provider: str | None = Field(default=None, max_length=160)
+    coverageStatus: str | None = Field(default=None, max_length=80)
+
+
+class PracticeAnalyticsMetadataDocument(StrictModel):
+    schemaVersion: Literal[1]
+    sourceStudentKey: str = Field(min_length=1, max_length=160)
+    sourceRevision: str = Field(default="", max_length=160)
+    generatedAt: datetime
+    competencies: list[PracticeCompetencyMetadata] = Field(default_factory=list, max_length=1000)
+
+
+class PracticeAnalyticsMetadataResponse(StrictModel):
+    schemaVersion: Literal[1] = 1
+    accepted: bool = True
+    sourceRevision: str
+    updatedAt: datetime

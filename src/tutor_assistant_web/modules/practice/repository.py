@@ -3,7 +3,11 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from tutor_assistant_web.modules.practice.models import PracticeEvent, PracticeProfile
+from tutor_assistant_web.modules.practice.models import (
+    PracticeAnalyticsMetadata,
+    PracticeEvent,
+    PracticeProfile,
+)
 
 
 class PracticeRepository:
@@ -31,6 +35,46 @@ class PracticeRepository:
         self.session.add(profile)
         self.session.flush()
         return profile
+
+    def analytics_metadata(self) -> PracticeAnalyticsMetadata | None:
+        return self.session.scalar(
+            select(PracticeAnalyticsMetadata).where(
+                PracticeAnalyticsMetadata.organization_id == self.organization_id,
+                PracticeAnalyticsMetadata.student_id == self.student_id,
+            )
+        )
+
+    def upsert_analytics_metadata(
+        self,
+        payload: dict,
+        *,
+        schema_version: int = 1,
+        source_revision: str = "",
+    ) -> PracticeAnalyticsMetadata:
+        row = self.analytics_metadata()
+        if row is None:
+            row = PracticeAnalyticsMetadata(
+                organization_id=self.organization_id,
+                student_id=self.student_id,
+            )
+            self.session.add(row)
+        row.schema_version = schema_version
+        row.source_revision = source_revision
+        row.metadata_jsonb = payload
+        self.session.flush()
+        return row
+
+    def all_events(self) -> list[PracticeEvent]:
+        return list(
+            self.session.scalars(
+                select(PracticeEvent)
+                .where(
+                    PracticeEvent.organization_id == self.organization_id,
+                    PracticeEvent.student_id == self.student_id,
+                )
+                .order_by(PracticeEvent.occurred_at, PracticeEvent.id)
+            )
+        )
 
     def events_by_ids(self, event_ids: list[str]) -> dict[str, PracticeEvent]:
         if not event_ids:

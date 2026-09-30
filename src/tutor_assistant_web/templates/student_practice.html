@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Practice · {{ student.full_name }} · {{ app_name }}{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <a class="back" href="/students/{{ student.id }}">← {{ student.full_name }}</a>
+    <p class="eyebrow">Retention & practice analytics</p>
+    <h1>Интервальное повторение</h1>
+    <p class="subtitle">Mastery и retention показаны раздельно. Retention Index v{{ practice.retentionIndexVersion }} — операционный сигнал устойчивости retrieval practice.</p>
+  </div>
+</header>
+
+<div class="two-columns">
+  <section class="panel">
+    <div class="section-heading"><h2>Сегодня</h2><span class="count">{{ practice.summary.dueToday }}</span></div>
+    <dl class="details">
+      <div><dt>На сегодня</dt><dd>{{ practice.summary.dueToday }}</dd></div>
+      <div><dt>Просрочено</dt><dd>{{ practice.summary.overdueCount }}</dd></div>
+      <div><dt>Повторные провалы</dt><dd>{{ practice.summary.repeatedLapseCount }}</dd></div>
+      <div><dt>Хрупкие навыки</dt><dd>{{ practice.summary.fragileCount }}</dd></div>
+      <div><dt>Точность с 1-й попытки</dt><dd>{{ practice.summary.firstAttemptAccuracy if practice.summary.firstAttemptAccuracy is not none else '—' }}{% if practice.summary.firstAttemptAccuracy is not none %}%{% endif %}</dd></div>
+      <div><dt>Подсказки</dt><dd>{{ practice.summary.hintDependence if practice.summary.hintDependence is not none else '—' }}{% if practice.summary.hintDependence is not none %}%{% endif %}</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><h2>Перед занятием</h2><span class="count">{{ practice_brief.skillsRequiringAttention|length }}</span></div>
+    <div class="compact-list">
+      {% for item in practice_brief.skillsRequiringAttention %}
+      <div><strong>{{ item.title }}</strong><small>{{ item.retention.category }}{% if item.retention.index is not none %} · {{ item.retention.index }}/100{% endif %}</small></div>
+      {% else %}<p class="muted">Критичных сигналов пока нет.</p>{% endfor %}
+    </div>
+    {% if practice_brief.recommendedWarmupCompetencies %}
+    <p class="caption">Разминка: {{ practice_brief.recommendedWarmupCompetencies|join(', ') }}</p>
+    {% endif %}
+  </section>
+</div>
+
+<section class="section panel">
+  <div class="section-heading"><div><p class="eyebrow">Приоритет</p><h2>Требуют внимания</h2></div><span class="count">{{ practice.attention|length }}</span></div>
+  <div class="data-table">
+    {% for item in practice.attention %}
+    <div class="data-row">
+      <div><strong>{{ item.title }}</strong><small>{{ item.groupTitle or item.competencyId }}</small></div>
+      <span class="badge live">{{ item.retention.category }}{% if item.retention.index is not none %} · {{ item.retention.index }}{% endif %}</span>
+      <span>Mastery: {{ item.masteryLevel if item.masteryLevel is not none else '—' }}/4</span>
+      <div>
+        {% for action in item.recommendedActions %}<strong>{{ action.label }}</strong><small>{{ action.reason }}</small>{% endfor %}
+      </div>
+    </div>
+    {% else %}<p class="muted">Объяснимых сигналов для вмешательства пока нет.</p>{% endfor %}
+  </div>
+</section>
+
+<section class="section panel">
+  <div class="section-heading"><div><p class="eyebrow">Две оси</p><h2>Retention × Mastery</h2></div><span class="count">{{ practice.competencies|length }}</span></div>
+  <div class="data-table">
+    {% for item in practice.competencies %}
+    <div class="data-row">
+      <div><strong>{{ item.title }}</strong><small>{{ item.competencyId }}</small></div>
+      <span>Mastery {{ item.masteryLevel if item.masteryLevel is not none else '—' }}/4</span>
+      <span class="badge {{ 'completed' if item.retention.category == 'stable' else 'live' }}">{{ item.retention.category }}{% if item.retention.index is not none %} · {{ item.retention.index }}/100{% endif %}</span>
+      <span>{{ item.dueStatus }}{% if item.overdueDays %} · {{ item.overdueDays }} дн.{% endif %}</span>
+    </div>
+    {% else %}<p class="muted">Practice data пока не накоплены.</p>{% endfor %}
+  </div>
+</section>
+
+<div class="two-columns section">
+  <section class="panel">
+    <div class="section-heading"><h2>Устойчивые навыки</h2><span class="count">{{ practice.stable|length }}</span></div>
+    <div class="compact-list">
+      {% for item in practice.stable[:10] %}
+      <div><strong>{{ item.title }}</strong><small>Retention {{ item.retention.index }}/100 · интервал {{ item.intervalDays }} дн.</small></div>
+      {% else %}<p class="muted">Навыков категории stable пока нет.</p>{% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-heading"><h2>Последние сессии</h2><span class="count">{{ practice.recentSessions|length }}</span></div>
+    <div class="compact-list">
+      {% for session in practice.recentSessions %}
+      <div><strong>{{ session.date }}</strong><small>{{ session.status }} · {{ session.correct }}/{{ session.total }}</small></div>
+      {% else %}<p class="muted">Сессий пока нет.</p>{% endfor %}
+    </div>
+  </section>
+</div>
+
+<div class="two-columns section">
+  <section class="panel">
+    <div class="section-heading"><h2>Generator coverage</h2><span class="count">{{ practice.summary.generatorCoverageGaps }}</span></div>
+    <p class="muted">Количество competency metadata со статусом coverage-gap/ambiguous: {{ practice.summary.generatorCoverageGaps }}.</p>
+  </section>
+  <section class="panel">
+    <div class="section-heading"><h2>Sync health</h2></div>
+    <dl class="details">
+      <div><dt>Последняя canonical запись</dt><dd>{{ practice.summary.lastSuccessfulSync or '—' }}</dd></div>
+      <div><dt>Событий</dt><dd>{{ practice.summary.eventCount }}</dd></div>
+      <div><dt>Дней практики / 30</dt><dd>{{ practice.summary.practiceDaysLast30 }}</dd></div>
+      <div><dt>Metadata</dt><dd>{{ 'подключены' if practice.metadata.available else 'ожидаются' }}</dd></div>
+    </dl>
+  </section>
+</div>
+{% endblock %}
