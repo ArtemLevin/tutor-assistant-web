@@ -1,0 +1,53 @@
+name: Board profile contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  board-profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install locked dependencies
+        run: uv sync --extra dev
+      - name: Run board profile contract tests
+        run: uv run pytest tests/test_board_profile.py
+      - name: Check board deployment scripts
+        run: |
+          shellcheck --severity=warning deploy/board-production/*.sh
+          sh -n deploy/board-production/*.sh
+      - name: Render board-only Compose
+        env:
+          APP_DOMAIN: board.example.test
+          ACME_EMAIL: ci@example.test
+          PUBLIC_BASE_URL: https://board.example.test
+          TRUSTED_HOSTS: board.example.test
+          TRUSTED_PROXY_IPS: 172.16.0.0/12
+          BOOTSTRAP_ADMIN_EMAIL: teacher@example.test
+          ARTIFACT_S3_ENDPOINT_URL: https://s3.example.test
+          ARTIFACT_S3_BUCKET: board-artifacts
+          ARTIFACT_S3_ACCESS_KEY: ci-artifact-access
+          BACKUP_S3_ENDPOINT_URL: https://backup.example.test
+          BACKUP_S3_BUCKET: board-backups
+          BACKUP_S3_ACCESS_KEY: ci-backup-access
+          BOARD_API_BLUE_IMAGE: ghcr.io/example/board-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          BOARD_API_GREEN_IMAGE: ghcr.io/example/board-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+          BOARD_MIGRATION_IMAGE: ghcr.io/example/board-api@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+          BOARD_OPS_IMAGE: ghcr.io/example/board-api@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+          TUTORBOARD_BLUE_IMAGE: ghcr.io/example/tutorboard@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+          TUTORBOARD_GREEN_IMAGE: ghcr.io/example/tutorboard@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+        run: docker compose -f compose.board.production.yml config --quiet
+      - name: Validate proxy and secret-redaction contract
+        run: sh deploy/board-production/test-proxy-contract.sh
