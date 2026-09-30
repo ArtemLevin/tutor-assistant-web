@@ -23,7 +23,11 @@ from tutor_assistant_web.modules.students.models import Student
 LESSON_ID = "20000000-0000-4000-8000-000000000001"
 STUDENT_ID = "20000000-0000-4000-8000-000000000002"
 STUDENT_USER_ID = "20000000-0000-4000-8000-000000000003"
-PASSWORD = "collaboration-e2e-password"
+STANDALONE_TEACHER_USER_ID = "20000000-0000-4000-8000-000000000004"
+COLLABORATION_PASSWORD = "collaboration-e2e-password"
+COLLABORATION_TEACHER_EMAIL = "collaboration-tutor@example.test"
+STANDALONE_PASSWORD = "standalone-pilot-e2e-password"
+STANDALONE_TEACHER_EMAIL = "standalone-pilot-teacher@example.test"
 
 
 def settings(database_path: Path, artifact_path: Path) -> Settings:
@@ -33,9 +37,9 @@ def settings(database_path: Path, artifact_path: Path) -> Settings:
         artifact_storage_provider="local",
         artifact_storage_root=str(artifact_path),
         auto_migrate=False,
-        bootstrap_admin_email="collaboration-tutor@example.test",
+        bootstrap_admin_email=COLLABORATION_TEACHER_EMAIL,
         bootstrap_admin_name="E2E Преподаватель",
-        bootstrap_admin_password=PASSWORD,
+        bootstrap_admin_password=COLLABORATION_PASSWORD,
         database_url=f"sqlite:///{database_path}",
         metrics_enabled=False,
         otel_exporter_otlp_endpoint="",
@@ -80,7 +84,7 @@ def seed(database: Database, configured: Settings) -> None:
             id=STUDENT_USER_ID,
             email="collaboration-student@example.test",
             full_name="E2E Ученик",
-            password_hash=identity.passwords.hash(PASSWORD),
+            password_hash=identity.passwords.hash(COLLABORATION_PASSWORD),
         )
         session.add(student_user)
         session.add(
@@ -96,6 +100,21 @@ def seed(database: Database, configured: Settings) -> None:
                 student_id=STUDENT_ID,
                 user_id=STUDENT_USER_ID,
                 role=MembershipRole.student.value,
+            )
+        )
+        session.add(
+            User(
+                id=STANDALONE_TEACHER_USER_ID,
+                email=STANDALONE_TEACHER_EMAIL,
+                full_name="E2E Standalone Преподаватель",
+                password_hash=identity.passwords.hash(STANDALONE_PASSWORD),
+            )
+        )
+        session.add(
+            Membership(
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                user_id=STANDALONE_TEACHER_USER_ID,
+                role=MembershipRole.admin.value,
             )
         )
         session.commit()

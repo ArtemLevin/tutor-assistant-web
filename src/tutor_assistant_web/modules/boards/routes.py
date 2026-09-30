@@ -22,6 +22,7 @@ from tutor_assistant_web.modules.boards.collaboration import (
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
     BoardCommandEnvelopeInput,
+    BoardSnapshotInput,
     envelope_commands,
 )
 from tutor_assistant_web.modules.boards.evidence import FinalizeBoardEvidenceRequest
@@ -47,7 +48,6 @@ from tutor_assistant_web.observability import (
     BOARD_EVIDENCE_DURATION,
     BOARD_SYNC_EVENTS,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 from tutor_assistant_web.shared.errors import ApplicationError, NotFoundError
 
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
@@ -1012,9 +1012,10 @@ def create_router(container: AppContainer) -> APIRouter:
         validate_mutation(request, actor)
         snapshot = await _validated_body(
             request,
-            BoardSnapshot14,
+            BoardSnapshotInput,
             container.settings.board_snapshot_max_size_mb * 1024 * 1024,
         )
+        snapshot = snapshot.root
         if snapshot.document_id.root != document_id:
             raise HTTPException(422, "documentId не совпадает с идентификатором маршрута")
         stored = boards.save_snapshot(snapshot)

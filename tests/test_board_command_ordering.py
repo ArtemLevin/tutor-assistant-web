@@ -24,7 +24,7 @@ def payload() -> dict:
 
 def test_ordered_envelope_exposes_commands_and_order_metadata() -> None:
     envelope = BoardCommandEnvelopeInput.model_validate(payload()).root
-    assert envelope.schema_version == "1.5"
+    assert envelope.schema_version == "1.6"
     assert len(envelope_commands(envelope)) == 2
     assert envelope_actor_ids(envelope) == ["actor:tutor-01", "actor:tutor-01"]
     assert envelope_base_revisions(envelope) == [7, 7]

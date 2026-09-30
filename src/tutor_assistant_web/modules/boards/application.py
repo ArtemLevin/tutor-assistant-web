@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
+    BoardSnapshotContract,
+    BoardSnapshotInput,
     envelope_lamport_range,
     envelope_origin_id,
 )
@@ -34,7 +36,6 @@ from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
     BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
 from tutor_assistant_web.shared.contracts import ArtifactStorage
 from tutor_assistant_web.shared.errors import (
     ConflictError,
@@ -76,7 +77,7 @@ class BoardLamportConflict(ConflictError):
 @dataclass(frozen=True)
 class BoardRecovery:
     document: BoardDocument
-    snapshot: BoardSnapshot14 | None
+    snapshot: BoardSnapshotContract | None
     command_batches: list[BoardCommandBatch]
 
 
@@ -412,7 +413,7 @@ class BoardPersistenceService:
             or document.bytes_since_snapshot >= self.snapshot_interval_bytes
         )
 
-    def save_snapshot(self, snapshot: BoardSnapshot14) -> BoardSnapshot:
+    def save_snapshot(self, snapshot: BoardSnapshotContract) -> BoardSnapshot:
         document_id = snapshot.document_id.root
         if snapshot.document.id.root != document_id:
             raise ValidationError("Snapshot содержит документ с другим идентификатором")
@@ -514,7 +515,7 @@ class BoardPersistenceService:
             session.commit()
             return stored_snapshot
 
-    def load_latest_snapshot(self, document_id: str) -> BoardSnapshot14 | None:
+    def load_latest_snapshot(self, document_id: str) -> BoardSnapshotContract | None:
         self.get(document_id)
         with self.database.sessions() as session:
             stored = session.scalar(
@@ -967,13 +968,13 @@ class BoardPersistenceService:
             snapshot.upload_error = str(exc)[:2000]
             session.commit()
 
-    def _read_stored_snapshot(self, stored: BoardSnapshot) -> BoardSnapshot14:
+    def _read_stored_snapshot(self, stored: BoardSnapshot) -> BoardSnapshotContract:
         content = self.storage.read(stored.storage_key)
         if len(content) != stored.size or hashlib.sha256(content).hexdigest() != stored.sha256:
             self._quarantine_snapshot(stored.id, "Stored size or SHA-256 differs from database")
             raise ConflictError("Сохранённый snapshot повреждён")
         try:
-            return BoardSnapshot14.model_validate_json(content)
+            return BoardSnapshotInput.model_validate_json(content).root
         except ValueError as exc:
             self._quarantine_snapshot(stored.id, "Snapshot does not match board/v1")
             raise ConflictError("Сохранённый snapshot не соответствует контракту") from exc

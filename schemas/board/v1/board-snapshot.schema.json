@@ -45,7 +45,7 @@
           "uniqueItems": true
         },
         "schemaVersion": {
-          "const": "1.4"
+          "const": "1.5"
         },
         "solidLearningAttempts": {
           "additionalProperties": {
@@ -142,6 +142,9 @@
         },
         {
           "$ref": "#/$defs/EmbeddedImageObject"
+        },
+        {
+          "$ref": "#/$defs/MediaAssetObject"
         },
         {
           "$ref": "#/$defs/SvgObject"
@@ -581,6 +584,140 @@
         "kind",
         "contentSha256",
         "dataUrl",
+        "fileName",
+        "intrinsicSize",
+        "mimeType",
+        "size"
+      ],
+      "type": "object"
+    },
+    "MediaAssetObject": {
+      "additionalProperties": false,
+      "properties": {
+        "groupId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "locked": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "scale": {
+          "$ref": "#/$defs/PositiveVec2"
+        },
+        "source": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/UserObjectSource"
+            },
+            {
+              "$ref": "#/$defs/GeometryOsObjectSource"
+            }
+          ]
+        },
+        "style": {
+          "$ref": "#/$defs/ObjectStyle"
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "kind": {
+          "const": "media.asset"
+        },
+        "assetId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "byteSize": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "contentSha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "fileName": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "intrinsicSize": {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            },
+            "width": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "width"
+          ],
+          "type": "object"
+        },
+        "mimeType": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "video/mp4"
+          ]
+        },
+        "size": {
+          "additionalProperties": false,
+          "properties": {
+            "height": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            },
+            "width": {
+              "exclusiveMinimum": 0,
+              "maximum": 16384,
+              "type": "number"
+            }
+          },
+          "required": [
+            "height",
+            "width"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "groupId",
+        "id",
+        "locked",
+        "position",
+        "rotation",
+        "scale",
+        "source",
+        "style",
+        "visible",
+        "kind",
+        "assetId",
+        "byteSize",
+        "contentSha256",
         "fileName",
         "intrinsicSize",
         "mimeType",
@@ -3351,7 +3488,7 @@
   },
   "$id": "https://contracts.tutorboard.dev/board/v1/board-snapshot.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "BoardSnapshot 1.4",
+  "title": "BoardSnapshot 1.5",
   "additionalProperties": false,
   "properties": {
     "createdAt": {
@@ -3373,7 +3510,7 @@
       "type": "integer"
     },
     "schemaVersion": {
-      "const": "1.4"
+      "const": "1.5"
     }
   },
   "required": [
