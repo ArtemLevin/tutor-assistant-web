@@ -1431,7 +1431,17 @@ class GeometryImportRecord(BaseModel):
     visual_transform: Transform2D = Field(..., alias="visualTransform")
 
 
-class VectorInkData(BaseModel):
+class VectorInkData1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    centerline: list[CubicBezierSegment] = Field(..., max_length=0)
+    closed: Literal[False]
+    samples: list[VectorInkSample] = Field(..., max_length=1, min_length=1)
+    version: Literal["1.0"]
+
+
+class VectorInkData2(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1439,6 +1449,9 @@ class VectorInkData(BaseModel):
     closed: bool
     samples: list[VectorInkSample] = Field(..., max_length=100000, min_length=2)
     version: Literal["1.0"]
+
+
+VectorInkData = RootModel[VectorInkData1 | VectorInkData2]
 
 
 class Solid3DPoint(BaseModel):
@@ -1553,7 +1566,7 @@ class PenStrokeObject(BaseModel):
     visible: bool
     kind: Literal["drawing.pen-stroke"]
     ink: VectorInkData
-    points: list[Vec2] = Field(..., max_length=100000, min_length=2)
+    points: list[Vec2] = Field(..., max_length=100000, min_length=1)
 
 
 BoardObject = RootModel[
@@ -1647,10 +1660,75 @@ class ReplaceObjectsCommand(BaseModel):
     replacements: list[BoardObject] = Field(..., min_length=1)
 
 
+class BatchObjectReplacement(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    at_index: int = Field(..., alias="atIndex", ge=0)
+    originals: list[BoardObject] = Field(..., max_length=5000)
+    replacements: list[BoardObject] = Field(..., max_length=5000)
+
+
+class BoardDocument(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        regex_engine="python-re",
+    )
+    created_at: AwareDatetime = Field(..., alias="createdAt")
+    geometry_imports: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        GeometryImportRecord,
+    ] = Field(..., alias="geometryImports")
+    groups: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        BoardGroup,
+    ]
+    id: Identifier
+    objects: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        BoardObject,
+    ]
+    order: list[Identifier]
+    schema_version: Literal["1.6"] = Field(..., alias="schemaVersion")
+    solid_learning_attempts: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        Solid3DLearningAttempt,
+    ] = Field(..., alias="solidLearningAttempts")
+    solid_models: dict[
+        constr(
+            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        ),
+        Solid3DRecord,
+    ] = Field(..., alias="solidModels")
+    title: str = Field(..., max_length=256, min_length=1)
+    updated_at: AwareDatetime = Field(..., alias="updatedAt")
+    viewport: Viewport
+
+
+class BatchReplaceObjectsCommand(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    actor_id: Identifier = Field(..., alias="actorId")
+    id: Identifier
+    kind: Literal["core.objects.batch-replace"]
+    timestamp: AwareDatetime
+    changes: list[BatchObjectReplacement] = Field(..., max_length=5000, min_length=1)
+
+
 BoardCommand = RootModel[
     ActSolid3DLearningCommand
     | AddGroupCommand
     | AddObjectsCommand
+    | BatchReplaceObjectsCommand
     | CompleteSolid3DLearningCommand
     | CreateSolid3DCommand
     | CutContentCommand
@@ -1690,7 +1768,7 @@ class OrderedBoardCommand(BaseModel):
     order: BoardCommandOrder
 
 
-class BoardCommandEnvelope16(BaseModel):
+class BoardCommandEnvelope17(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1705,48 +1783,4 @@ class BoardCommandEnvelope16(BaseModel):
         ..., alias="idempotencyKey", max_length=128, min_length=1, pattern="^[A-Za-z0-9._:-]+$"
     )
     origin_id: Identifier = Field(..., alias="originId")
-    schema_version: Literal["1.6"] = Field(..., alias="schemaVersion")
-
-
-class BoardDocument(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        regex_engine="python-re",
-    )
-    created_at: AwareDatetime = Field(..., alias="createdAt")
-    geometry_imports: dict[
-        constr(
-            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-        ),
-        GeometryImportRecord,
-    ] = Field(..., alias="geometryImports")
-    groups: dict[
-        constr(
-            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-        ),
-        BoardGroup,
-    ]
-    id: Identifier
-    objects: dict[
-        constr(
-            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-        ),
-        BoardObject,
-    ]
-    order: list[Identifier]
-    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
-    solid_learning_attempts: dict[
-        constr(
-            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-        ),
-        Solid3DLearningAttempt,
-    ] = Field(..., alias="solidLearningAttempts")
-    solid_models: dict[
-        constr(
-            pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
-        ),
-        Solid3DRecord,
-    ] = Field(..., alias="solidModels")
-    title: str = Field(..., max_length=256, min_length=1)
-    updated_at: AwareDatetime = Field(..., alias="updatedAt")
-    viewport: Viewport
+    schema_version: Literal["1.7"] = Field(..., alias="schemaVersion")

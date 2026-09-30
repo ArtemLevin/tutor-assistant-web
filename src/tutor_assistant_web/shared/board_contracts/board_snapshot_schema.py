@@ -1163,7 +1163,17 @@ class GeometryImportRecord(BaseModel):
     visual_transform: Transform2D = Field(..., alias="visualTransform")
 
 
-class VectorInkData(BaseModel):
+class VectorInkData5(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    centerline: list[CubicBezierSegment] = Field(..., max_length=0)
+    closed: Literal[False]
+    samples: list[VectorInkSample] = Field(..., max_length=1, min_length=1)
+    version: Literal["1.0"]
+
+
+class VectorInkData6(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1171,6 +1181,9 @@ class VectorInkData(BaseModel):
     closed: bool
     samples: list[VectorInkSample] = Field(..., max_length=100000, min_length=2)
     version: Literal["1.0"]
+
+
+VectorInkData = RootModel[VectorInkData5 | VectorInkData6]
 
 
 class Solid3DPoint(BaseModel):
@@ -1235,7 +1248,7 @@ class PenStrokeObject(BaseModel):
     visible: bool
     kind: Literal["drawing.pen-stroke"]
     ink: VectorInkData
-    points: list[Vec2] = Field(..., max_length=100000, min_length=2)
+    points: list[Vec2] = Field(..., max_length=100000, min_length=1)
 
 
 BoardObject = RootModel[
@@ -1249,6 +1262,15 @@ BoardObject = RootModel[
     | SvgObject
     | CoordinatePlotObject
 ]
+
+
+class BatchObjectReplacement(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    at_index: int = Field(..., alias="atIndex", ge=0)
+    originals: list[BoardObject] = Field(..., max_length=5000)
+    replacements: list[BoardObject] = Field(..., max_length=5000)
 
 
 class BoardDocument(BaseModel):
@@ -1277,7 +1299,7 @@ class BoardDocument(BaseModel):
         BoardObject,
     ]
     order: list[Identifier]
-    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.6"] = Field(..., alias="schemaVersion")
     solid_learning_attempts: dict[
         constr(
             pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -1295,7 +1317,7 @@ class BoardDocument(BaseModel):
     viewport: Viewport
 
 
-class BoardSnapshot15(BaseModel):
+class BoardSnapshot16(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1304,4 +1326,4 @@ class BoardSnapshot15(BaseModel):
     document_id: Identifier = Field(..., alias="documentId")
     document_sha256: str = Field(..., alias="documentSha256", pattern="^[a-f0-9]{64}$")
     revision: int = Field(..., ge=0)
-    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.6"] = Field(..., alias="schemaVersion")

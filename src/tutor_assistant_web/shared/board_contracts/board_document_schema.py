@@ -1163,7 +1163,17 @@ class GeometryImportRecord(BaseModel):
     visual_transform: Transform2D = Field(..., alias="visualTransform")
 
 
-class VectorInkData(BaseModel):
+class VectorInkData3(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    centerline: list[CubicBezierSegment] = Field(..., max_length=0)
+    closed: Literal[False]
+    samples: list[VectorInkSample] = Field(..., max_length=1, min_length=1)
+    version: Literal["1.0"]
+
+
+class VectorInkData4(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -1171,6 +1181,9 @@ class VectorInkData(BaseModel):
     closed: bool
     samples: list[VectorInkSample] = Field(..., max_length=100000, min_length=2)
     version: Literal["1.0"]
+
+
+VectorInkData = RootModel[VectorInkData3 | VectorInkData4]
 
 
 class Solid3DPoint(BaseModel):
@@ -1235,7 +1248,7 @@ class PenStrokeObject(BaseModel):
     visible: bool
     kind: Literal["drawing.pen-stroke"]
     ink: VectorInkData
-    points: list[Vec2] = Field(..., max_length=100000, min_length=2)
+    points: list[Vec2] = Field(..., max_length=100000, min_length=1)
 
 
 BoardObject = RootModel[
@@ -1249,6 +1262,15 @@ BoardObject = RootModel[
     | SvgObject
     | CoordinatePlotObject
 ]
+
+
+class BatchObjectReplacement(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    at_index: int = Field(..., alias="atIndex", ge=0)
+    originals: list[BoardObject] = Field(..., max_length=5000)
+    replacements: list[BoardObject] = Field(..., max_length=5000)
 
 
 class BoardDocument(BaseModel):
@@ -1277,7 +1299,7 @@ class BoardDocument(BaseModel):
         BoardObject,
     ]
     order: list[Identifier]
-    schema_version: Literal["1.5"] = Field(..., alias="schemaVersion")
+    schema_version: Literal["1.6"] = Field(..., alias="schemaVersion")
     solid_learning_attempts: dict[
         constr(
             pattern=r"^(?!(?:__proto__|constructor|prototype)$)[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
@@ -1295,4 +1317,4 @@ class BoardDocument(BaseModel):
     viewport: Viewport
 
 
-BoardDocument15 = RootModel[BoardDocument]
+BoardDocument16 = RootModel[BoardDocument]
