@@ -18,8 +18,8 @@ from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import canonical_json
 from tutor_assistant_web.modules.boards.models import (
-    BoardDocument as BoardDocumentRecord,
     BoardInvitation,
+    BoardDocument as BoardDocumentRecord,
 )
 from tutor_assistant_web.modules.boards.standalone_contracts import (
     GuestBoardAccessContext,
