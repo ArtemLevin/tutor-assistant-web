@@ -142,10 +142,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Build pinned MinIO compatibility image
+        run: docker build -f deploy/minio/Dockerfile -t tutor-assistant-minio:legacy .
       - run: >-
           docker run -d --name minio -p 9000:9000
           -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
-          minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+          tutor-assistant-minio:legacy server /data
       - run: uv sync --extra dev
       - run: uv run pytest tests/test_postgres_integration.py tests/test_redis_integration.py tests/test_minio_integration.py
 
