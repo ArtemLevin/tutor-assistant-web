@@ -35,7 +35,9 @@ from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
 from tutor_assistant_web.shared.board_contracts.board_geometry_import_schema import (
     BoardGeometryImport11,
 )
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot15
+from tutor_assistant_web.shared.board_contracts.board_snapshot_1_5_schema import (
+    BoardSnapshot15,
+)
 from tutor_assistant_web.shared.errors import (
     ConflictError,
     GoneError,
