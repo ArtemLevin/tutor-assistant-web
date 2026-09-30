@@ -154,6 +154,7 @@ def envelope_base_revisions(envelope: BoardCommandEnvelope) -> list[int]:
             LegacyOrderedBoardCommandEnvelope,
             PreviousOrderedBoardCommandEnvelope,
             BoardCommandEnvelope16,
+            BoardCommandEnvelope17,
         ),
     ):
         return [item.order.base_revision_at_creation for item in envelope.commands]
@@ -171,6 +172,7 @@ def envelope_lamport_range(
             LegacyOrderedBoardCommandEnvelope,
             PreviousOrderedBoardCommandEnvelope,
             BoardCommandEnvelope16,
+            BoardCommandEnvelope17,
         ),
     ):
         return None
