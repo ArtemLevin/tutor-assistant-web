@@ -583,9 +583,7 @@ def test_invitation_orm_never_persists_join_secret(b2_api):
     result = _create_invitation(client, board_id, teacher["csrfToken"])
     _, secret = _join_path(result)
     with database.sessions() as session:
-        document = session.scalar(
-            select(BoardDocument).where(BoardDocument.id == board_id)
-        )
+        document = session.scalar(select(BoardDocument).where(BoardDocument.id == board_id))
         invitation = session.scalar(
             select(BoardInvitation).where(BoardInvitation.board_document_id == board_id)
         )
