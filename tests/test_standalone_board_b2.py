@@ -17,16 +17,13 @@ from tutor_assistant_web.app import create_app
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import canonical_json
-from tutor_assistant_web.modules.boards.models import BoardInvitation
-from tutor_assistant_web.modules.boards.models import BoardDocument as BoardDocumentRecord
+from tutor_assistant_web.modules.boards.models import BoardDocument, BoardInvitation
 from tutor_assistant_web.modules.boards.standalone_contracts import (
     GuestBoardAccessContext,
     TeacherBoardAccessContext,
 )
 from tutor_assistant_web.observability import redact
-from tutor_assistant_web.shared.board_contracts.board_document_schema import (
-    BoardDocument as BoardContractDocument,
-)
+from tutor_assistant_web.shared.board_contracts import board_document_schema
 
 ROOT = Path(__file__).parents[1]
 FIXTURES = ROOT / "schemas" / "board" / "v1" / "fixtures"
@@ -177,7 +174,7 @@ def _snapshot_payload(board_id: str, *, revision: int = 0) -> dict:
     payload["documentId"] = board_id
     payload["revision"] = revision
     payload["document"]["id"] = board_id
-    document = BoardContractDocument.model_validate(payload["document"])
+    document = board_document_schema.BoardDocument.model_validate(payload["document"])
     payload["documentSha256"] = canonical_json(document)[2]
     return payload
 
@@ -587,7 +584,7 @@ def test_invitation_orm_never_persists_join_secret(b2_api):
     _, secret = _join_path(result)
     with database.sessions() as session:
         document = session.scalar(
-            select(BoardDocumentRecord).where(BoardDocumentRecord.id == board_id)
+            select(BoardDocument).where(BoardDocument.id == board_id)
         )
         invitation = session.scalar(
             select(BoardInvitation).where(BoardInvitation.board_document_id == board_id)
