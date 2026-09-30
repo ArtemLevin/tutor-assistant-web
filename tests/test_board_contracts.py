@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+
+import pytest
 from pathlib import Path
 
 from tutor_assistant_web.modules.boards.contracts import (
@@ -162,6 +164,33 @@ def _historical_envelope_payload(version: str) -> dict:
     payload["schemaVersion"] = version
     payload["commands"] = payload["commands"][:2]
     return payload
+
+
+def test_atomic_batch_replace_cannot_bypass_media_asset_gate() -> None:
+    envelope = _json("fixtures/board-command-envelope.json")
+    asset = _media_asset()
+    envelope["commands"] = [
+        {
+            "command": {
+                "actorId": envelope["actorId"],
+                "changes": [
+                    {
+                        "atIndex": 0,
+                        "originals": [],
+                        "replacements": [asset],
+                    }
+                ],
+                "id": "command:media-batch-contract-test",
+                "kind": "core.objects.batch-replace",
+                "timestamp": "2026-09-30T00:00:00.000Z",
+            },
+            "order": {"baseRevisionAtCreation": envelope["baseRevision"], "lamport": 20},
+        }
+    ]
+
+    assert BoardCommandEnvelope17.model_validate(envelope).schema_version == "1.7"
+    with pytest.raises(ValueError, match="media.asset requires board media authority"):
+        BoardCommandEnvelopeInput.model_validate(envelope)
 
 
 def test_previous_origin_aware_envelope_15_remains_readable() -> None:
