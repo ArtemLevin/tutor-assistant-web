@@ -239,6 +239,7 @@ def test_board_profile_runs_standalone_teacher_and_guest_management(tmp_path):
 def test_board_restore_drill_passes_values_through_environment():
     script = (ROOT / "deploy" / "board-production" / "restore-drill.sh").read_text()
 
+    assert "^[0-9]{8}T[0-9]{6}Z$" in script
     assert '-e RESTORE_BACKUP_ID="$BACKUP_ID"' in script
     assert '-e RESTORE_DATABASE="$DRILL_DB"' in script
     assert '-e RESTORE_BUCKET="$DRILL_BUCKET"' in script
