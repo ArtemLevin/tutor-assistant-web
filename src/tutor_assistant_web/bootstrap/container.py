@@ -126,23 +126,6 @@ class AppContainer:
             gif_max_decoded_pixels=self.settings.board_media_gif_max_decoded_pixels,
         )
 
-    def board_media_service(self, organization_id: str):
-        from tutor_assistant_web.modules.boards.media import BoardMediaService
-
-        return BoardMediaService(
-            self.database,
-            self.artifact_storage,
-            organization_id,
-            uploads_enabled=self.settings.board_media_uploads_enabled,
-            max_asset_bytes=self.settings.board_media_image_max_size_mb * 1024 * 1024,
-            max_assets_per_board=self.settings.board_media_max_assets_per_board,
-            max_bytes_per_board=self.settings.board_media_max_bytes_per_board_mb * 1024 * 1024,
-            max_dimension=self.settings.board_media_image_max_dimension,
-            max_pixels=self.settings.board_media_image_max_pixels,
-            gif_max_frames=self.settings.board_media_gif_max_frames,
-            gif_max_decoded_pixels=self.settings.board_media_gif_max_decoded_pixels,
-        )
-
     def board_guest_access_service(self):
         from tutor_assistant_web.modules.boards.guest_access import BoardGuestAccessService
 
@@ -241,6 +224,23 @@ class BoardAppContainer:
             snapshot_interval_commands=self.settings.board_snapshot_interval_commands,
             snapshot_interval_bytes=self.settings.board_snapshot_interval_mb * 1024 * 1024,
             delete_grace_days=self.settings.board_delete_grace_days,
+        )
+
+    def board_media_service(self, organization_id: str):
+        from tutor_assistant_web.modules.boards.media import BoardMediaService
+
+        return BoardMediaService(
+            self.database,
+            self.artifact_storage,
+            organization_id,
+            uploads_enabled=self.settings.board_media_uploads_enabled,
+            max_asset_bytes=self.settings.board_media_image_max_size_mb * 1024 * 1024,
+            max_assets_per_board=self.settings.board_media_max_assets_per_board,
+            max_bytes_per_board=self.settings.board_media_max_bytes_per_board_mb * 1024 * 1024,
+            max_dimension=self.settings.board_media_image_max_dimension,
+            max_pixels=self.settings.board_media_image_max_pixels,
+            gif_max_frames=self.settings.board_media_gif_max_frames,
+            gif_max_decoded_pixels=self.settings.board_media_gif_max_decoded_pixels,
         )
 
     def board_guest_access_service(self):
