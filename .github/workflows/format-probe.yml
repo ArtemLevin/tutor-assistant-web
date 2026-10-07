@@ -1,0 +1,24 @@
+name: Temporary format probe
+
+on:
+  pull_request:
+
+jobs:
+  format-probe:
+    if: github.head_ref == 'codex/board-media-authority-m1-m2'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install locked dependencies
+        run: uv sync --frozen --extra dev
+      - name: Print formatter patch
+        shell: bash
+        run: |
+          uv run ruff format src/tutor_assistant_web/modules/boards/media.py src/tutor_assistant_web/modules/boards/routes.py tests/test_board_media.py tests/test_minio_integration.py
+          git diff -- src/tutor_assistant_web/modules/boards/media.py src/tutor_assistant_web/modules/boards/routes.py tests/test_board_media.py tests/test_minio_integration.py
