@@ -55,6 +55,8 @@ def detected_mime(head: bytes, declared: str) -> str:
         return "image/png"
     if head.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
+    if head.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
     if head.startswith((b"RIFF",)) and head[8:12] == b"WAVE":
         return "audio/wav"
     if head.startswith(b"ID3") or head.startswith((b"\xff\xfb", b"\xff\xf3", b"\xff\xf2")):
@@ -433,6 +435,7 @@ def default_allowed_mimes() -> set[str]:
         "text/plain",
         "image/png",
         "image/jpeg",
+        "image/gif",
         "audio/wav",
         "audio/mpeg",
         "audio/mp4",
