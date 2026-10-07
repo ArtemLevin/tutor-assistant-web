@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: TutorBoard Standalone Board API
-  version: 1.0.0-b0
+  version: 1.0.0-b1
   description: >-
     Additive B0 contract for teacher-owned standalone boards and board-scoped
     guest access. Existing lesson-bound routes and command envelope 1.5 remain
@@ -11,6 +11,7 @@ servers:
 tags:
   - name: board-management
   - name: guest-access
+  - name: board-media
 paths:
   /api/v1/boards:
     post:
@@ -265,6 +266,95 @@ paths:
               schema:
                 $ref: '#/components/schemas/InvitationSecretResult'
         '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/boards/{boardId}/media:
+    post:
+      tags: [board-media]
+      summary: Upload immutable board-owned image media.
+      description: >-
+        The request body is the raw PNG, JPEG or GIF file. Teacher and guest
+        callers use the same board.write authority as command mutations.
+        X-Board-Access-Epoch is required for guest mutations.
+      security:
+        - teacherSession: []
+        - guestSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/AccessEpochHeader'
+        - $ref: '#/components/parameters/ContentSha256Header'
+        - $ref: '#/components/parameters/IdempotencyHeader'
+        - name: fileName
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 256 }
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/gif:
+            schema: { type: string, format: binary }
+      responses:
+        '201':
+          description: Media validated, stored privately and marked available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardMediaAsset'
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/boards/{boardId}/media/{assetId}:
+    get:
+      tags: [board-media]
+      summary: Read canonical metadata for an available board media asset.
+      security:
+        - teacherSession: []
+        - guestSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Board-scoped immutable media metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardMediaAsset'
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/boards/{boardId}/media/{assetId}/content:
+    get:
+      tags: [board-media]
+      summary: Stream authenticated same-origin board media bytes.
+      security:
+        - teacherSession: []
+        - guestSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Verified immutable media bytes; storage keys are never exposed.
+          headers:
+            ETag:
+              schema: { type: string }
+            X-Content-SHA256:
+              schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+        '304': { description: Cached immutable bytes remain valid. }
+        '404': { $ref: '#/components/responses/Problem' }
   /j/{secret}:
     get:
       tags: [guest-access]
@@ -305,6 +395,11 @@ components:
       in: cookie
       name: session
       description: Existing authenticated teacher session; concrete cookie name is deployment-specific.
+    guestSession:
+      type: apiKey
+      in: cookie
+      name: tutorboard_guest
+      description: Board-scoped HttpOnly guest session; concrete cookie name is deployment-specific.
   parameters:
     BoardId:
       name: boardId
@@ -316,11 +411,36 @@ components:
       in: path
       required: true
       schema: { type: string, minLength: 1, maxLength: 128 }
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
     CsrfHeader:
       name: X-CSRF-Token
       in: header
       required: true
       schema: { type: string, minLength: 8, maxLength: 512 }
+    AccessEpochHeader:
+      name: X-Board-Access-Epoch
+      in: header
+      required: false
+      description: Required for guest mutations; ignored for teacher mutations.
+      schema: { type: string, minLength: 8, maxLength: 512 }
+    ContentSha256Header:
+      name: X-Content-SHA256
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    IdempotencyHeader:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
   responses:
     Problem:
       description: Privacy-safe problem response.
@@ -432,6 +552,35 @@ components:
             principalType: { type: string, const: guest }
             role: { type: string, const: student }
       unevaluatedProperties: false
+    BoardMediaAsset:
+      type: object
+      additionalProperties: false
+      required:
+        - assetId
+        - contentSha256
+        - byteSize
+        - fileName
+        - intrinsicSize
+        - mimeType
+        - status
+        - createdAt
+      properties:
+        assetId: { type: string, minLength: 1, maxLength: 128 }
+        contentSha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        byteSize: { type: integer, minimum: 1 }
+        fileName: { type: string, minLength: 1, maxLength: 256 }
+        intrinsicSize:
+          type: object
+          additionalProperties: false
+          required: [width, height]
+          properties:
+            width: { type: integer, minimum: 1, maximum: 16384 }
+            height: { type: integer, minimum: 1, maximum: 16384 }
+        mimeType:
+          type: string
+          enum: [image/png, image/jpeg, image/gif]
+        status: { type: string, const: available }
+        createdAt: { type: string, format: date-time }
     CreateInvitationRequest:
       type: object
       additionalProperties: false

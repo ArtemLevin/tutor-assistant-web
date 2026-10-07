@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     artifact_max_size_mb: int = Field(default=500, ge=1, le=4096)
     artifact_allowed_mime_types: str = (
         "application/pdf,application/json,application/x-tex,text/html,text/plain,"
-        "image/png,image/jpeg,image/svg+xml,audio/wav,audio/mpeg,audio/mp4,video/mp4"
+        "image/png,image/jpeg,image/gif,image/svg+xml,audio/wav,audio/mpeg,audio/mp4,video/mp4"
     )
     artifact_clamav_enabled: bool = False
     artifact_clamav_host: str = "clamav"
@@ -120,6 +120,18 @@ class Settings(BaseSettings):
     board_collaboration_presence_ttl_seconds: int = Field(default=60, ge=30, le=300)
     board_evidence_svg_max_size_mb: int = Field(default=5, ge=1, le=50)
     board_evidence_png_max_size_mb: int = Field(default=10, ge=1, le=100)
+    board_media_uploads_enabled: bool = False
+    board_media_image_max_size_mb: int = Field(default=32, ge=1, le=256)
+    board_media_max_assets_per_board: int = Field(default=500, ge=1, le=10_000)
+    board_media_max_bytes_per_board_mb: int = Field(default=2048, ge=1, le=32_768)
+    board_media_image_max_dimension: int = Field(default=16_384, ge=256, le=65_536)
+    board_media_image_max_pixels: int = Field(default=64_000_000, ge=65_536, le=536_870_912)
+    board_media_gif_max_frames: int = Field(default=500, ge=1, le=10_000)
+    board_media_gif_max_decoded_pixels: int = Field(
+        default=256_000_000,
+        ge=65_536,
+        le=2_147_483_647,
+    )
 
     seed_demo_data: bool = True
     session_cookie_secure: bool = False
@@ -136,6 +148,7 @@ class Settings(BaseSettings):
     rate_limit_downloads: int = Field(default=120, ge=1, le=10000)
     rate_limit_board_reads: int = Field(default=600, ge=1, le=100_000)
     rate_limit_board_writes: int = Field(default=300, ge=1, le=100_000)
+    rate_limit_board_media_uploads: int = Field(default=30, ge=1, le=10_000)
     rate_limit_window_seconds: int = Field(default=60, ge=10, le=3600)
     security_csp: str = (
         "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'; "
@@ -292,6 +305,15 @@ class Settings(BaseSettings):
                 raise ValueError("ARTIFACT_STORAGE_PROVIDER must be s3 in production")
             if materials_enabled and not self.artifact_clamav_enabled:
                 raise ValueError("ARTIFACT_CLAMAV_ENABLED must be true in production")
+            if (
+                boards_enabled
+                and self.board_media_uploads_enabled
+                and not self.artifact_clamav_enabled
+            ):
+                raise ValueError(
+                    "ARTIFACT_CLAMAV_ENABLED must be true when "
+                    "BOARD_MEDIA_UPLOADS_ENABLED is true in production"
+                )
             if not self.session_cookie_secure:
                 raise ValueError("SESSION_COOKIE_SECURE must be true in production")
             if self.session_same_site not in {"lax", "strict"}:

@@ -101,6 +101,10 @@ def test_postgres_migration_and_runtime_timeouts(database):
         item["name"] for item in inspector.get_unique_constraints("students")
     }
     assert "ix_outbox_claim" in {item["name"] for item in inspector.get_indexes("outbox_events")}
+    assert "board_media_assets" in inspector.get_table_names()
+    assert "uq_board_media_assets_org_document_asset" in {
+        item["name"] for item in inspector.get_unique_constraints("board_media_assets")
+    }
     with database.engine.connect() as connection:
         assert connection.scalar(text("SHOW statement_timeout")) == "30s"
         assert connection.scalar(text("SHOW lock_timeout")) == "5s"

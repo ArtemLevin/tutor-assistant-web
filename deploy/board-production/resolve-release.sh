@@ -1,13 +1,14 @@
 #!/bin/sh
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 ENV_FILE="$HERE/.env.production"
 [ -s "$ENV_FILE" ] || {
   echo "Missing $ENV_FILE. Run $HERE/init.sh and configure the deployment first." >&2
   exit 2
 }
 set -a
+# shellcheck source=/dev/null
 . "$ENV_FILE"
 set +a
 

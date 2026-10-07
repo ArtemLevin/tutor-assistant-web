@@ -13,6 +13,8 @@ from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardDocument,
     BoardGeometryImport,
+    BoardMediaAsset,
+    BoardMediaAssetStatus,
     BoardSnapshot,
     BoardSnapshotStatus,
 )
@@ -52,6 +54,8 @@ __all__ = [
     "BoardCommandBatch",
     "BoardDocument",
     "BoardGeometryImport",
+    "BoardMediaAsset",
+    "BoardMediaAssetStatus",
     "BoardSnapshot",
     "BoardSnapshotStatus",
     "BuildLog",

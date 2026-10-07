@@ -28,6 +28,7 @@ from tutor_assistant_web.modules.boards.models import (
     BoardDocument,
     BoardEvidence,
     BoardGeometryImport,
+    BoardMediaAsset,
     BoardSnapshot,
     BoardSnapshotStatus,
 )
@@ -822,8 +823,18 @@ class BoardPersistenceService:
                         )
                     )
                 )
+                media_assets = list(
+                    session.scalars(
+                        select(BoardMediaAsset).where(
+                            BoardMediaAsset.organization_id == self.organization_id,
+                            BoardMediaAsset.board_document_id == document.id,
+                        )
+                    )
+                )
                 for snapshot in snapshots:
                     self.storage.delete(snapshot.storage_key)
+                for asset in media_assets:
+                    self.storage.delete(asset.storage_key)
                 session.delete(document)
             session.commit()
             return len(documents)

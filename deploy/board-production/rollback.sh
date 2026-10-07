@@ -1,20 +1,24 @@
 #!/bin/sh
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT=$(CDPATH= cd -- "$HERE/../.." && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH='' cd -- "$HERE/../.." && pwd)
 ENV_FILE="$HERE/.env.production"
 STATE="$HERE/runtime/deployment.env"
 [ -s "$STATE" ] || { echo "No deployment state." >&2; exit 1; }
 
 set -a
+# shellcheck source=/dev/null
 . "$ENV_FILE"
+# shellcheck source=/dev/null
 . "$STATE"
 set +a
 [ -n "${PREVIOUS_RELEASE:-}" ] || { echo "No previous release is recorded." >&2; exit 1; }
 
 current_slot=$ACTIVE_SLOT
 if [ "$current_slot" = blue ]; then target_slot=green; else target_slot=blue; fi
+target_api=
+target_ui=
 eval "target_api=\$BOARD_API_$(printf '%s' "$target_slot" | tr '[:lower:]' '[:upper:]')_IMAGE"
 eval "target_ui=\$TUTORBOARD_$(printf '%s' "$target_slot" | tr '[:lower:]' '[:upper:]')_IMAGE"
 for image in "$target_api" "$target_ui"; do

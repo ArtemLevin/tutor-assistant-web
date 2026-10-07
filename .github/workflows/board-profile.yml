@@ -44,8 +44,8 @@ jobs:
           BACKUP_S3_ACCESS_KEY: ci-backup-access
           BOARD_API_BLUE_IMAGE: ghcr.io/example/board-api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           BOARD_API_GREEN_IMAGE: ghcr.io/example/board-api@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-          BOARD_MIGRATION_IMAGE: ghcr.io/example/board-api@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-          BOARD_OPS_IMAGE: ghcr.io/example/board-api@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+          MIGRATION_IMAGE: ghcr.io/example/board-api@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+          OPS_IMAGE: ghcr.io/example/board-api@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
           TUTORBOARD_BLUE_IMAGE: ghcr.io/example/tutorboard@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
           TUTORBOARD_GREEN_IMAGE: ghcr.io/example/tutorboard@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
         run: docker compose -f compose.board.production.yml config --quiet

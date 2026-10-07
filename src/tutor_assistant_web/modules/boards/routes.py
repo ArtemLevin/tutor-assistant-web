@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from typing import Literal
+from tempfile import SpooledTemporaryFile
+from typing import BinaryIO, Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, WebSocket
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tutor_assistant_web.bootstrap.container import AppContainer
@@ -39,6 +43,7 @@ from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardDocument,
     BoardEvidence,
+    BoardMediaAsset,
 )
 from tutor_assistant_web.modules.boards.standalone_contracts import StandaloneBoardProblem
 from tutor_assistant_web.modules.identity.application import Principal
@@ -631,6 +636,105 @@ def create_router(container: AppContainer) -> APIRouter:
             headers=_board_headers(recovery.document, csrf_token(request, actor)),
         )
 
+    @router.post("/boards/{document_id}/media", status_code=201)
+    async def upload_board_media(
+        request: Request,
+        document_id: str,
+        file_name: str = Query(alias="fileName", min_length=1, max_length=256),
+    ):
+        actor = board_principal(request)
+        _, document = document_for(actor, document_id, operation="write")
+        validate_mutation(request, actor)
+        media = container.board_media_service(actor.organization_id)
+        if not media.uploads_enabled:
+            raise HTTPException(503, "Board media uploads are disabled")
+        expected_sha256 = request.headers.get("x-content-sha256", "")
+        idempotency_key = request.headers.get("x-idempotency-key", "")
+        if not expected_sha256:
+            raise HTTPException(422, "X-Content-SHA256 is required")
+        if not idempotency_key:
+            raise HTTPException(422, "X-Idempotency-Key is required")
+        declared_mime_type = (
+            request.headers.get("content-type", "").partition(";")[0].strip().lower()
+        )
+
+        def reauthorize() -> None:
+            refreshed = board_principal(request)
+            document_for(refreshed, document_id, operation="write")
+            validate_mutation(request, refreshed)
+
+        async with _bounded_binary_body(
+            request,
+            container.settings.board_media_image_max_size_mb * 1024 * 1024,
+        ) as upload:
+            asset = media.upload(
+                document_id,
+                upload,
+                declared_mime_type=declared_mime_type,
+                file_name=file_name,
+                expected_sha256=expected_sha256,
+                idempotency_key=idempotency_key,
+                created_by_user_id=(None if isinstance(actor, GuestPrincipal) else actor.user_id),
+                created_by_actor_id=actor.user_id,
+                reauthorize=reauthorize,
+            )
+        audit(
+            actor,
+            "board.media.uploaded",
+            document,
+            {
+                "asset_id": asset.asset_id,
+                "byte_size": asset.byte_size,
+                "content_sha256": asset.content_sha256,
+                "mime_type": asset.mime_type,
+            },
+        )
+        return JSONResponse(
+            _media_asset_payload(asset),
+            status_code=201,
+            headers=_board_headers(document, csrf_token(request, actor)),
+        )
+
+    @router.get("/boards/{document_id}/media/{asset_id}")
+    def get_board_media(request: Request, document_id: str, asset_id: str):
+        actor = board_principal(request)
+        _, document = document_for(actor, document_id, operation="read")
+        asset = container.board_media_service(actor.organization_id).get(
+            document_id,
+            asset_id,
+        )
+        return JSONResponse(
+            _media_asset_payload(asset),
+            headers=_board_headers(document, csrf_token(request, actor)),
+        )
+
+    @router.get("/boards/{document_id}/media/{asset_id}/content")
+    def get_board_media_content(request: Request, document_id: str, asset_id: str):
+        actor = board_principal(request)
+        document_for(actor, document_id, operation="read")
+        media = container.board_media_service(actor.organization_id)
+        asset = media.get(document_id, asset_id)
+        etag = f'"sha256-{asset.content_sha256}"'
+        headers = {
+            "Cache-Control": "private, no-cache",
+            "Content-Disposition": (
+                'inline; filename="board-media"; '
+                f"filename*=UTF-8''{quote(asset.file_name, safe='')}"
+            ),
+            "Content-Length": str(asset.byte_size),
+            "ETag": etag,
+            "X-Content-SHA256": asset.content_sha256,
+            "X-Content-Type-Options": "nosniff",
+        }
+        if request.headers.get("if-none-match", "") == etag:
+            headers.pop("Content-Length", None)
+            return Response(status_code=304, headers=headers)
+        return StreamingResponse(
+            media.iter_content(asset),
+            media_type=asset.mime_type,
+            headers=headers,
+        )
+
     @router.get("/boards/{document_id}/revisions")
     def board_revisions(
         request: Request,
@@ -1056,6 +1160,38 @@ def create_router(container: AppContainer) -> APIRouter:
     return root
 
 
+@asynccontextmanager
+async def _bounded_binary_body(
+    request: Request,
+    max_bytes: int,
+) -> AsyncIterator[BinaryIO]:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            parsed_content_length = int(content_length)
+            if parsed_content_length < 0:
+                raise ValueError
+            if parsed_content_length > max_bytes:
+                raise HTTPException(413, "Media body exceeds the configured size limit")
+        except ValueError as exc:
+            raise HTTPException(400, "Invalid Content-Length") from exc
+
+    with SpooledTemporaryFile(
+        max_size=min(max_bytes, 16 * 1024 * 1024),
+        mode="w+b",
+    ) as staged:
+        total = 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > max_bytes:
+                raise HTTPException(413, "Media body exceeds the configured size limit")
+            staged.write(chunk)
+        if total == 0:
+            raise HTTPException(400, "Media body cannot be empty")
+        staged.seek(0)
+        yield staged
+
+
 async def _validated_body[ModelT: BaseModel](
     request: Request,
     model: type[ModelT],
@@ -1124,6 +1260,22 @@ def _board_payload(document: BoardDocument, snapshot_due: bool) -> dict:
         "archivedAt": _utc_timestamp(document.archived_at) if document.archived_at else None,
         "createdAt": _utc_timestamp(document.created_at),
         "updatedAt": _utc_timestamp(document.updated_at),
+    }
+
+
+def _media_asset_payload(asset: BoardMediaAsset) -> dict:
+    return {
+        "assetId": asset.asset_id,
+        "contentSha256": asset.content_sha256,
+        "byteSize": asset.byte_size,
+        "fileName": asset.file_name,
+        "intrinsicSize": {
+            "width": asset.intrinsic_width,
+            "height": asset.intrinsic_height,
+        },
+        "mimeType": asset.mime_type,
+        "status": asset.storage_status,
+        "createdAt": _utc_timestamp(asset.created_at),
     }
 
 

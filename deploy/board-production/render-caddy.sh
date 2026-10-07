@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+ROOT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 TEMPLATE="$ROOT_DIR/deploy/board-production/Caddyfile.template"
 RUNTIME_DIR="$ROOT_DIR/deploy/board-production/runtime"
 OUTPUT="$RUNTIME_DIR/Caddyfile"

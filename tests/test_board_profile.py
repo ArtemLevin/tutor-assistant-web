@@ -59,6 +59,25 @@ def test_production_board_profile_validates_only_its_runtime_dependencies():
     assert settings.bbb_demo_mode is True
     assert settings.document_engine_provider == "local"
     assert settings.artifact_clamav_enabled is False
+    assert settings.board_media_uploads_enabled is False
+
+
+def test_production_board_media_uploads_require_antivirus():
+    with pytest.raises(ValidationError, match="BOARD_MEDIA_UPLOADS_ENABLED"):
+        board_settings(
+            app_env="production",
+            app_secret_key=PRODUCTION_SECRET,
+            database_url=PRODUCTION_DATABASE_URL,
+            auto_migrate=False,
+            task_eager=False,
+            public_base_url="https://board.example.test",
+            artifact_storage_provider="s3",
+            artifact_clamav_enabled=False,
+            board_media_uploads_enabled=True,
+            session_cookie_secure=True,
+            bootstrap_admin_email="admin@example.test",
+            metrics_bearer_token="metrics-token-with-24-characters",
+        )
 
 
 def test_production_board_profile_requires_distributed_collaboration():
@@ -136,6 +155,9 @@ def test_board_profile_exposes_only_reviewed_routes(tmp_path):
         ("GET", "/api/v1/boards"),
         ("GET", "/api/v1/boards/{document_id}"),
         ("PATCH", "/api/v1/boards/{document_id}"),
+        ("POST", "/api/v1/boards/{document_id}/media"),
+        ("GET", "/api/v1/boards/{document_id}/media/{asset_id}"),
+        ("GET", "/api/v1/boards/{document_id}/media/{asset_id}/content"),
         ("DELETE", "/api/v1/boards/{document_id}"),
         ("POST", "/api/v1/boards/{document_id}/archive"),
         ("POST", "/api/v1/boards/{document_id}/unarchive"),
@@ -214,6 +236,21 @@ def test_board_profile_runs_standalone_teacher_and_guest_management(tmp_path):
         assert invitation.json()["joinUrl"].startswith(f"{settings.public_base_url.rstrip('/')}/j/")
 
 
+def test_board_restore_drill_passes_values_through_environment():
+    script = (ROOT / "deploy" / "board-production" / "restore-drill.sh").read_text()
+
+    assert "^[0-9]{8}T[0-9]{6}Z$" in script
+    assert '-e RESTORE_BACKUP_ID="$BACKUP_ID"' in script
+    assert '-e RESTORE_DATABASE="$DRILL_DB"' in script
+    assert '-e RESTORE_BUCKET="$DRILL_BUCKET"' in script
+    assert 'tutor-assistant-backup restore "$RESTORE_BACKUP_ID"' in script
+    assert '--database-url "$url"' in script
+    assert '--artifact-bucket "$RESTORE_BUCKET"' in script
+    assert '"verified_artifacts"' in script
+    assert "DROP DATABASE $DRILL_DB WITH (FORCE)" in script
+    assert 'delete-drill "$DRILL_BUCKET"' in script
+
+
 def test_board_production_compose_is_minimal_hardened_and_state_isolated():
     document = yaml.safe_load((ROOT / "compose.board.production.yml").read_text())
     services = document["services"]
@@ -249,6 +286,7 @@ def test_board_production_compose_is_minimal_hardened_and_state_isolated():
         assert services[name]["security_opt"] == ["no-new-privileges:true"]
     assert services["board-api-blue"]["environment"]["APP_PROFILE"] == "board"
     assert services["board-api-blue"]["environment"]["ARTIFACT_CLAMAV_ENABLED"] == ("false")
+    assert services["board-api-blue"]["environment"]["BOARD_MEDIA_UPLOADS_ENABLED"] == ("false")
     assert "ports" not in services["postgres"]
     assert "ports" not in services["redis"]
     assert "ports" not in services["minio"]

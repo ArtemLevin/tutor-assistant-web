@@ -1,14 +1,16 @@
 #!/bin/sh
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT=$(CDPATH= cd -- "$HERE/../.." && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH='' cd -- "$HERE/../.." && pwd)
 STATE="$HERE/runtime/soak.env"
 DURATION=${SOAK_DURATION_SECONDS:-86400}
 INTERVAL=${SOAK_CHECK_INTERVAL_SECONDS:-300}
 
 set -a
+# shellcheck source=/dev/null
 . "$HERE/.env.production"
+# shellcheck source=/dev/null
 . "$HERE/runtime/deployment.env"
 set +a
 
@@ -38,6 +40,7 @@ case "${1:-check}" in
     ;;
   check)
     [ -s "$STATE" ] || { echo "Soak has not been started." >&2; exit 1; }
+    # shellcheck source=/dev/null
     . "$STATE"
     check
     elapsed=$(($(date +%s) - SOAK_STARTED_AT))
@@ -52,6 +55,7 @@ case "${1:-check}" in
     while :; do
       sleep "$INTERVAL"
       check
+      # shellcheck source=/dev/null
       . "$STATE"
       elapsed=$(($(date +%s) - SOAK_STARTED_AT))
       [ "$elapsed" -lt "$DURATION" ] || break

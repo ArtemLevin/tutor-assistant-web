@@ -1,10 +1,12 @@
 #!/bin/sh
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT=$(CDPATH= cd -- "$HERE/../.." && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH='' cd -- "$HERE/../.." && pwd)
 set -a
+# shellcheck source=/dev/null
 . "$HERE/.env.production"
+# shellcheck source=/dev/null
 . "$HERE/runtime/deployment.env"
 set +a
 

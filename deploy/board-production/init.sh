@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 ENV_FILE="$HERE/.env.production"
 RUNTIME="$HERE/runtime"
 SECRETS="$HERE/secrets"
@@ -28,13 +28,13 @@ secret backup_s3_secret_key 24
 
 postgres_password=$(cat "$SECRETS/postgres_password")
 redis_password=$(cat "$SECRETS/redis_password")
-minio_user=$(cat "$SECRETS/minio_root_user")
 printf '%s\n' "postgresql+psycopg://tutorboard:${postgres_password}@postgres:5432/tutorboard" \
   > "$SECRETS/database_url"
 printf '%s\n' "redis://:${redis_password}@redis:6379/0" > "$SECRETS/redis_url"
 
 if [ ! -s "$RUNTIME/deployment.env" ]; then
   set -a
+  # shellcheck source=/dev/null
   . "$ENV_FILE"
   set +a
   {
