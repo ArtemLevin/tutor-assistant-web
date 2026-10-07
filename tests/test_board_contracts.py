@@ -5,7 +5,6 @@ import json
 import re
 from pathlib import Path
 
-import pytest
 
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelopeInput,
