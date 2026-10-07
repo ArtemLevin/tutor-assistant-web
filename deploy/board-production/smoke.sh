@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 BASE_URL=${BASE_URL:-$(sed -n 's/^PUBLIC_BASE_URL=//p' "$HERE/.env.production")}
 [ -n "$BASE_URL" ] || { echo "PUBLIC_BASE_URL is missing." >&2; exit 1; }
 
