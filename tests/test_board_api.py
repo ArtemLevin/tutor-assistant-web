@@ -364,7 +364,7 @@ def test_board_api_accepts_legacy_snapshot_14_during_rollout(board_api):
     assert recovered.json()["snapshot"]["schemaVersion"] == "1.4"
 
 
-def test_board_api_gates_media_asset_until_authority_is_available(board_api):
+def test_board_api_rejects_media_asset_without_authoritative_board_asset(board_api):
     client, _, _, _, _, context = board_api
     csrf = context["csrfToken"]
     user_id = context["userId"]
@@ -390,19 +390,28 @@ def test_board_api_gates_media_asset_until_authority_is_available(board_api):
         headers={"x-csrf-token": csrf},
     )
     assert rejected_command.status_code == 422
-    assert "media.asset requires board media authority" in rejected_command.text
+    assert rejected_command.json()["error"] == {
+        "code": "ValidationError",
+        "message": "media.asset reference is invalid for this board",
+    }
 
     snapshot = _snapshot_payload()
     asset = _media_asset_payload()
     snapshot["document"]["objects"][asset["id"]] = asset
     snapshot["document"]["order"].append(asset["id"])
+    snapshot["documentSha256"] = canonical_json(
+        BoardDocument.model_validate(snapshot["document"])
+    )[2]
     rejected_snapshot = client.post(
         f"/api/v1/boards/{DOCUMENT_ID}/snapshots",
         json=snapshot,
         headers={"x-csrf-token": csrf},
     )
     assert rejected_snapshot.status_code == 422
-    assert "media.asset requires board media authority" in rejected_snapshot.text
+    assert rejected_snapshot.json()["error"] == {
+        "code": "ValidationError",
+        "message": "media.asset reference is invalid for this board",
+    }
 
     board = client.get(f"/api/v1/boards/{DOCUMENT_ID}")
     assert board.status_code == 200
