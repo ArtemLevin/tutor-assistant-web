@@ -39,3 +39,14 @@ def load_runtime_configuration(value: str | None = None) -> RuntimeConfiguration
     # selected by APP_PROFILE and never by ModuleRegistry/ENABLED_MODULES.
     settings = Settings(enabled_modules="boards")
     return RuntimeConfiguration(profile="board", settings=settings)
+
+
+def create_runtime_app(runtime: RuntimeConfiguration):
+    if runtime.profile == "board":
+        from tutor_assistant_web.bootstrap.board_app_factory import create_board_app
+
+        return create_board_app(runtime.settings)
+
+    from tutor_assistant_web.bootstrap.app_factory import create_app
+
+    return create_app(runtime.settings)
