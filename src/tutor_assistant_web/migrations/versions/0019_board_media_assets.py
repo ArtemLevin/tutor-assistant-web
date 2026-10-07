@@ -88,6 +88,31 @@ def upgrade() -> None:
         "board_media_assets",
         ["deleted_at", "purge_after"],
     )
+    op.create_index(
+        "ix_board_media_assets_board_document_id",
+        "board_media_assets",
+        ["board_document_id"],
+    )
+    op.create_index(
+        "ix_board_media_assets_created_by_user_id",
+        "board_media_assets",
+        ["created_by_user_id"],
+    )
+    op.create_index(
+        "ix_board_media_assets_organization_id",
+        "board_media_assets",
+        ["organization_id"],
+    )
+    op.create_index(
+        "ix_board_media_assets_purge_after",
+        "board_media_assets",
+        ["purge_after"],
+    )
+    op.create_index(
+        "ix_board_media_assets_storage_status",
+        "board_media_assets",
+        ["storage_status"],
+    )
 
 
 def downgrade() -> None:
@@ -98,6 +123,17 @@ def downgrade() -> None:
             "Cannot downgrade board media storage while media assets exist. "
             "Export or purge board media first."
         )
+    op.drop_index("ix_board_media_assets_storage_status", table_name="board_media_assets")
+    op.drop_index("ix_board_media_assets_purge_after", table_name="board_media_assets")
+    op.drop_index("ix_board_media_assets_organization_id", table_name="board_media_assets")
+    op.drop_index(
+        "ix_board_media_assets_created_by_user_id",
+        table_name="board_media_assets",
+    )
+    op.drop_index(
+        "ix_board_media_assets_board_document_id",
+        table_name="board_media_assets",
+    )
     op.drop_index("ix_board_media_assets_purge", table_name="board_media_assets")
     op.drop_index(
         "ix_board_media_assets_org_document_status",
