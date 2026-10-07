@@ -657,6 +657,7 @@ def create_router(container: AppContainer) -> APIRouter:
         declared_mime_type = (
             request.headers.get("content-type", "").partition(";")[0].strip().lower()
         )
+
         def reauthorize() -> None:
             refreshed = board_principal(request)
             document_for(refreshed, document_id, operation="write")
