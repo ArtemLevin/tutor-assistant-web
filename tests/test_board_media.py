@@ -470,9 +470,7 @@ def test_board_media_reference_authority_accepts_command_and_marks_revision(tmp_
 
         assert batch.revision == 1
         with database.sessions() as session:
-            stored = session.scalar(
-                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
-            )
+            stored = session.scalar(select(BoardMediaAsset).where(BoardMediaAsset.id == media.id))
             assert stored is not None
             assert stored.first_referenced_revision == 1
     finally:
@@ -521,9 +519,7 @@ def test_board_media_reference_authority_rejects_forged_cross_board_and_unavaila
             )
 
         with database.sessions() as session:
-            stored = session.scalar(
-                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
-            )
+            stored = session.scalar(select(BoardMediaAsset).where(BoardMediaAsset.id == media.id))
             assert stored is not None
             stored.storage_status = "quarantined"
             session.commit()
@@ -541,9 +537,7 @@ def test_board_media_reference_authority_rejects_forged_cross_board_and_unavaila
 
         assert boards.get(board.id).current_revision == 0
         with database.sessions() as session:
-            stored = session.scalar(
-                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
-            )
+            stored = session.scalar(select(BoardMediaAsset).where(BoardMediaAsset.id == media.id))
             assert stored is not None
             assert stored.first_referenced_revision is None
     finally:
@@ -569,9 +563,7 @@ def test_board_media_reference_authority_validates_snapshot_and_marks_revision(t
 
         assert stored_snapshot.storage_status == "available"
         with database.sessions() as session:
-            stored = session.scalar(
-                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
-            )
+            stored = session.scalar(select(BoardMediaAsset).where(BoardMediaAsset.id == media.id))
             assert stored is not None
             assert stored.first_referenced_revision == 0
 
