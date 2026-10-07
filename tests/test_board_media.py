@@ -3,7 +3,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import json
 import re
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +14,11 @@ from sqlalchemy import func, select
 from tutor_assistant_web.app import create_app
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
-from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+from tutor_assistant_web.modules.boards.application import BoardPersistenceService, canonical_json
+from tutor_assistant_web.modules.boards.contracts import (
+    BoardCommandEnvelopeInput,
+    BoardSnapshotInput,
+)
 from tutor_assistant_web.modules.boards.media import (
     BoardMediaQuotaExceeded,
     BoardMediaService,
@@ -21,8 +27,11 @@ from tutor_assistant_web.modules.boards.models import BoardMediaAsset
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
 from tutor_assistant_web.providers.artifacts import LocalArtifactStorage
+from tutor_assistant_web.shared.board_contracts import board_document_schema
 from tutor_assistant_web.shared.errors import ValidationError
 
+ROOT = Path(__file__).parents[1]
+FIXTURES = ROOT / "schemas" / "board" / "v1" / "fixtures"
 PASSWORD = "test-password"
 PNG_1X1 = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII="
@@ -106,6 +115,92 @@ def _upload(
         created_by_user_id=actor_id,
         created_by_actor_id=actor_id,
     )
+
+
+def _media_object(asset: BoardMediaAsset, *, object_id: str = "object:media-01") -> dict:
+    return {
+        "groupId": None,
+        "id": object_id,
+        "locked": False,
+        "position": {"x": 20, "y": 30},
+        "rotation": 0,
+        "scale": {"x": 1, "y": 1},
+        "source": {"kind": "user"},
+        "style": {
+            "fill": None,
+            "opacity": 1,
+            "stroke": "#1a1a1a",
+            "strokeWidth": 1,
+        },
+        "visible": True,
+        "kind": "media.asset",
+        "assetId": asset.asset_id,
+        "byteSize": asset.byte_size,
+        "contentSha256": asset.content_sha256,
+        "fileName": asset.file_name,
+        "intrinsicSize": {
+            "width": asset.intrinsic_width,
+            "height": asset.intrinsic_height,
+        },
+        "mimeType": asset.mime_type,
+        "size": {"width": 100, "height": 100},
+    }
+
+
+def _media_envelope(
+    board_id: str,
+    actor_id: str,
+    media_object: dict,
+    *,
+    base_revision: int = 0,
+    idempotency_key: str = "media:command:1",
+    expected_document_sha256: str = "0" * 64,
+):
+    return BoardCommandEnvelopeInput.model_validate(
+        {
+            "actorId": actor_id,
+            "baseRevision": base_revision,
+            "commands": [
+                {
+                    "command": {
+                        "actorId": actor_id,
+                        "id": f"command:media:{base_revision + 1}",
+                        "kind": "core.objects.add",
+                        "timestamp": "2026-10-07T18:00:00.000Z",
+                        "atIndex": 0,
+                        "objects": [media_object],
+                    },
+                    "order": {
+                        "baseRevisionAtCreation": base_revision,
+                        "lamport": base_revision + 1,
+                    },
+                }
+            ],
+            "documentId": board_id,
+            "expectedDocumentSha256": expected_document_sha256,
+            "idempotencyKey": idempotency_key,
+            "originId": "origin:media-authority-test",
+            "schemaVersion": "1.7",
+        }
+    ).root
+
+
+def _media_snapshot(
+    board_id: str,
+    media_object: dict,
+    *,
+    revision: int = 0,
+):
+    payload = json.loads((FIXTURES / "board-snapshot.json").read_text())
+    payload["documentId"] = board_id
+    payload["revision"] = revision
+    payload["document"]["id"] = board_id
+    payload["document"]["objects"] = {media_object["id"]: media_object}
+    payload["document"]["order"] = [media_object["id"]]
+    payload["document"]["groups"] = {}
+    document = board_document_schema.BoardDocument.model_validate(payload["document"])
+    payload["documentSha256"] = canonical_json(document)[2]
+    return BoardSnapshotInput.model_validate(payload).root
 
 
 def _csrf_from(html: str) -> str:
@@ -354,3 +449,135 @@ def test_board_media_upload_feature_gate_prevents_body_persistence(tmp_path):
         with database.sessions() as session:
             assert session.scalar(select(func.count(BoardMediaAsset.id))) == 0
     database.dispose()
+
+
+def test_board_media_reference_authority_accepts_command_and_marks_revision(tmp_path):
+    database, storage, principal, board = _standalone_board(tmp_path)
+    try:
+        media = _upload(
+            _media_service(database, storage),
+            board.id,
+            PNG_1X1,
+            mime_type="image/png",
+            file_name="lesson.png",
+            key="media:authority:command",
+            actor_id=principal.user_id,
+        )
+        boards = BoardPersistenceService(database, storage, DEFAULT_ORGANIZATION_ID)
+        envelope = _media_envelope(board.id, principal.user_id, _media_object(media))
+
+        batch = boards.append_commands(envelope, principal.user_id)
+
+        assert batch.revision == 1
+        with database.sessions() as session:
+            stored = session.scalar(
+                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
+            )
+            assert stored is not None
+            assert stored.first_referenced_revision == 1
+    finally:
+        database.dispose()
+
+
+def test_board_media_reference_authority_rejects_forged_cross_board_and_unavailable(
+    tmp_path,
+):
+    database, storage, principal, board = _standalone_board(tmp_path)
+    try:
+        media = _upload(
+            _media_service(database, storage),
+            board.id,
+            PNG_1X1,
+            mime_type="image/png",
+            file_name="lesson.png",
+            key="media:authority:reject",
+            actor_id=principal.user_id,
+        )
+        boards = BoardPersistenceService(database, storage, DEFAULT_ORGANIZATION_ID)
+
+        forged = _media_object(media)
+        forged["contentSha256"] = "0" * 64
+        with pytest.raises(ValidationError, match="invalid for this board"):
+            boards.append_commands(
+                _media_envelope(
+                    board.id,
+                    principal.user_id,
+                    forged,
+                    idempotency_key="media:command:forged",
+                ),
+                principal.user_id,
+            )
+
+        other_board = boards.create_standalone(principal.user_id, "Other media board")
+        with pytest.raises(ValidationError, match="invalid for this board"):
+            boards.append_commands(
+                _media_envelope(
+                    other_board.id,
+                    principal.user_id,
+                    _media_object(media),
+                    idempotency_key="media:command:cross-board",
+                ),
+                principal.user_id,
+            )
+
+        with database.sessions() as session:
+            stored = session.scalar(
+                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
+            )
+            assert stored is not None
+            stored.storage_status = "quarantined"
+            session.commit()
+
+        with pytest.raises(ValidationError, match="invalid for this board"):
+            boards.append_commands(
+                _media_envelope(
+                    board.id,
+                    principal.user_id,
+                    _media_object(media),
+                    idempotency_key="media:command:quarantined",
+                ),
+                principal.user_id,
+            )
+
+        assert boards.get(board.id).current_revision == 0
+        with database.sessions() as session:
+            stored = session.scalar(
+                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
+            )
+            assert stored is not None
+            assert stored.first_referenced_revision is None
+    finally:
+        database.dispose()
+
+
+def test_board_media_reference_authority_validates_snapshot_and_marks_revision(tmp_path):
+    database, storage, principal, board = _standalone_board(tmp_path)
+    try:
+        media = _upload(
+            _media_service(database, storage),
+            board.id,
+            PNG_1X1,
+            mime_type="image/png",
+            file_name="snapshot.png",
+            key="media:authority:snapshot",
+            actor_id=principal.user_id,
+        )
+        boards = BoardPersistenceService(database, storage, DEFAULT_ORGANIZATION_ID)
+        snapshot = _media_snapshot(board.id, _media_object(media))
+
+        stored_snapshot = boards.save_snapshot(snapshot)
+
+        assert stored_snapshot.storage_status == "available"
+        with database.sessions() as session:
+            stored = session.scalar(
+                select(BoardMediaAsset).where(BoardMediaAsset.id == media.id)
+            )
+            assert stored is not None
+            assert stored.first_referenced_revision == 0
+
+        forged = _media_object(media, object_id="object:media-forged")
+        forged["byteSize"] += 1
+        with pytest.raises(ValidationError, match="invalid for this board"):
+            boards.save_snapshot(_media_snapshot(board.id, forged))
+    finally:
+        database.dispose()
