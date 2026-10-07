@@ -247,7 +247,7 @@ def test_board_restore_drill_passes_values_through_environment():
     assert '--database-url "$url"' in script
     assert '--artifact-bucket "$RESTORE_BUCKET"' in script
     assert '"verified_artifacts"' in script
-    assert 'DROP DATABASE $DRILL_DB WITH (FORCE)' in script
+    assert "DROP DATABASE $DRILL_DB WITH (FORCE)" in script
     assert 'delete-drill "$DRILL_BUCKET"' in script
 
 
