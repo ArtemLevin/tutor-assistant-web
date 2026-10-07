@@ -90,10 +90,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --extra dev
-      - name: Show formatter diff for media CI fixes
-        run: |
-          uv run ruff format --diff tests/test_board_media.py tests/test_board_profile.py
-          exit 1
+      - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run bandit -r src -ll
       - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/requirements-audit.txt
