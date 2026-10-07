@@ -15,6 +15,7 @@ import pytest
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+from tutor_assistant_web.modules.boards.media import BoardMediaService
 from tutor_assistant_web.modules.identity.application import IdentityService
 from tutor_assistant_web.modules.identity.models import DEFAULT_ORGANIZATION_ID
 from tutor_assistant_web.modules.scheduling.models import Lesson
@@ -122,4 +123,53 @@ def test_board_snapshot_round_trip_through_minio(tmp_path):
     assert target.stat(stored.storage_key).sha256 == stored.sha256
     assert restored is not None
     assert restored.document_sha256 == snapshot.document_sha256
+    database.dispose()
+
+
+def test_board_media_round_trip_through_minio(tmp_path):
+    target = storage()
+    target.ensure_private_bucket()
+    database = Database(f"sqlite:///{tmp_path / 'minio-media.db'}")
+    database.migrate()
+    identity = IdentityService(database)
+    identity.bootstrap(
+        Settings(seed_demo_data=False, bootstrap_admin_password="admin-password")
+    )
+    principal = identity.authenticate("admin@localhost", "admin-password")
+    assert principal is not None
+
+    board = BoardPersistenceService(
+        database,
+        target,
+        DEFAULT_ORGANIZATION_ID,
+    ).create_standalone(principal.user_id, "MinIO media board")
+    content = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff" + (
+        b",\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x01L\x00;"
+    )
+    media = BoardMediaService(
+        database,
+        target,
+        DEFAULT_ORGANIZATION_ID,
+        uploads_enabled=True,
+        max_asset_bytes=32 * 1024 * 1024,
+        max_assets_per_board=100,
+        max_bytes_per_board=1024 * 1024 * 1024,
+        max_dimension=16_384,
+        max_pixels=64_000_000,
+        gif_max_frames=500,
+        gif_max_decoded_pixels=256_000_000,
+    )
+    asset = media.upload(
+        board.id,
+        io.BytesIO(content),
+        declared_mime_type="image/gif",
+        file_name="lesson.gif",
+        expected_sha256=hashlib.sha256(content).hexdigest(),
+        idempotency_key="media:minio:gif",
+        created_by_user_id=principal.user_id,
+        created_by_actor_id=principal.user_id,
+    )
+
+    assert target.stat(asset.storage_key).sha256 == asset.content_sha256
+    assert b"".join(media.iter_content(asset, 3)) == content
     database.dispose()
