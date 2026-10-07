@@ -1,6 +1,9 @@
 name: Temporary format probe
 
 on:
+  push:
+    branches:
+      - codex/board-media-authority-m1-m2
   pull_request:
 
 jobs:
