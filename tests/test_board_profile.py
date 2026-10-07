@@ -236,6 +236,22 @@ def test_board_profile_runs_standalone_teacher_and_guest_management(tmp_path):
         assert invitation.json()["joinUrl"].startswith(f"{settings.public_base_url.rstrip('/')}/j/")
 
 
+
+def test_board_restore_drill_passes_values_through_environment():
+    script = (ROOT / "deploy" / "board-production" / "restore-drill.sh").read_text()
+
+    assert '-e RESTORE_BACKUP_ID="$BACKUP_ID"' in script
+    assert '-e RESTORE_DATABASE="$DRILL_DB"' in script
+    assert '-e RESTORE_BUCKET="$DRILL_BUCKET"' in script
+    assert 'tutor-assistant-backup restore "$RESTORE_BACKUP_ID"' in script
+    assert '--database-url "$url"' in script
+    assert '--artifact-bucket "$RESTORE_BUCKET"' in script
+    assert '"verified_artifacts"' in script
+    assert 'DROP DATABASE $DRILL_DB WITH (FORCE)' in script
+    assert 'delete-drill "$DRILL_BUCKET"' in script
+    assert `'"$BACKUP_ID"' --database-url` not in script
+
+
 def test_board_production_compose_is_minimal_hardened_and_state_isolated():
     document = yaml.safe_load((ROOT / "compose.board.production.yml").read_text())
     services = document["services"]
