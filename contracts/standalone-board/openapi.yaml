@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: TutorBoard Standalone Board API
-  version: 1.0.0-b0
+  version: 1.0.0-b1
   description: >-
     Additive B0 contract for teacher-owned standalone boards and board-scoped
     guest access. Existing lesson-bound routes and command envelope 1.5 remain
@@ -11,6 +11,7 @@ servers:
 tags:
   - name: board-management
   - name: guest-access
+  - name: board-media
 paths:
   /api/v1/boards:
     post:
@@ -264,6 +265,2548 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InvitationSecretResult'
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/boards/{boardId}/media:
+    post:
+      tags: [board-media]
+      summary: Upload immutable board-owned image media.
+      description: >-
+        The request body is the raw PNG, JPEG or GIF file. Teacher and guest
+        callers use the same board.write authority as command mutations.
+        X-Board-Access-Epoch is required for guest mutations.
+      security:
+        - teacherSession: []
+        - guestSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/AccessEpochHeader'
+        - $ref: '#/components/parameters/ContentSha256Header'
+        - $ref: '#/components/parameters/IdempotencyHeader'
+        - name: fileName
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 256 }
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema: { type: string, format: binary }
+          image/jpeg:
+            schema: { type: string, format: binary }
+          image/gif:
+            schema: { type: string, format: binary }
+      responses:
+        '201':
+          description: Media validated, stored privately and marked available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardMediaAsset'
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+  /api/v1/boards/{boardId}/media/{assetId}:
+    get:
+      tags: [board-media]
+      summary: Read canonical metadata for an available board media asset.
+      security:
+        - teacherSession: []
+        - guestSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Board-scoped immutable media metadata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoardMediaAsset'
+        '404': { $ref: '#/components/responses/Problem' }
+  /api/v1/boards/{boardId}/media/{assetId}/content:
+    get:
+      tags: [board-media]
+      summary: Stream authenticated same-origin board media bytes.
+      security:
+        - teacherSession: []
+        - guestSession: []
+      parameters:
+        - $ref: '#/components/parameters/BoardId'
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: Verified immutable media bytes; storage keys are never exposed.
+          headers:
+            ETag:
+              schema: { type: string }
+            X-Content-SHA256:
+              schema: { type: string, pattern: '^[a-f0-9]{64}    get:
+      tags: [guest-access]
+      summary: Exchange invitation secret for a board-scoped guest session.
+      description: >-
+        The raw secret must not reach persistent access logs, traces, analytics
+        or error reporting. Invalid, expired and revoked links share one public UX.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 512 }
+      responses:
+        '303':
+          description: Guest session created; redirect to /b/{boardId}#/board.
+          headers:
+            Location:
+              required: true
+              schema: { type: string }
+            Cache-Control:
+              required: true
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              required: true
+              schema: { type: string, const: no-referrer }
+            X-Robots-Tag:
+              required: true
+              schema: { type: string, const: 'noindex, nofollow' }
+            Set-Cookie:
+              schema: { type: string }
+              description: HttpOnly; Secure; SameSite=Lax guest session cookie.
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    teacherSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Existing authenticated teacher session; concrete cookie name is deployment-specific.
+    guestSession:
+      type: apiKey
+      in: cookie
+      name: tutorboard_guest
+      description: Board-scoped HttpOnly guest session; concrete cookie name is deployment-specific.
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 512 }
+    AccessEpochHeader:
+      name: X-Board-Access-Epoch
+      in: header
+      required: false
+      description: Required for guest mutations; ignored for teacher mutations.
+      schema: { type: string, minLength: 8, maxLength: 512 }
+    ContentSha256Header:
+      name: X-Content-SHA256
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[a-f0-9]{64}
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    BoardMediaAsset:
+      type: object
+      additionalProperties: false
+      required:
+        - assetId
+        - contentSha256
+        - byteSize
+        - fileName
+        - intrinsicSize
+        - mimeType
+        - status
+        - createdAt
+      properties:
+        assetId: { type: string, minLength: 1, maxLength: 128 }
+        contentSha256: { type: string, pattern: '^[a-f0-9]{64}      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+        '304': { description: Cached immutable bytes remain valid. }
+        '404': { $ref: '#/components/responses/Problem' }
+  /j/{secret}:
+    get:
+      tags: [guest-access]
+      summary: Exchange invitation secret for a board-scoped guest session.
+      description: >-
+        The raw secret must not reach persistent access logs, traces, analytics
+        or error reporting. Invalid, expired and revoked links share one public UX.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 512 }
+      responses:
+        '303':
+          description: Guest session created; redirect to /b/{boardId}#/board.
+          headers:
+            Location:
+              required: true
+              schema: { type: string }
+            Cache-Control:
+              required: true
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              required: true
+              schema: { type: string, const: no-referrer }
+            X-Robots-Tag:
+              required: true
+              schema: { type: string, const: 'noindex, nofollow' }
+            Set-Cookie:
+              schema: { type: string }
+              description: HttpOnly; Secure; SameSite=Lax guest session cookie.
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    teacherSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Existing authenticated teacher session; concrete cookie name is deployment-specific.
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 512 }
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+    IdempotencyHeader:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+        '304': { description: Cached immutable bytes remain valid. }
+        '404': { $ref: '#/components/responses/Problem' }
+  /j/{secret}:
+    get:
+      tags: [guest-access]
+      summary: Exchange invitation secret for a board-scoped guest session.
+      description: >-
+        The raw secret must not reach persistent access logs, traces, analytics
+        or error reporting. Invalid, expired and revoked links share one public UX.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 512 }
+      responses:
+        '303':
+          description: Guest session created; redirect to /b/{boardId}#/board.
+          headers:
+            Location:
+              required: true
+              schema: { type: string }
+            Cache-Control:
+              required: true
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              required: true
+              schema: { type: string, const: no-referrer }
+            X-Robots-Tag:
+              required: true
+              schema: { type: string, const: 'noindex, nofollow' }
+            Set-Cookie:
+              schema: { type: string }
+              description: HttpOnly; Secure; SameSite=Lax guest session cookie.
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    teacherSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Existing authenticated teacher session; concrete cookie name is deployment-specific.
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 512 }
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+        '304': { description: Cached immutable bytes remain valid. }
+        '404': { $ref: '#/components/responses/Problem' }
+  /j/{secret}:
+    get:
+      tags: [guest-access]
+      summary: Exchange invitation secret for a board-scoped guest session.
+      description: >-
+        The raw secret must not reach persistent access logs, traces, analytics
+        or error reporting. Invalid, expired and revoked links share one public UX.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 512 }
+      responses:
+        '303':
+          description: Guest session created; redirect to /b/{boardId}#/board.
+          headers:
+            Location:
+              required: true
+              schema: { type: string }
+            Cache-Control:
+              required: true
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              required: true
+              schema: { type: string, const: no-referrer }
+            X-Robots-Tag:
+              required: true
+              schema: { type: string, const: 'noindex, nofollow' }
+            Set-Cookie:
+              schema: { type: string }
+              description: HttpOnly; Secure; SameSite=Lax guest session cookie.
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    teacherSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Existing authenticated teacher session; concrete cookie name is deployment-specific.
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 512 }
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+        byteSize: { type: integer, minimum: 1 }
+        fileName: { type: string, minLength: 1, maxLength: 256 }
+        intrinsicSize:
+          type: object
+          additionalProperties: false
+          required: [width, height]
+          properties:
+            width: { type: integer, minimum: 1, maximum: 16384 }
+            height: { type: integer, minimum: 1, maximum: 16384 }
+        mimeType:
+          type: string
+          enum: [image/png, image/jpeg, image/gif]
+        status: { type: string, const: available }
+        createdAt: { type: string, format: date-time }
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+        '304': { description: Cached immutable bytes remain valid. }
+        '404': { $ref: '#/components/responses/Problem' }
+  /j/{secret}:
+    get:
+      tags: [guest-access]
+      summary: Exchange invitation secret for a board-scoped guest session.
+      description: >-
+        The raw secret must not reach persistent access logs, traces, analytics
+        or error reporting. Invalid, expired and revoked links share one public UX.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 512 }
+      responses:
+        '303':
+          description: Guest session created; redirect to /b/{boardId}#/board.
+          headers:
+            Location:
+              required: true
+              schema: { type: string }
+            Cache-Control:
+              required: true
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              required: true
+              schema: { type: string, const: no-referrer }
+            X-Robots-Tag:
+              required: true
+              schema: { type: string, const: 'noindex, nofollow' }
+            Set-Cookie:
+              schema: { type: string }
+              description: HttpOnly; Secure; SameSite=Lax guest session cookie.
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    teacherSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Existing authenticated teacher session; concrete cookie name is deployment-specific.
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 512 }
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+    IdempotencyHeader:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+        '304': { description: Cached immutable bytes remain valid. }
+        '404': { $ref: '#/components/responses/Problem' }
+  /j/{secret}:
+    get:
+      tags: [guest-access]
+      summary: Exchange invitation secret for a board-scoped guest session.
+      description: >-
+        The raw secret must not reach persistent access logs, traces, analytics
+        or error reporting. Invalid, expired and revoked links share one public UX.
+      parameters:
+        - name: secret
+          in: path
+          required: true
+          schema: { type: string, minLength: 32, maxLength: 512 }
+      responses:
+        '303':
+          description: Guest session created; redirect to /b/{boardId}#/board.
+          headers:
+            Location:
+              required: true
+              schema: { type: string }
+            Cache-Control:
+              required: true
+              schema: { type: string, const: no-store }
+            Referrer-Policy:
+              required: true
+              schema: { type: string, const: no-referrer }
+            X-Robots-Tag:
+              required: true
+              schema: { type: string, const: 'noindex, nofollow' }
+            Set-Cookie:
+              schema: { type: string }
+              description: HttpOnly; Secure; SameSite=Lax guest session cookie.
+        '404': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+components:
+  securitySchemes:
+    teacherSession:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Existing authenticated teacher session; concrete cookie name is deployment-specific.
+  parameters:
+    BoardId:
+      name: boardId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 128 }
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 512 }
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+
+  responses:
+    Problem:
+      description: Privacy-safe problem response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    BoardCapability:
+      type: string
+      enum:
+        - board.read
+        - board.write
+        - board.snapshot.write
+        - collaboration.connect
+        - board.export
+        - board.history.read
+        - board.invites.manage
+        - board.archive
+        - board.delete
+    CreateBoardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+    StandaloneBoardDescriptor:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - boardId
+        - title
+        - currentRevision
+        - guestWritesEnabled
+        - archivedAt
+        - deletedAt
+        - createdAt
+        - updatedAt
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        currentRevision: { type: integer, minimum: 0 }
+        guestWritesEnabled: { type: boolean }
+        archivedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        deletedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    BoardAccessContext:
+      oneOf:
+        - $ref: '#/components/schemas/TeacherBoardAccessContext'
+        - $ref: '#/components/schemas/GuestBoardAccessContext'
+      discriminator:
+        propertyName: principalType
+        mapping:
+          teacher: '#/components/schemas/TeacherBoardAccessContext'
+          guest: '#/components/schemas/GuestBoardAccessContext'
+    BoardAccessContextCommon:
+      type: object
+      required:
+        - schemaVersion
+        - actorId
+        - boardId
+        - role
+        - displayName
+        - capabilities
+        - csrfToken
+        - cacheScopeId
+        - accessEpoch
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        actorId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        role: { type: string }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        capabilities:
+          type: array
+          minItems: 1
+          maxItems: 9
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/BoardCapability'
+        csrfToken: { type: string, minLength: 8, maxLength: 512 }
+        cacheScopeId: { type: string, minLength: 8, maxLength: 512 }
+        accessEpoch: { type: string, minLength: 8, maxLength: 512 }
+    TeacherBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType, organizationId, userId]
+          properties:
+            principalType: { type: string, const: teacher }
+            role: { type: string, enum: [admin, tutor] }
+            organizationId: { type: string, minLength: 1, maxLength: 128 }
+            userId: { type: string, minLength: 1, maxLength: 128 }
+      unevaluatedProperties: false
+    GuestBoardAccessContext:
+      allOf:
+        - $ref: '#/components/schemas/BoardAccessContextCommon'
+        - type: object
+          required: [principalType]
+          properties:
+            principalType: { type: string, const: guest }
+            role: { type: string, const: student }
+      unevaluatedProperties: false
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, writeEnabled]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+    InvitationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - invitationId
+        - boardId
+        - displayName
+        - writeEnabled
+        - expiresAt
+        - revokedAt
+        - createdAt
+        - lastUsedAt
+        - useCount
+      properties:
+        schemaVersion: { type: string, const: '1.0' }
+        invitationId: { type: string, minLength: 1, maxLength: 128 }
+        boardId: { type: string, minLength: 1, maxLength: 128 }
+        displayName: { type: string, minLength: 1, maxLength: 160 }
+        writeEnabled: { type: boolean }
+        expiresAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        revokedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        lastUsedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: 'null' }
+        useCount: { type: integer, minimum: 0 }
+    InvitationSecretResult:
+      type: object
+      additionalProperties: false
+      required: [invitation, joinUrl]
+      properties:
+        invitation:
+          $ref: '#/components/schemas/InvitationSummary'
+        joinUrl:
+          type: string
+          format: uri
+          description: Transient secret-bearing URL; never persisted or returned by list endpoints.
+    ProblemCode:
+      type: string
+      enum:
+        - board_not_found
+        - board_read_only
+        - board_deleted
+        - invitation_invalid
+        - invitation_expired
+        - invitation_revoked
+        - guest_session_invalid
+        - guest_session_version_mismatch
+        - board_revision_conflict
+        - board_lamport_conflict
+        - access_epoch_changed
+        - rate_limit_exceeded
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [code, detail]
+      properties:
+        code:
+          $ref: '#/components/schemas/ProblemCode'
+        detail: { type: string, minLength: 1, maxLength: 500 }
+        currentRevision: { type: integer, minimum: 0 }
+ }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/gif:
+              schema: { type: string, format: binary }
+        '304': { description: Cached immutable bytes remain valid. }
         '404': { $ref: '#/components/responses/Problem' }
   /j/{secret}:
     get:
