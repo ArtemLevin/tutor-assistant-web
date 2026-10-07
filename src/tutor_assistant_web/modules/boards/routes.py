@@ -673,9 +673,7 @@ def create_router(container: AppContainer) -> APIRouter:
                 file_name=file_name,
                 expected_sha256=expected_sha256,
                 idempotency_key=idempotency_key,
-                created_by_user_id=(
-                    None if isinstance(actor, GuestPrincipal) else actor.user_id
-                ),
+                created_by_user_id=(None if isinstance(actor, GuestPrincipal) else actor.user_id),
                 created_by_actor_id=actor.user_id,
                 reauthorize=reauthorize,
             )
@@ -721,7 +719,7 @@ def create_router(container: AppContainer) -> APIRouter:
         headers = {
             "Cache-Control": "private, no-cache",
             "Content-Disposition": (
-                "inline; filename=\"board-media\"; "
+                'inline; filename="board-media"; '
                 f"filename*=UTF-8''{quote(asset.file_name, safe='')}"
             ),
             "Content-Length": str(asset.byte_size),
