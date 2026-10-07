@@ -223,6 +223,7 @@ def test_board_media_service_rejects_checksum_quota_and_gif_complexity(tmp_path)
     finally:
         database.dispose()
 
+
 def test_board_media_service_cleans_up_when_final_reauthorization_fails(tmp_path):
     database, storage, principal, board = _standalone_board(tmp_path)
     try:
@@ -258,6 +259,7 @@ def test_board_media_service_cleans_up_when_final_reauthorization_fails(tmp_path
             storage.read(storage_key)
     finally:
         database.dispose()
+
 
 def test_board_media_api_streams_authorized_content_without_storage_key(tmp_path):
     settings = _settings(tmp_path)
