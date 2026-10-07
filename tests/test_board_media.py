@@ -25,8 +25,7 @@ from tutor_assistant_web.shared.errors import ValidationError
 
 PASSWORD = "test-password"
 PNG_1X1 = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmc"
-    "AAAAASUVORK5CYII="
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII="
 )
 GIF_1X1 = base64.b64decode("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==")
 
@@ -158,9 +157,7 @@ def test_board_media_service_round_trip_and_idempotency(tmp_path):
         assert first.intrinsic_width == first.intrinsic_height == 1
         assert first.storage_status == "available"
         assert storage.read(first.storage_key) == PNG_1X1
-        assert first.storage_key.startswith(
-            f"{DEFAULT_ORGANIZATION_ID}/boards/{board.id}/media/"
-        )
+        assert first.storage_key.startswith(f"{DEFAULT_ORGANIZATION_ID}/boards/{board.id}/media/")
     finally:
         database.dispose()
 
@@ -289,9 +286,7 @@ def test_board_media_api_streams_authorized_content_without_storage_key(tmp_path
             json={"title": "Other board"},
             headers={"x-csrf-token": context["csrfToken"]},
         ).json()["boardId"]
-        cross_board = client.get(
-            f"/api/v1/boards/{second_board}/media/{asset_id}/content"
-        )
+        cross_board = client.get(f"/api/v1/boards/{second_board}/media/{asset_id}/content")
         assert cross_board.status_code == 404
     database.dispose()
 
