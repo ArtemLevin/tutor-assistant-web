@@ -33,7 +33,7 @@ from tutor_assistant_web.modules.boards.standalone_access import StandaloneBoard
 from tutor_assistant_web.modules.boards.standalone_contracts import StandaloneBoardProblem
 from tutor_assistant_web.modules.identity.application import Principal
 from tutor_assistant_web.observability import BOARD_SYNC_EVENTS
-from tutor_assistant_web.shared.board_contracts.board_snapshot_schema import BoardSnapshot14
+from tutor_assistant_web.shared.board_contracts.board_snapshot_1_4_schema import BoardSnapshot14
 from tutor_assistant_web.shared.errors import ApplicationError, NotFoundError
 
 _CREATE_REQUEST_MAX_BYTES = 16 * 1024
