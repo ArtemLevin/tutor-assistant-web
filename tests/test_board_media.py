@@ -157,7 +157,9 @@ def test_board_media_service_round_trip_and_idempotency(tmp_path):
         assert first.intrinsic_width == first.intrinsic_height == 1
         assert first.storage_status == "available"
         assert storage.read(first.storage_key) == PNG_1X1
-        assert first.storage_key.startswith(f"{DEFAULT_ORGANIZATION_ID}/boards/{board.id}/media/")
+        assert first.storage_key.startswith(
+            f"{DEFAULT_ORGANIZATION_ID}/boards/{board.id}/media/"
+        )
     finally:
         database.dispose()
 
@@ -199,7 +201,12 @@ def test_board_media_service_rejects_checksum_quota_and_gif_complexity(tmp_path)
             )
 
         two_frame_gif = GIF_1X1[:-1] + GIF_1X1[19:-1] + b";"
-        gif_service = _media_service(database, storage, max_assets_per_board=10, gif_max_frames=1)
+        gif_service = _media_service(
+            database,
+            storage,
+            max_assets_per_board=10,
+            gif_max_frames=1,
+        )
         with pytest.raises(ValidationError, match="frame count"):
             _upload(
                 gif_service,
@@ -215,8 +222,6 @@ def test_board_media_service_rejects_checksum_quota_and_gif_complexity(tmp_path)
             assert session.scalar(select(func.count(BoardMediaAsset.id))) == 1
     finally:
         database.dispose()
-
-
 
 def test_board_media_service_cleans_up_when_final_reauthorization_fails(tmp_path):
     database, storage, principal, board = _standalone_board(tmp_path)
@@ -309,8 +314,14 @@ def test_board_media_api_streams_authorized_content_without_storage_key(tmp_path
         assert content.content == PNG_1X1
         assert content.headers["content-type"].startswith("image/png")
         assert content.headers["x-content-type-options"] == "nosniff"
-        assert content.headers["x-content-sha256"] == hashlib.sha256(PNG_1X1).hexdigest()
-        assert content.headers["etag"] == f'"sha256-{hashlib.sha256(PNG_1X1).hexdigest()}"'
+        assert (
+            content.headers["x-content-sha256"]
+            == hashlib.sha256(PNG_1X1).hexdigest()
+        )
+        assert (
+            content.headers["etag"]
+            == f'"sha256-{hashlib.sha256(PNG_1X1).hexdigest()}"'
+        )
 
         cached = client.get(
             f"/api/v1/boards/{board_id}/media/{asset_id}/content",
@@ -323,7 +334,9 @@ def test_board_media_api_streams_authorized_content_without_storage_key(tmp_path
             json={"title": "Other board"},
             headers={"x-csrf-token": context["csrfToken"]},
         ).json()["boardId"]
-        cross_board = client.get(f"/api/v1/boards/{second_board}/media/{asset_id}/content")
+        cross_board = client.get(
+            f"/api/v1/boards/{second_board}/media/{asset_id}/content"
+        )
         assert cross_board.status_code == 404
     database.dispose()
 
