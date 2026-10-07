@@ -508,22 +508,23 @@ class BoardPersistenceService:
                 "Artifact storage returned a different size or SHA-256",
             )
             raise ConflictError("Хранилище вернуло некорректный snapshot")
-        with self.database.sessions() as session:
-            document = self._locked_document(session, document_id)
-            stored_snapshot = session.scalar(
-                select(BoardSnapshot)
-                .where(
-                    BoardSnapshot.id == stored_snapshot.id,
-                    BoardSnapshot.organization_id == self.organization_id,
-                    BoardSnapshot.board_document_id == document_id,
+        stored_snapshot_id = stored_snapshot.id
+        try:
+            with self.database.sessions() as session:
+                document = self._locked_document(session, document_id)
+                stored_snapshot = session.scalar(
+                    select(BoardSnapshot)
+                    .where(
+                        BoardSnapshot.id == stored_snapshot_id,
+                        BoardSnapshot.organization_id == self.organization_id,
+                        BoardSnapshot.board_document_id == document_id,
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
-            )
-            if stored_snapshot is None:
-                raise ConflictError("Метаданные snapshot были удалены во время загрузки")
-            if stored_snapshot.sha256 != snapshot_sha256:
-                raise ConflictError("Метаданные snapshot изменились во время загрузки")
-            try:
+                if stored_snapshot is None:
+                    raise ConflictError("Метаданные snapshot были удалены во время загрузки")
+                if stored_snapshot.sha256 != snapshot_sha256:
+                    raise ConflictError("Метаданные snapshot изменились во время загрузки")
                 self._validate_media_asset_references(
                     session,
                     document.id,
@@ -531,33 +532,32 @@ class BoardPersistenceService:
                     revision=snapshot.revision,
                     mark_referenced=True,
                 )
-            except ValidationError:
-                session.rollback()
-                self._quarantine_snapshot(
-                    stored_snapshot.id,
-                    "Snapshot media.asset reference failed authority validation",
-                )
-                raise
-            stored_snapshot.storage_status = BoardSnapshotStatus.available.value
-            stored_snapshot.upload_error = ""
-            stored_snapshot.verified_at = datetime.now(UTC)
-            if snapshot.revision >= document.last_snapshot_revision:
-                document.last_snapshot_revision = snapshot.revision
-                outstanding = select(
-                    func.count(BoardCommandBatch.id),
-                    func.coalesce(func.sum(BoardCommandBatch.payload_size), 0),
-                ).where(
-                    BoardCommandBatch.organization_id == self.organization_id,
-                    BoardCommandBatch.board_document_id == document.id,
-                    BoardCommandBatch.revision > snapshot.revision,
-                )
-                count, size = session.execute(outstanding).one()
-                document.commands_since_snapshot = int(count)
-                document.bytes_since_snapshot = int(size)
-            if document.current_revision == 0 and not document.current_document_sha256:
-                document.current_document_sha256 = snapshot.document_sha256
-            session.commit()
-            return stored_snapshot
+                stored_snapshot.storage_status = BoardSnapshotStatus.available.value
+                stored_snapshot.upload_error = ""
+                stored_snapshot.verified_at = datetime.now(UTC)
+                if snapshot.revision >= document.last_snapshot_revision:
+                    document.last_snapshot_revision = snapshot.revision
+                    outstanding = select(
+                        func.count(BoardCommandBatch.id),
+                        func.coalesce(func.sum(BoardCommandBatch.payload_size), 0),
+                    ).where(
+                        BoardCommandBatch.organization_id == self.organization_id,
+                        BoardCommandBatch.board_document_id == document.id,
+                        BoardCommandBatch.revision > snapshot.revision,
+                    )
+                    count, size = session.execute(outstanding).one()
+                    document.commands_since_snapshot = int(count)
+                    document.bytes_since_snapshot = int(size)
+                if document.current_revision == 0 and not document.current_document_sha256:
+                    document.current_document_sha256 = snapshot.document_sha256
+                session.commit()
+                return stored_snapshot
+        except ValidationError:
+            self._quarantine_snapshot(
+                stored_snapshot_id,
+                "Snapshot media.asset reference failed authority validation",
+            )
+            raise
 
     def load_latest_snapshot(self, document_id: str) -> BoardSnapshotContract | None:
         self.get(document_id)
