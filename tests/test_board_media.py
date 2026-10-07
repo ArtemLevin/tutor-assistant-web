@@ -557,8 +557,13 @@ def test_board_media_reference_authority_validates_snapshot_and_marks_revision(t
             actor_id=principal.user_id,
         )
         boards = BoardPersistenceService(database, storage, DEFAULT_ORGANIZATION_ID)
-        snapshot = _media_snapshot(board.id, _media_object(media))
 
+        forged = _media_object(media, object_id="object:media-forged")
+        forged["byteSize"] += 1
+        with pytest.raises(ValidationError, match="invalid for this board"):
+            boards.save_snapshot(_media_snapshot(board.id, forged))
+
+        snapshot = _media_snapshot(board.id, _media_object(media))
         stored_snapshot = boards.save_snapshot(snapshot)
 
         assert stored_snapshot.storage_status == "available"
@@ -566,10 +571,5 @@ def test_board_media_reference_authority_validates_snapshot_and_marks_revision(t
             stored = session.scalar(select(BoardMediaAsset).where(BoardMediaAsset.id == media.id))
             assert stored is not None
             assert stored.first_referenced_revision == 0
-
-        forged = _media_object(media, object_id="object:media-forged")
-        forged["byteSize"] += 1
-        with pytest.raises(ValidationError, match="invalid for this board"):
-            boards.save_snapshot(_media_snapshot(board.id, forged))
     finally:
         database.dispose()
