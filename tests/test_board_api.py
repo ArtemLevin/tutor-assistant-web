@@ -399,9 +399,9 @@ def test_board_api_rejects_media_asset_without_authoritative_board_asset(board_a
     asset = _media_asset_payload()
     snapshot["document"]["objects"][asset["id"]] = asset
     snapshot["document"]["order"].append(asset["id"])
-    snapshot["documentSha256"] = canonical_json(
-        BoardDocument.model_validate(snapshot["document"])
-    )[2]
+    snapshot["documentSha256"] = canonical_json(BoardDocument.model_validate(snapshot["document"]))[
+        2
+    ]
     rejected_snapshot = client.post(
         f"/api/v1/boards/{DOCUMENT_ID}/snapshots",
         json=snapshot,
