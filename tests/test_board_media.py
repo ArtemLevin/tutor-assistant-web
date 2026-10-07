@@ -217,6 +217,43 @@ def test_board_media_service_rejects_checksum_quota_and_gif_complexity(tmp_path)
         database.dispose()
 
 
+
+def test_board_media_service_cleans_up_when_final_reauthorization_fails(tmp_path):
+    database, storage, principal, board = _standalone_board(tmp_path)
+    try:
+        service = _media_service(database, storage)
+
+        def reject_finalization() -> None:
+            raise ValidationError("access epoch changed")
+
+        with pytest.raises(ValidationError, match="access epoch changed"):
+            service.upload(
+                board.id,
+                io.BytesIO(PNG_1X1),
+                declared_mime_type="image/png",
+                file_name="revoked.png",
+                expected_sha256=hashlib.sha256(PNG_1X1).hexdigest(),
+                idempotency_key="media:test:reauthorize",
+                created_by_user_id=principal.user_id,
+                created_by_actor_id=principal.user_id,
+                reauthorize=reject_finalization,
+            )
+
+        with database.sessions() as session:
+            asset = session.scalar(
+                select(BoardMediaAsset).where(
+                    BoardMediaAsset.board_document_id == board.id,
+                    BoardMediaAsset.upload_idempotency_key == "media:test:reauthorize",
+                )
+            )
+            assert asset is not None
+            assert asset.storage_status == "deleted"
+            storage_key = asset.storage_key
+        with pytest.raises(FileNotFoundError):
+            storage.read(storage_key)
+    finally:
+        database.dispose()
+
 def test_board_media_api_streams_authorized_content_without_storage_key(tmp_path):
     settings = _settings(tmp_path)
     database = Database(settings.database_url)
