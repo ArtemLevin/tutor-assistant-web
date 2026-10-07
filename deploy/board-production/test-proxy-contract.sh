@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+ROOT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 TMP_DIR=$(mktemp -d)
 CONTAINER=tutorboard-caddy-contract-$$
 trap 'docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; rm -rf "$TMP_DIR"' EXIT INT TERM
