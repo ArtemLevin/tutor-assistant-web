@@ -24,15 +24,17 @@ for image in "$@"; do
   }
 done
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-ROOT=$(CDPATH= cd -- "$HERE/../.." && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(CDPATH='' cd -- "$HERE/../.." && pwd)
 ENV_FILE="$HERE/.env.production"
 STATE="$HERE/runtime/deployment.env"
 COMPOSE_FILE="$ROOT/compose.board.production.yml"
 [ -s "$STATE" ] || "$HERE/init.sh"
 
 set -a
+# shellcheck source=/dev/null
 . "$ENV_FILE"
+# shellcheck source=/dev/null
 . "$STATE"
 set +a
 
