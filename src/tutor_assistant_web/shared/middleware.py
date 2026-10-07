@@ -90,6 +90,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return "callbacks", self.settings.rate_limit_callbacks
         if request.method == "GET" and ("download" in path or "artifact" in path):
             return "downloads", self.settings.rate_limit_downloads
+        if (
+            request.method == "POST"
+            and path.startswith("/api/v1/boards/")
+            and path.endswith("/media")
+        ):
+            return "board-media-uploads", self.settings.rate_limit_board_media_uploads
         if path.startswith("/api/v1/boards/") or (
             path.startswith("/api/v1/lessons/") and path.endswith("/board")
         ):
