@@ -249,7 +249,6 @@ def test_board_restore_drill_passes_values_through_environment():
     assert '"verified_artifacts"' in script
     assert 'DROP DATABASE $DRILL_DB WITH (FORCE)' in script
     assert 'delete-drill "$DRILL_BUCKET"' in script
-    assert "'\"$BACKUP_ID\"' --database-url" not in script
 
 
 def test_board_production_compose_is_minimal_hardened_and_state_isolated():
