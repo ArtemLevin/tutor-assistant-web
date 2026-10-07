@@ -210,9 +210,7 @@ class BoardMediaService:
         while chunk := stream.read(1024 * 1024):
             total += len(chunk)
             if total > self.max_asset_bytes:
-                raise BoardMediaTooLarge(
-                    f"Media file exceeds {self.max_asset_bytes} bytes"
-                )
+                raise BoardMediaTooLarge(f"Media file exceeds {self.max_asset_bytes} bytes")
             if len(head) < 8192:
                 head.extend(chunk[: 8192 - len(head)])
             digest.update(chunk)
@@ -439,9 +437,7 @@ def _same_upload(
 def _safe_file_name(value: str) -> str:
     leaf = value.replace("\\", "/").split("/")[-1]
     filtered = "".join(
-        character
-        for character in leaf
-        if ord(character) > 31 and ord(character) != 127
+        character for character in leaf if ord(character) > 31 and ord(character) != 127
     ).strip()
     return (filtered or "media")[:256]
 
