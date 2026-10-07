@@ -34,6 +34,13 @@ class BoardSnapshotStatus(StrEnum):
     deleted = "deleted"
 
 
+class BoardMediaAssetStatus(StrEnum):
+    uploading = "uploading"
+    available = "available"
+    quarantined = "quarantined"
+    deleted = "deleted"
+
+
 class BoardEvidenceStatus(StrEnum):
     uploading = "uploading"
     available = "available"
@@ -152,6 +159,12 @@ class BoardDocument(Base):
         back_populates="document",
         cascade="all, delete-orphan",
         order_by="BoardSnapshot.revision",
+    )
+    media_assets: Mapped[list[BoardMediaAsset]] = relationship(
+        "BoardMediaAsset",
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="BoardMediaAsset.created_at",
     )
     geometry_imports: Mapped[list[BoardGeometryImport]] = relationship(
         "BoardGeometryImport",
@@ -361,6 +374,88 @@ class BoardSnapshot(Base):
     evidence: Mapped[list[BoardEvidence]] = relationship(
         "BoardEvidence",
         back_populates="snapshot",
+    )
+
+
+class BoardMediaAsset(Base):
+    __tablename__ = "board_media_assets"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "board_document_id"],
+            ["board_documents.organization_id", "board_documents.id"],
+            name="fk_board_media_assets_org_document",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "organization_id",
+            "board_document_id",
+            "asset_id",
+            name="uq_board_media_assets_org_document_asset",
+        ),
+        UniqueConstraint(
+            "organization_id",
+            "board_document_id",
+            "upload_idempotency_key",
+            name="uq_board_media_assets_org_document_idempotency",
+        ),
+        UniqueConstraint("storage_key", name="uq_board_media_assets_storage_key"),
+        CheckConstraint("byte_size > 0", name="ck_board_media_assets_byte_size"),
+        CheckConstraint(
+            "intrinsic_width > 0 AND intrinsic_height > 0",
+            name="ck_board_media_assets_dimensions",
+        ),
+        CheckConstraint(
+            "storage_status IN ('uploading', 'available', 'quarantined', 'deleted')",
+            name="ck_board_media_assets_storage_status",
+        ),
+        CheckConstraint(
+            "first_referenced_revision IS NULL OR first_referenced_revision >= 0",
+            name="ck_board_media_assets_first_revision",
+        ),
+        Index(
+            "ix_board_media_assets_org_document_status",
+            "organization_id",
+            "board_document_id",
+            "storage_status",
+        ),
+        Index("ix_board_media_assets_purge", "deleted_at", "purge_after"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(String(36), index=True)
+    board_document_id: Mapped[str] = mapped_column(String(128), index=True)
+    asset_id: Mapped[str] = mapped_column(String(128))
+    storage_key: Mapped[str] = mapped_column(String(1024))
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    byte_size: Mapped[int] = mapped_column(BigInteger)
+    mime_type: Mapped[str] = mapped_column(String(64))
+    file_name: Mapped[str] = mapped_column(String(256))
+    intrinsic_width: Mapped[int] = mapped_column(Integer)
+    intrinsic_height: Mapped[int] = mapped_column(Integer)
+    storage_status: Mapped[str] = mapped_column(
+        String(24),
+        default=BoardMediaAssetStatus.uploading.value,
+        index=True,
+    )
+    upload_idempotency_key: Mapped[str] = mapped_column(String(128))
+    created_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_by_actor_id: Mapped[str] = mapped_column(String(128))
+    first_referenced_revision: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    upload_error: Mapped[str] = mapped_column(Text, default="")
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    purge_after: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+
+    document: Mapped[BoardDocument] = relationship(
+        "BoardDocument",
+        back_populates="media_assets",
     )
 
 
