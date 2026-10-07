@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from tempfile import SpooledTemporaryFile
 from typing import BinaryIO, Literal
@@ -655,17 +657,15 @@ def create_router(container: AppContainer) -> APIRouter:
         declared_mime_type = (
             request.headers.get("content-type", "").partition(";")[0].strip().lower()
         )
-        upload = await _bounded_binary_body(
-            request,
-            container.settings.board_media_image_max_size_mb * 1024 * 1024,
-        )
-
         def reauthorize() -> None:
             refreshed = board_principal(request)
             document_for(refreshed, document_id, operation="write")
             validate_mutation(request, refreshed)
 
-        try:
+        async with _bounded_binary_body(
+            request,
+            container.settings.board_media_image_max_size_mb * 1024 * 1024,
+        ) as upload:
             asset = media.upload(
                 document_id,
                 upload,
@@ -677,8 +677,6 @@ def create_router(container: AppContainer) -> APIRouter:
                 created_by_actor_id=actor.user_id,
                 reauthorize=reauthorize,
             )
-        finally:
-            upload.close()
         audit(
             actor,
             "board.media.uploaded",
@@ -1161,7 +1159,11 @@ def create_router(container: AppContainer) -> APIRouter:
     return root
 
 
-async def _bounded_binary_body(request: Request, max_bytes: int) -> BinaryIO:
+@asynccontextmanager
+async def _bounded_binary_body(
+    request: Request,
+    max_bytes: int,
+) -> AsyncIterator[BinaryIO]:
     content_length = request.headers.get("content-length")
     if content_length:
         try:
@@ -1173,12 +1175,11 @@ async def _bounded_binary_body(request: Request, max_bytes: int) -> BinaryIO:
         except ValueError as exc:
             raise HTTPException(400, "Invalid Content-Length") from exc
 
-    staged = SpooledTemporaryFile(
+    with SpooledTemporaryFile(
         max_size=min(max_bytes, 16 * 1024 * 1024),
         mode="w+b",
-    )
-    total = 0
-    try:
+    ) as staged:
+        total = 0
         async for chunk in request.stream():
             total += len(chunk)
             if total > max_bytes:
@@ -1187,10 +1188,7 @@ async def _bounded_binary_body(request: Request, max_bytes: int) -> BinaryIO:
         if total == 0:
             raise HTTPException(400, "Media body cannot be empty")
         staged.seek(0)
-        return staged
-    except Exception:
-        staged.close()
-        raise
+        yield staged
 
 
 async def _validated_body[ModelT: BaseModel](
