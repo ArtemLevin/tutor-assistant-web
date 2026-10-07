@@ -236,7 +236,6 @@ def test_board_profile_runs_standalone_teacher_and_guest_management(tmp_path):
         assert invitation.json()["joinUrl"].startswith(f"{settings.public_base_url.rstrip('/')}/j/")
 
 
-
 def test_board_restore_drill_passes_values_through_environment():
     script = (ROOT / "deploy" / "board-production" / "restore-drill.sh").read_text()
 
