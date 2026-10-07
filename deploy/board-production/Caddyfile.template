@@ -5,6 +5,16 @@
 		trusted_proxies static private_ranges
 		client_ip_headers X-Forwarded-For X-Real-IP
 	}
+	log default {
+		format filter {
+			wrap json
+			fields {
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+				request>uri regexp "(/j/[^/?]+)|(ticket=[^&]+)" "[REDACTED]"
+			}
+		}
+	}
 }
 
 {$APP_DOMAIN} {
