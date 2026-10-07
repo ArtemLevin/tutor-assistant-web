@@ -320,20 +320,3 @@ def test_board_deployment_scripts_use_digest_pinning_and_slot_rollback():
     dockerfile = (ROOT / "Dockerfile").read_text()
     assert "FROM web AS board-api" in dockerfile
     assert "ENV APP_PROFILE=board" in dockerfile
-
-
-def test_temporary_ruff_media_format_probe():
-    paths = [
-        "src/tutor_assistant_web/modules/boards/media.py",
-        "src/tutor_assistant_web/modules/boards/routes.py",
-        "tests/test_board_media.py",
-        "tests/test_minio_integration.py",
-    ]
-    subprocess.run(["ruff", "format", *paths], check=True)
-    diff = subprocess.run(
-        ["git", "diff", "--", *paths],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    pytest.fail("TEMPORARY_RUFF_DIFF\n" + diff)
