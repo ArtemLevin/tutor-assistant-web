@@ -108,6 +108,19 @@ def test_checksum_size_and_mime_are_enforced(tmp_path):
         storage.put("tenant/file.pdf", b"<html>", "application/pdf")
 
 
+def test_gif_signature_is_allowed_for_board_media_storage(tmp_path):
+    storage = LocalArtifactStorage(tmp_path)
+    content = b"GIF89a" + b"board-media"
+    stored = storage.put_stream(
+        "tenant/board/media.gif",
+        io.BytesIO(content),
+        "image/gif",
+        expected_sha256=hashlib.sha256(content).hexdigest(),
+    )
+    assert stored.media_type == "image/gif"
+    assert storage.read(stored.key) == content
+
+
 def test_antivirus_quarantine_blocks_upload(tmp_path):
     class Scanner:
         def scan(self, stream):
