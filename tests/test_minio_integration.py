@@ -132,9 +132,7 @@ def test_board_media_round_trip_through_minio(tmp_path):
     database = Database(f"sqlite:///{tmp_path / 'minio-media.db'}")
     database.migrate()
     identity = IdentityService(database)
-    identity.bootstrap(
-        Settings(seed_demo_data=False, bootstrap_admin_password="admin-password")
-    )
+    identity.bootstrap(Settings(seed_demo_data=False, bootstrap_admin_password="admin-password"))
     principal = identity.authenticate("admin@localhost", "admin-password")
     assert principal is not None
 
