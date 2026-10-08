@@ -152,13 +152,16 @@ def test_postgres_minio_serializes_quota_and_preserves_idempotency(stack):
 def test_postgres_minio_revocation_rolls_back_bytes_and_allows_key_retry(stack):
     database, storage, actor, board_id = stack
     media = service(database, storage)
+    def reject_reauthorization() -> None:
+        raise ValidationError("rights revoked")
+
     with pytest.raises(ValidationError, match="rights revoked"):
         upload(
             media,
             board_id,
             actor,
             "media:revoked:before-finalize",
-            reauthorize=lambda: (_ for _ in ()).throw(ValidationError("rights revoked")),
+            reauthorize=reject_reauthorization,
         )
     with database.sessions() as session:
         row = session.scalar(
