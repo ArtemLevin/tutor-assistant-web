@@ -149,7 +149,7 @@ jobs:
           -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin
           tutor-assistant-minio:legacy server /data
       - run: uv sync --extra dev
-      - run: uv run pytest tests/test_postgres_integration.py tests/test_redis_integration.py tests/test_minio_integration.py
+      - run: uv run pytest tests/test_postgres_integration.py tests/test_redis_integration.py tests/test_minio_integration.py tests/test_board_media_postgres_minio.py
 
   collaboration-e2e:
     name: Two-client board collaboration
