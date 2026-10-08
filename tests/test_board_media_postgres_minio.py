@@ -16,6 +16,7 @@ from botocore.exceptions import ClientError
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.engine import make_url
 
+from tutor_assistant_web.backup_operations import verify_restored_media_assets
 from tutor_assistant_web.config import Settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import BoardPersistenceService
@@ -217,3 +218,23 @@ def test_postgres_minio_storage_failure_after_write_is_compensated(stack):
     recovered = upload(service(database, storage), board_id, actor, "media:s3:ack-lost")
     assert recovered.storage_key == key
     assert storage.read(key) == PNG
+
+
+def test_postgres_minio_restore_gate_detects_corruption_despite_matching_metadata(stack):
+    database, storage, actor, board_id = stack
+    media = service(database, storage)
+    asset = upload(media, board_id, actor, "media:restore:integrity")
+    url = database.engine.url.render_as_string(hide_password=False)
+    assert verify_restored_media_assets(url, storage.client, storage.bucket) == 1
+
+    # A copied object may preserve the original sha256 metadata despite damaged
+    # bytes. The restore gate must hash the actual stream independently.
+    storage.client.put_object(
+        Bucket=storage.bucket,
+        Key=asset.storage_key,
+        Body=b"damaged-bytes",
+        Metadata={"sha256": asset.content_sha256},
+        ContentType="image/png",
+    )
+    with pytest.raises(RuntimeError, match="checksum or size"):
+        verify_restored_media_assets(url, storage.client, storage.bucket)
