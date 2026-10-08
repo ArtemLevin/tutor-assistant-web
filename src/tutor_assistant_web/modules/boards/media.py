@@ -60,6 +60,16 @@ class BoardMediaAnalysis:
     width: int
 
 
+@dataclass(frozen=True)
+class BoardMediaUnreferencedReport:
+    """Durable per-board inventory. Available assets remain usable by queued commands."""
+
+    uploading_count: int
+    uploading_bytes: int
+    available_count: int
+    available_bytes: int
+
+
 class BoardMediaService:
     def __init__(
         self,
@@ -196,6 +206,44 @@ class BoardMediaService:
             if asset is None:
                 raise NotFoundError("Board media asset not found")
             return asset
+
+    def unreferenced_report(self, document_id: str) -> BoardMediaUnreferencedReport:
+        """Report quota-consuming uploads without journal references.
+
+        No automatic deletion: an AVAILABLE asset may still be referenced by
+        a delayed offline command. The report is tenant- and board-scoped.
+        """
+        with self.database.sessions() as session:
+            self._locked_active_document(session, document_id)
+            totals = session.execute(
+                select(
+                    BoardMediaAsset.storage_status,
+                    func.count(BoardMediaAsset.id),
+                    func.coalesce(func.sum(BoardMediaAsset.byte_size), 0),
+                )
+                .where(
+                    BoardMediaAsset.organization_id == self.organization_id,
+                    BoardMediaAsset.board_document_id == document_id,
+                    BoardMediaAsset.first_referenced_revision.is_(None),
+                    BoardMediaAsset.deleted_at.is_(None),
+                    BoardMediaAsset.storage_status.in_(
+                        (
+                            BoardMediaAssetStatus.uploading.value,
+                            BoardMediaAssetStatus.available.value,
+                        )
+                    ),
+                )
+                .group_by(BoardMediaAsset.storage_status)
+            ).all()
+        by_status = {status: (int(count), int(size)) for status, count, size in totals}
+        uploading = by_status.get(BoardMediaAssetStatus.uploading.value, (0, 0))
+        available = by_status.get(BoardMediaAssetStatus.available.value, (0, 0))
+        return BoardMediaUnreferencedReport(
+            uploading_count=uploading[0],
+            uploading_bytes=uploading[1],
+            available_count=available[0],
+            available_bytes=available[1],
+        )
 
     def iter_content(
         self,
