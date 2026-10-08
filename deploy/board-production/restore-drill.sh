@@ -9,13 +9,35 @@ printf '%s\n' "$BACKUP_ID" | grep -Eq '^[0-9]{8}T[0-9]{6}Z$' || {
 }
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 ROOT=$(CDPATH='' cd -- "$HERE/../.." && pwd)
-DRILL_DB="tutor_restore_${BACKUP_ID%%T*}"
-DRILL_BUCKET="tutor-restore-${BACKUP_ID%%T*}"
+DRILL_DB="tutor_restore_${BACKUP_ID%Z}"
+DRILL_BUCKET=$(printf 'tutor-restore-%s' "${BACKUP_ID%Z}" | tr '[:upper:]' '[:lower:]')
 
 compose() {
   docker compose -f "$ROOT/compose.board.production.yml" \
     --env-file "$HERE/.env.production" --env-file "$HERE/runtime/deployment.env" "$@"
 }
+
+# Always clean up the isolated resources, including failed drills. Any cleanup
+# failure is visible and fails the release gate instead of claiming success.
+cleanup() {
+  result=$?
+  trap - EXIT
+  set +e
+  compose exec -T postgres psql -U tutorboard -d postgres \
+    -c "DROP DATABASE IF EXISTS $DRILL_DB WITH (FORCE)"
+  db_cleanup=$?
+  compose --profile jobs run --rm ops tutor-assistant-backup delete-drill "$DRILL_BUCKET"
+  bucket_cleanup=$?
+  if [ "$db_cleanup" -ne 0 ] || [ "$bucket_cleanup" -ne 0 ]; then
+    echo "Isolated restore drill cleanup failed; manual inspection required." >&2
+    result=1
+  fi
+  if [ "$result" -eq 0 ]; then
+    echo "Isolated board restore drill passed."
+  fi
+  exit "$result"
+}
+trap cleanup EXIT
 
 compose exec -T postgres psql -U tutorboard -d postgres \
   -c "DROP DATABASE IF EXISTS $DRILL_DB WITH (FORCE)" -c "CREATE DATABASE $DRILL_DB"
@@ -35,7 +57,3 @@ printf '%s' "$result" | grep -q '"verified_artifacts"'
 printf '%s' "$result" | grep -q '"verified_media_assets"'
 compose exec -T postgres psql -U tutorboard -d "$DRILL_DB" \
   -c "SELECT count(*) FROM alembic_version"
-compose exec -T postgres psql -U tutorboard -d postgres \
-  -c "DROP DATABASE $DRILL_DB WITH (FORCE)"
-compose --profile jobs run --rm ops tutor-assistant-backup delete-drill "$DRILL_BUCKET"
-echo "Isolated board restore drill passed."
