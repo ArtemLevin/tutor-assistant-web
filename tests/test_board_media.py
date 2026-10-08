@@ -573,3 +573,111 @@ def test_board_media_reference_authority_validates_snapshot_and_marks_revision(t
             assert stored.first_referenced_revision == 0
     finally:
         database.dispose()
+
+
+def test_media_post_persist_failure_removes_bytes_and_keeps_retry_safe(tmp_path):
+    database, storage, principal, board = _standalone_board(tmp_path)
+
+    class AckLostStorage(LocalArtifactStorage):
+        def put_stream(self, key, stream, media_type, *, expected_sha256=None, max_bytes=None):
+            super().put_stream(
+                key,
+                stream,
+                media_type,
+                expected_sha256=expected_sha256,
+                max_bytes=max_bytes,
+            )
+            raise OSError("storage acknowledgement lost after durable write")
+
+    try:
+        failing = _media_service(database, AckLostStorage(storage.root))
+        with pytest.raises(OSError, match="acknowledgement lost"):
+            _upload(
+                failing,
+                board.id,
+                PNG_1X1,
+                mime_type="image/png",
+                file_name="lesson.png",
+                key="media:test:ack-lost",
+                actor_id=principal.user_id,
+            )
+        with database.sessions() as session:
+            record = session.scalar(
+                select(BoardMediaAsset).where(
+                    BoardMediaAsset.board_document_id == board.id,
+                    BoardMediaAsset.upload_idempotency_key == "media:test:ack-lost",
+                )
+            )
+            assert record is not None
+            assert record.storage_status == "deleted"
+            storage_key = record.storage_key
+            asset_id = record.asset_id
+        with pytest.raises(FileNotFoundError):
+            storage.read(storage_key)
+        retried = _upload(
+            _media_service(database, storage),
+            board.id,
+            PNG_1X1,
+            mime_type="image/png",
+            file_name="lesson.png",
+            key="media:test:ack-lost",
+            actor_id=principal.user_id,
+        )
+        assert retried.asset_id == asset_id
+        assert retried.storage_status == "available"
+        assert storage.read(storage_key) == PNG_1X1
+        with database.sessions() as session:
+            assert session.scalar(select(func.count(BoardMediaAsset.id))) == 1
+    finally:
+        database.dispose()
+
+
+def test_unreferenced_media_inventory_excludes_journal_history_and_failed_uploads(tmp_path):
+    database, storage, principal, board = _standalone_board(tmp_path)
+    try:
+        service = _media_service(database, storage)
+        empty = service.unreferenced_report(board.id)
+        assert (empty.uploading_count, empty.available_count) == (0, 0)
+        referenced = _upload(
+            service,
+            board.id,
+            PNG_1X1,
+            mime_type="image/png",
+            file_name="referenced.png",
+            key="media:inventory:reference",
+            actor_id=principal.user_id,
+        )
+        unreferenced = _upload(
+            service,
+            board.id,
+            GIF_1X1,
+            mime_type="image/gif",
+            file_name="unreferenced.gif",
+            key="media:inventory:pending",
+            actor_id=principal.user_id,
+        )
+        before = service.unreferenced_report(board.id)
+        assert (before.available_count, before.available_bytes) == (
+            2,
+            referenced.byte_size + unreferenced.byte_size,
+        )
+        assert before.uploading_count == 0
+        boards = BoardPersistenceService(database, storage, DEFAULT_ORGANIZATION_ID)
+        boards.append_commands(
+            _media_envelope(board.id, principal.user_id, _media_object(referenced)),
+            principal.user_id,
+        )
+        after = service.unreferenced_report(board.id)
+        assert (after.available_count, after.available_bytes) == (1, unreferenced.byte_size)
+        assert service.get(board.id, referenced.asset_id).asset_id == referenced.asset_id
+        # Rejected uploads are excluded from active inventory.
+        with database.sessions() as session:
+            orphan = session.scalar(
+                select(BoardMediaAsset).where(BoardMediaAsset.id == unreferenced.id)
+            )
+            assert orphan is not None
+            orphan.storage_status = "quarantined"
+            session.commit()
+        assert service.unreferenced_report(board.id).available_count == 0
+    finally:
+        database.dispose()
