@@ -43,6 +43,8 @@ jobs:
           tests/test_standalone_board_b1.py
           tests/test_standalone_board_b2.py
           tests/test_board_release_manifest.py
+          tests/test_board_media.py
+          tests/test_board_media_restore.py
       - run: uv run bandit -r src -ll
       - run: uv export --quiet --frozen --no-hashes --no-dev --no-emit-project --output-file /tmp/requirements.txt
       - run: uv run pip-audit --strict --requirement /tmp/requirements.txt
@@ -96,7 +98,7 @@ jobs:
           tutor-assistant-minio:legacy server /data
       - run: uv sync --frozen --extra dev
       - run: uv run alembic upgrade head
-      - run: uv run pytest -q tests/test_postgres_integration.py tests/test_minio_integration.py tests/test_redis_integration.py tests/test_board_collaboration.py
+      - run: uv run pytest -q tests/test_postgres_integration.py tests/test_minio_integration.py tests/test_redis_integration.py tests/test_board_collaboration.py tests/test_board_media_postgres_minio.py
 
   tutorboard-quality-and-two-client-e2e:
     runs-on: ubuntu-latest
