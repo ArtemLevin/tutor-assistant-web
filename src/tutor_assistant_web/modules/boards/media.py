@@ -137,18 +137,25 @@ class BoardMediaService:
                 max_bytes=self.max_asset_bytes,
             )
         except ArtifactTooLarge as exc:
+            self._delete_storage_quietly(asset.storage_key)
             self._mark_deleted(asset.id, "Artifact storage rejected the media size")
             raise BoardMediaTooLarge("Media file exceeds the configured storage limit") from exc
         except ArtifactChecksumMismatch as exc:
+            self._delete_storage_quietly(asset.storage_key)
             self._mark_quarantined(asset.id, "Artifact storage checksum mismatch")
             raise ValidationError("Media checksum changed during storage") from exc
         except ArtifactMimeMismatch as exc:
+            self._delete_storage_quietly(asset.storage_key)
             self._mark_quarantined(asset.id, "Artifact storage MIME mismatch")
             raise ValidationError("Media type changed during storage") from exc
         except ArtifactQuarantined as exc:
+            self._delete_storage_quietly(asset.storage_key)
             self._mark_quarantined(asset.id, "Antivirus rejected uploaded media")
             raise ValidationError("Uploaded media was rejected by security scanning") from exc
         except Exception as exc:
+            # A provider may persist bytes before reporting failure (for example,
+            # after a lost S3 acknowledgement). The asset key is upload-unique.
+            self._delete_storage_quietly(asset.storage_key)
             self._mark_deleted(asset.id, f"Storage upload failed: {exc}")
             raise
 
