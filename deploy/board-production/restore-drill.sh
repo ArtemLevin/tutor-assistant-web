@@ -32,6 +32,7 @@ result=$(compose --profile jobs run --rm \
   ')
 printf '%s\n' "$result"
 printf '%s' "$result" | grep -q '"verified_artifacts"'
+printf '%s' "$result" | grep -q '"verified_media_assets"'
 compose exec -T postgres psql -U tutorboard -d "$DRILL_DB" \
   -c "SELECT count(*) FROM alembic_version"
 compose exec -T postgres psql -U tutorboard -d postgres \
