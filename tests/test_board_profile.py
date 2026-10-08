@@ -247,8 +247,11 @@ def test_board_restore_drill_passes_values_through_environment():
     assert '--database-url "$url"' in script
     assert '--artifact-bucket "$RESTORE_BUCKET"' in script
     assert '"verified_artifacts"' in script
-    assert "DROP DATABASE $DRILL_DB WITH (FORCE)" in script
+    assert '"verified_media_assets"' in script
+    assert "DROP DATABASE IF EXISTS $DRILL_DB WITH (FORCE)" in script
     assert 'delete-drill "$DRILL_BUCKET"' in script
+    assert "trap cleanup EXIT" in script
+    assert 'if [ "$db_cleanup" -ne 0 ] || [ "$bucket_cleanup" -ne 0 ]' in script
 
 
 def test_board_production_compose_is_minimal_hardened_and_state_isolated():
