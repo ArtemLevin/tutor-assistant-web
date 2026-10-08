@@ -303,10 +303,10 @@ def _validate_isolated_restore_target(
         or database_name == original.database
     ):
         raise ValueError("restore target must be an isolated tutor_restore_* PostgreSQL database")
-    if (
-        not re.fullmatch(r"tutor-restore-[a-z0-9-]{1,63}", artifact_bucket)
-        or artifact_bucket in {settings.artifact_s3_bucket, settings.backup_s3_bucket}
-    ):
+    if not re.fullmatch(r"tutor-restore-[a-z0-9-]{1,63}", artifact_bucket) or artifact_bucket in {
+        settings.artifact_s3_bucket,
+        settings.backup_s3_bucket,
+    }:
         raise ValueError("restore target must be an isolated tutor-restore-* artifact bucket")
 
 

@@ -238,4 +238,3 @@ def test_postgres_minio_restore_gate_detects_corruption_despite_matching_metadat
     )
     with pytest.raises(RuntimeError, match="checksum or size"):
         verify_restored_media_assets(url, storage.client, storage.bucket)
-
