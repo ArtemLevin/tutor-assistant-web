@@ -66,3 +66,43 @@ S3-compatible artifact storage. The existing maintenance worker applies board
 retention, purges due boards, and verifies snapshot size and SHA-256. Bucket
 lifecycle is configured from the longer of material and board retention
 windows so MinIO/S3 cannot remove a live snapshot early.
+
+
+## F3.2.2 — media upload reliability and unreferenced inventory
+
+Board media binary bytes live in private artifact storage; the PostgreSQL
+\`board_media_assets\` table carries status and immutable metadata. During an
+upload, the service locks the board row for the short reservation/finalization
+transactions and releases the lock during the S3/MinIO transfer. The backend
+rechecks write authority immediately before finalization. Reusing the same
+idempotency key for an identical available upload returns the original asset;
+a different payload with that key is rejected.
+
+**Compensating delete:** if storage reports failure after writing bytes (e.g.
+an acknowledgement is lost), the service attempts to delete the upload-unique
+storage key before marking metadata deleted or quarantined. Cleanup failure is
+logged as \`board.media.cleanup_failed\` and still requires operational repair:
+there is no distributed transaction between S3 and PostgreSQL.
+
+\`BoardMediaService.unreferenced_report(document_id)\` provides per-board,
+tenant-scoped counts and bytes for \`uploading\` and \`available\` records whose
+\`first_referenced_revision\` is null. This detects abandoned reservations and
+available assets that are not yet referenced by the command journal. It is a
+read-only inventory; it must not delete assets, including available uploads
+whose corresponding command may still be delayed in an offline queue. Physical
+cleanup of unreferenced available media needs an explicit retention/restore
+policy and a conservative delayed-command horizon.
+
+Verification:
+- \`tests/test_board_media.py\`: post-persist provider failure, retry,
+  unreferenced/ref-marked inventory, rejected authorization.
+- \`tests/test_board_media_postgres_minio.py\`: actual PostgreSQL row-lock
+  quota concurrency, private MinIO reads, idempotency, revoke-before-finalize
+  and post-write storage failure recovery.
+- \`make test\`; the CI PostgreSQL integration job runs the combined
+  PostgreSQL/MinIO reliability suite when both services are available.
+
+Known follow-up: durable cleanup/reconciliation of stranded
+\`uploading\` rows and S3 objects after process termination, and a
+retention-aware policy for unreferenced \`available\` rows. Disable
+production media uploads until these are operationally gated.
