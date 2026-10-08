@@ -51,6 +51,8 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate isolated restore drill syntax
+        run: sh -n deploy/board-production/restore-drill.sh
       - name: Validate board Compose contract
         run: |
           deploy/board-production/init.sh
