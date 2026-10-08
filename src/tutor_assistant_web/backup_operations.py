@@ -16,7 +16,11 @@ import boto3
 import httpx
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from sqlalchemy import inspect, select
 from sqlalchemy.engine import make_url
+
+from tutor_assistant_web.db import Database
+from tutor_assistant_web.modules.boards.models import BoardMediaAsset, BoardMediaAssetStatus
 
 from tutor_assistant_web.config import Settings, get_settings
 
@@ -287,6 +291,64 @@ def backup(settings: Settings, backup_id: str | None = None) -> dict[str, object
     return manifest
 
 
+def _validate_isolated_restore_target(
+    settings: Settings, database_url: str, artifact_bucket: str
+) -> None:
+    target = make_url(database_url)
+    original = make_url(settings.database_url)
+    database_name = target.database or ""
+    if (
+        target.get_backend_name() != "postgresql"
+        or not re.fullmatch(r"tutor_restore_[A-Za-z0-9_]{1,64}", database_name)
+        or database_name == original.database
+    ):
+        raise ValueError("restore target must be an isolated tutor_restore_* PostgreSQL database")
+    if (
+        not re.fullmatch(r"tutor-restore-[a-z0-9-]{1,63}", artifact_bucket)
+        or artifact_bucket in {settings.artifact_s3_bucket, settings.backup_s3_bucket}
+    ):
+        raise ValueError("restore target must be an isolated tutor-restore-* artifact bucket")
+
+
+def verify_restored_media_assets(database_url: str, artifact_client, bucket: str) -> int:
+    """Check actual restored bytes against durable SQL references, not just S3 metadata.
+
+    Old pre-media databases are supported and contain zero board media assets.
+    """
+    database = Database(database_url)
+    try:
+        if not inspect(database.engine).has_table("board_media_assets"):
+            return 0
+        with database.sessions() as session:
+            assets = list(
+                session.scalars(
+                    select(BoardMediaAsset).where(
+                        BoardMediaAsset.storage_status == BoardMediaAssetStatus.available.value,
+                        BoardMediaAsset.deleted_at.is_(None),
+                    )
+                )
+            )
+    finally:
+        database.dispose()
+
+    for asset in assets:
+        response = artifact_client.get_object(Bucket=bucket, Key=asset.storage_key)
+        body = response["Body"]
+        digest = hashlib.sha256()
+        total = 0
+        try:
+            while chunk := body.read(1024 * 1024):
+                total += len(chunk)
+                if total > asset.byte_size:
+                    raise RuntimeError("restored board media length exceeds database reference")
+                digest.update(chunk)
+        finally:
+            body.close()
+        if total != asset.byte_size or digest.hexdigest() != asset.content_sha256:
+            raise RuntimeError("restored board media checksum or size differs from database")
+    return len(assets)
+
+
 def restore(
     settings: Settings,
     backup_id: str,
@@ -297,6 +359,7 @@ def restore(
         raise RuntimeError("set ALLOW_RESTORE=true for an isolated restore target")
     if not _BACKUP_ID.fullmatch(backup_id):
         raise ValueError("invalid backup id")
+    _validate_isolated_restore_target(settings, database_url, artifact_bucket)
     started = perf_counter()
     backup_client = _s3(settings, backup=True)
     artifact_client = _s3(settings)
@@ -362,6 +425,9 @@ def restore(
     }
     if restored != int(manifest["artifact_count"]):
         raise RuntimeError("artifact restore count mismatch")
+    result["verified_media_assets"] = verify_restored_media_assets(
+        database_url, artifact_client, artifact_bucket
+    )
     _push_metrics(
         settings,
         "tutor_assistant_restore",
