@@ -19,10 +19,9 @@ from botocore.exceptions import ClientError
 from sqlalchemy import inspect, select
 from sqlalchemy.engine import make_url
 
+from tutor_assistant_web.config import Settings, get_settings
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.models import BoardMediaAsset, BoardMediaAssetStatus
-
-from tutor_assistant_web.config import Settings, get_settings
 
 _BACKUP_ID = re.compile(r"[0-9]{8}T[0-9]{6}Z")
 
