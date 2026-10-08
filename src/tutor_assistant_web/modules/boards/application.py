@@ -20,8 +20,11 @@ from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
     BoardSnapshotContract,
     BoardSnapshotInput,
+    MediaAssetReference,
     envelope_lamport_range,
+    envelope_media_asset_references,
     envelope_origin_id,
+    snapshot_media_asset_references,
 )
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
@@ -29,6 +32,7 @@ from tutor_assistant_web.modules.boards.models import (
     BoardEvidence,
     BoardGeometryImport,
     BoardMediaAsset,
+    BoardMediaAssetStatus,
     BoardSnapshot,
     BoardSnapshotStatus,
 )
@@ -276,6 +280,7 @@ class BoardPersistenceService:
         actor_user_id: str | None,
     ) -> BoardCommandBatch:
         payload, encoded, payload_sha256 = canonical_json(envelope)
+        media_references = envelope_media_asset_references(envelope)
         if len(encoded) > self.max_command_bytes:
             raise ValidationError("Пакет команд превышает допустимый размер")
         document_id = envelope.document_id.root
@@ -340,6 +345,13 @@ class BoardPersistenceService:
                         lamport_min,
                     )
             revision = document.current_revision + 1
+            self._validate_media_asset_references(
+                session,
+                document.id,
+                media_references,
+                revision=revision,
+                mark_referenced=True,
+            )
             batch = BoardCommandBatch(
                 organization_id=self.organization_id,
                 board_document_id=document.id,
@@ -422,6 +434,7 @@ class BoardPersistenceService:
         if document_sha256 != snapshot.document_sha256:
             raise ValidationError("SHA-256 документа не соответствует snapshot")
         payload, encoded, snapshot_sha256 = canonical_json(snapshot)
+        media_references = snapshot_media_asset_references(snapshot)
         if len(encoded) > self.max_snapshot_bytes:
             raise ValidationError("Snapshot превышает допустимый размер")
         storage_key = (
@@ -437,6 +450,13 @@ class BoardPersistenceService:
             )
             if expected_sha256 and expected_sha256 != snapshot.document_sha256:
                 raise ConflictError("Snapshot не соответствует сохранённой revision")
+            self._validate_media_asset_references(
+                session,
+                document.id,
+                media_references,
+                revision=snapshot.revision,
+                mark_referenced=False,
+            )
             existing = session.scalar(
                 select(BoardSnapshot).where(
                     BoardSnapshot.organization_id == self.organization_id,
@@ -448,6 +468,14 @@ class BoardPersistenceService:
                 if existing.sha256 != snapshot_sha256:
                     raise ConflictError("Для revision уже сохранён другой snapshot")
                 if existing.storage_status == BoardSnapshotStatus.available.value:
+                    self._validate_media_asset_references(
+                        session,
+                        document.id,
+                        media_references,
+                        revision=snapshot.revision,
+                        mark_referenced=True,
+                    )
+                    session.commit()
                     return existing
                 if existing.storage_status == BoardSnapshotStatus.deleted.value:
                     raise GoneError("Snapshot удалён")
@@ -480,41 +508,56 @@ class BoardPersistenceService:
                 "Artifact storage returned a different size or SHA-256",
             )
             raise ConflictError("Хранилище вернуло некорректный snapshot")
-        with self.database.sessions() as session:
-            document = self._locked_document(session, document_id)
-            stored_snapshot = session.scalar(
-                select(BoardSnapshot)
-                .where(
-                    BoardSnapshot.id == stored_snapshot.id,
-                    BoardSnapshot.organization_id == self.organization_id,
-                    BoardSnapshot.board_document_id == document_id,
+        stored_snapshot_id = stored_snapshot.id
+        try:
+            with self.database.sessions() as session:
+                document = self._locked_document(session, document_id)
+                stored_snapshot = session.scalar(
+                    select(BoardSnapshot)
+                    .where(
+                        BoardSnapshot.id == stored_snapshot_id,
+                        BoardSnapshot.organization_id == self.organization_id,
+                        BoardSnapshot.board_document_id == document_id,
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
+                if stored_snapshot is None:
+                    raise ConflictError("Метаданные snapshot были удалены во время загрузки")
+                if stored_snapshot.sha256 != snapshot_sha256:
+                    raise ConflictError("Метаданные snapshot изменились во время загрузки")
+                self._validate_media_asset_references(
+                    session,
+                    document.id,
+                    media_references,
+                    revision=snapshot.revision,
+                    mark_referenced=True,
+                )
+                stored_snapshot.storage_status = BoardSnapshotStatus.available.value
+                stored_snapshot.upload_error = ""
+                stored_snapshot.verified_at = datetime.now(UTC)
+                if snapshot.revision >= document.last_snapshot_revision:
+                    document.last_snapshot_revision = snapshot.revision
+                    outstanding = select(
+                        func.count(BoardCommandBatch.id),
+                        func.coalesce(func.sum(BoardCommandBatch.payload_size), 0),
+                    ).where(
+                        BoardCommandBatch.organization_id == self.organization_id,
+                        BoardCommandBatch.board_document_id == document.id,
+                        BoardCommandBatch.revision > snapshot.revision,
+                    )
+                    count, size = session.execute(outstanding).one()
+                    document.commands_since_snapshot = int(count)
+                    document.bytes_since_snapshot = int(size)
+                if document.current_revision == 0 and not document.current_document_sha256:
+                    document.current_document_sha256 = snapshot.document_sha256
+                session.commit()
+                return stored_snapshot
+        except ValidationError:
+            self._quarantine_snapshot(
+                stored_snapshot_id,
+                "Snapshot media.asset reference failed authority validation",
             )
-            if stored_snapshot is None:
-                raise ConflictError("Метаданные snapshot были удалены во время загрузки")
-            if stored_snapshot.sha256 != snapshot_sha256:
-                raise ConflictError("Метаданные snapshot изменились во время загрузки")
-            stored_snapshot.storage_status = BoardSnapshotStatus.available.value
-            stored_snapshot.upload_error = ""
-            stored_snapshot.verified_at = datetime.now(UTC)
-            if snapshot.revision >= document.last_snapshot_revision:
-                document.last_snapshot_revision = snapshot.revision
-                outstanding = select(
-                    func.count(BoardCommandBatch.id),
-                    func.coalesce(func.sum(BoardCommandBatch.payload_size), 0),
-                ).where(
-                    BoardCommandBatch.organization_id == self.organization_id,
-                    BoardCommandBatch.board_document_id == document.id,
-                    BoardCommandBatch.revision > snapshot.revision,
-                )
-                count, size = session.execute(outstanding).one()
-                document.commands_since_snapshot = int(count)
-                document.bytes_since_snapshot = int(size)
-            if document.current_revision == 0 and not document.current_document_sha256:
-                document.current_document_sha256 = snapshot.document_sha256
-            session.commit()
-            return stored_snapshot
+            raise
 
     def load_latest_snapshot(self, document_id: str) -> BoardSnapshotContract | None:
         self.get(document_id)
@@ -934,6 +977,48 @@ class BoardPersistenceService:
         if membership is None:
             raise NotFoundError("Участник рабочей области не найден")
 
+    def _validate_media_asset_references(
+        self,
+        session: Session,
+        document_id: str,
+        references: list[MediaAssetReference],
+        *,
+        revision: int,
+        mark_referenced: bool,
+    ) -> None:
+        if not references:
+            return
+
+        expected_by_asset: dict[str, MediaAssetReference] = {}
+        for reference in references:
+            previous = expected_by_asset.get(reference.asset_id)
+            if previous is not None and previous != reference:
+                raise ValidationError("media.asset reference metadata is inconsistent")
+            expected_by_asset[reference.asset_id] = reference
+
+        assets = list(
+            session.scalars(
+                select(BoardMediaAsset)
+                .where(
+                    BoardMediaAsset.organization_id == self.organization_id,
+                    BoardMediaAsset.board_document_id == document_id,
+                    BoardMediaAsset.asset_id.in_(tuple(expected_by_asset)),
+                )
+                .with_for_update()
+            )
+        )
+        assets_by_id = {asset.asset_id: asset for asset in assets}
+
+        for asset_id, reference in expected_by_asset.items():
+            asset = assets_by_id.get(asset_id)
+            if asset is None or not _media_asset_matches_reference(asset, reference):
+                raise ValidationError("media.asset reference is invalid for this board")
+            if mark_referenced and (
+                asset.first_referenced_revision is None
+                or revision < asset.first_referenced_revision
+            ):
+                asset.first_referenced_revision = revision
+
     def _revision_document_sha256(
         self,
         session: Session,
@@ -1005,6 +1090,22 @@ class BoardPersistenceService:
             snapshot.storage_status = BoardSnapshotStatus.quarantined.value
             snapshot.upload_error = reason[:2000]
             session.commit()
+
+
+def _media_asset_matches_reference(
+    asset: BoardMediaAsset,
+    reference: MediaAssetReference,
+) -> bool:
+    return bool(
+        asset.storage_status == BoardMediaAssetStatus.available.value
+        and asset.deleted_at is None
+        and asset.content_sha256 == reference.content_sha256
+        and asset.byte_size == reference.byte_size
+        and asset.file_name == reference.file_name
+        and asset.mime_type == reference.mime_type
+        and asset.intrinsic_width == reference.intrinsic_width
+        and asset.intrinsic_height == reference.intrinsic_height
+    )
 
 
 def _normalize_standalone_title(value: str | None) -> str:

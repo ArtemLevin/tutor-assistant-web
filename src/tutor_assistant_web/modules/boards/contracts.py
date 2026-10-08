@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
@@ -127,8 +128,6 @@ class BoardCommandEnvelopeInput(RootModel[BoardCommandEnvelope]):
     @model_validator(mode="after")
     def validate_ordering(self) -> BoardCommandEnvelopeInput:
         envelope_lamport_range(self.root)
-        if any(_command_contains_media_asset(command) for command in envelope_commands(self.root)):
-            raise ValueError("media.asset requires board media authority")
         return self
 
 
@@ -206,19 +205,56 @@ def envelope_origin_id(envelope: BoardCommandEnvelope) -> str | None:
     return None
 
 
-def _value_contains_media_asset(value: object) -> bool:
+@dataclass(frozen=True)
+class MediaAssetReference:
+    asset_id: str
+    byte_size: int
+    content_sha256: str
+    file_name: str
+    intrinsic_height: int
+    intrinsic_width: int
+    mime_type: str
+
+
+def media_asset_references(value: object) -> list[MediaAssetReference]:
+    if isinstance(value, BaseModel):
+        return media_asset_references(value.model_dump(mode="json", by_alias=True))
     if isinstance(value, dict):
         if value.get("kind") == "media.asset":
-            return True
-        return any(_value_contains_media_asset(item) for item in value.values())
-    if isinstance(value, list):
-        return any(_value_contains_media_asset(item) for item in value)
-    return False
+            intrinsic = value["intrinsicSize"]
+            return [
+                MediaAssetReference(
+                    asset_id=str(value["assetId"]),
+                    byte_size=int(value["byteSize"]),
+                    content_sha256=str(value["contentSha256"]),
+                    file_name=str(value["fileName"]),
+                    intrinsic_height=int(intrinsic["height"]),
+                    intrinsic_width=int(intrinsic["width"]),
+                    mime_type=str(value["mimeType"]),
+                )
+            ]
+        references: list[MediaAssetReference] = []
+        for item in value.values():
+            references.extend(media_asset_references(item))
+        return references
+    if isinstance(value, (list, tuple)):
+        references = []
+        for item in value:
+            references.extend(media_asset_references(item))
+        return references
+    return []
 
 
-def _command_contains_media_asset(command: CompatibleBoardCommand) -> bool:
-    payload = command.root.model_dump(mode="json", by_alias=True)
-    return _value_contains_media_asset(payload)
+def envelope_media_asset_references(
+    envelope: BoardCommandEnvelope,
+) -> list[MediaAssetReference]:
+    return media_asset_references(envelope)
+
+
+def snapshot_media_asset_references(
+    snapshot: BoardSnapshotContract,
+) -> list[MediaAssetReference]:
+    return media_asset_references(snapshot.document)
 
 
 type BoardSnapshotContract = Annotated[
@@ -229,14 +265,3 @@ type BoardSnapshotContract = Annotated[
 
 class BoardSnapshotInput(RootModel[BoardSnapshotContract]):
     """Strict rolling-upgrade reader for BoardSnapshot 1.4, 1.5 and 1.6."""
-
-    @model_validator(mode="after")
-    def reject_media_assets_until_authority_exists(self) -> BoardSnapshotInput:
-        payload = self.root.model_dump(mode="json", by_alias=True)
-        objects = payload.get("document", {}).get("objects", {})
-        if isinstance(objects, dict) and any(
-            isinstance(item, dict) and item.get("kind") == "media.asset"
-            for item in objects.values()
-        ):
-            raise ValueError("media.asset requires board media authority")
-        return self

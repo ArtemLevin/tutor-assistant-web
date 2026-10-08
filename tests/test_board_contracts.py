@@ -5,11 +5,11 @@ import json
 import re
 from pathlib import Path
 
-import pytest
-
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelopeInput,
     BoardSnapshotInput,
+    envelope_media_asset_references,
+    snapshot_media_asset_references,
 )
 from tutor_assistant_web.shared.board_contracts.board_command_envelope_1_6_schema import (
     BoardCommandEnvelope16,
@@ -122,7 +122,7 @@ def _media_asset() -> dict:
     }
 
 
-def test_media_asset_is_contract_readable_but_runtime_persistence_is_gated() -> None:
+def test_media_asset_is_contract_readable_and_extracted_for_authority() -> None:
     envelope = _json("fixtures/board-command-envelope.json")
     envelope["commands"] = [
         {
@@ -139,24 +139,21 @@ def test_media_asset_is_contract_readable_but_runtime_persistence_is_gated() -> 
     ]
 
     assert BoardCommandEnvelope17.model_validate(envelope).schema_version == "1.7"
-    try:
-        BoardCommandEnvelopeInput.model_validate(envelope)
-    except ValueError as error:
-        assert "media.asset requires board media authority" in str(error)
-    else:
-        raise AssertionError("runtime command boundary must gate media.asset")
+    runtime_envelope = BoardCommandEnvelopeInput.model_validate(envelope).root
+    references = envelope_media_asset_references(runtime_envelope)
+    assert len(references) == 1
+    assert references[0].asset_id == "asset:media-contract-test"
+    assert references[0].content_sha256 == "a" * 64
 
     snapshot = _json("fixtures/board-snapshot.json")
     asset = _media_asset()
     snapshot["document"]["objects"][asset["id"]] = asset
     snapshot["document"]["order"].append(asset["id"])
     assert BoardSnapshot16.model_validate(snapshot).schema_version == "1.6"
-    try:
-        BoardSnapshotInput.model_validate(snapshot)
-    except ValueError as error:
-        assert "media.asset requires board media authority" in str(error)
-    else:
-        raise AssertionError("runtime snapshot boundary must gate media.asset")
+    runtime_snapshot = BoardSnapshotInput.model_validate(snapshot).root
+    snapshot_references = snapshot_media_asset_references(runtime_snapshot)
+    assert len(snapshot_references) == 1
+    assert snapshot_references[0].asset_id == "asset:media-contract-test"
 
 
 def _historical_envelope_payload(version: str) -> dict:
@@ -166,7 +163,7 @@ def _historical_envelope_payload(version: str) -> dict:
     return payload
 
 
-def test_atomic_batch_replace_cannot_bypass_media_asset_gate() -> None:
+def test_atomic_batch_replace_exposes_media_asset_to_authority() -> None:
     envelope = _json("fixtures/board-command-envelope.json")
     asset = _media_asset()
     envelope["commands"] = [
@@ -189,8 +186,10 @@ def test_atomic_batch_replace_cannot_bypass_media_asset_gate() -> None:
     ]
 
     assert BoardCommandEnvelope17.model_validate(envelope).schema_version == "1.7"
-    with pytest.raises(ValueError, match="media.asset requires board media authority"):
-        BoardCommandEnvelopeInput.model_validate(envelope)
+    runtime_envelope = BoardCommandEnvelopeInput.model_validate(envelope).root
+    references = envelope_media_asset_references(runtime_envelope)
+    assert len(references) == 1
+    assert references[0].asset_id == asset["assetId"]
 
 
 def test_previous_origin_aware_envelope_15_remains_readable() -> None:
