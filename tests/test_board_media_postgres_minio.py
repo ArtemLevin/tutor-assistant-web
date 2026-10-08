@@ -57,7 +57,9 @@ def stack():
     try:
         database.migrate()
         identity = IdentityService(database)
-        identity.bootstrap(Settings(seed_demo_data=False, bootstrap_admin_password="admin-password"))
+        identity.bootstrap(
+            Settings(seed_demo_data=False, bootstrap_admin_password="admin-password")
+        )
         principal = identity.authenticate("admin@localhost", "admin-password")
         assert principal is not None
         client.create_bucket(Bucket=bucket)
@@ -152,6 +154,7 @@ def test_postgres_minio_serializes_quota_and_preserves_idempotency(stack):
 def test_postgres_minio_revocation_rolls_back_bytes_and_allows_key_retry(stack):
     database, storage, actor, board_id = stack
     media = service(database, storage)
+
     def reject_reauthorization() -> None:
         raise ValidationError("rights revoked")
 
