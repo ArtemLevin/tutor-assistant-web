@@ -9,7 +9,7 @@ contract and avoid data loss.
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0020_client_lesson_board_idempotency"
+revision = "0020_client_lesson_board"
 down_revision = "0019_board_media_assets"
 branch_labels = None
 depends_on = None
@@ -29,10 +29,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     count = bind.execute(
-        sa.text(
-            "SELECT COUNT(*) FROM board_documents "
-            "WHERE client_lesson_id IS NOT NULL"
-        )
+        sa.text("SELECT COUNT(*) FROM board_documents WHERE client_lesson_id IS NOT NULL")
     ).scalar_one()
     if count:
         raise RuntimeError(
