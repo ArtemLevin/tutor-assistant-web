@@ -5,7 +5,8 @@
 
 - `tutor-assistant-web` владеет пользователями, занятиями, правами, хранением,
   WebSocket collaboration и Lesson Evidence;
-- TutorBoard обслуживается на `/board/`;
+- TutorBoard обслуживается на `/board/`, `/boards` и `/b/<board-id>`;
+  последние два пути используются для сопряжения с настольным Tutor Assistant;
 - GeometryOS доступен браузеру только через аутентифицированный
   `/api/v1/geometryos/` gateway backend;
 - Caddy публикует единственный локальный адрес.
@@ -74,6 +75,46 @@ TutorBoard:  http://localhost:8080/board/
 
 `reset-local.ps1` требует явного подтверждения. Для автоматизированного полного
 сброса используется `-Force`.
+
+## Запуск Tutor Assistant с автоматическим открытием TutorBoard
+
+Для локального занятия с одной доской понадобится **дополнительный** репозиторий
+`tutor-assistant` с Windows/PySide6-приложением. Запустите локальный Docker
+stack как выше, затем войдите в браузере по `http://localhost:8080/login`.
+
+Из этой же авторизованной сессии откройте
+`http://localhost:8080/api/v1/boards/context` и скопируйте
+`userId` и `organizationId`. Эти значения фиксируют конкретного
+преподавателя и организацию в протоколе создания доски.
+
+На Windows, из директории `tutor-assistant`:
+
+```powershell
+uv sync --extra desktop --extra transcription --group dev
+uv run python scripts\bootstrap.py
+```
+
+В созданном `config/app.yaml` установите:
+
+```yaml
+board:
+  enabled: true
+  base_url: http://localhost:8080
+  expected_user_id: "<userId из /api/v1/boards/context>"
+  expected_organization_id: "<organizationId из /api/v1/boards/context>"
+```
+
+Затем запустите `uv run tutor-assistant-gui config\app.yaml`,
+выберите ученика и тему, отметьте «Открыть новую TutorBoard с записью»,
+проверьте устройства и начните запись. Desktop откроет
+`http://localhost:8080/boards#ta-start=...` и получит callback на loopback,
+сохранив идентификатор доски в локальной карточке занятия.
+
+Это локальный сценарий одной учётной записи: приглашать ученика
+необязательно. Настольный компьютер и браузер должны работать на одной
+Windows-машине, так как callback слушает `127.0.0.1`. Держите Docker
+stack запущенным на протяжении занятия. Экспорт PDF доски и совместная
+публикация с транскриптом пока не реализованы.
 
 ## Ручная проверка
 
