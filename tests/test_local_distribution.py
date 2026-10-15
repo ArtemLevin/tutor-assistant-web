@@ -57,6 +57,10 @@ def test_local_compose_is_one_private_application_stack() -> None:
 def test_local_gateway_and_scripts_expose_one_origin() -> None:
     caddy = (ROOT / "deploy" / "local" / "Caddyfile").read_text(encoding="utf-8")
     assert "handle_path /board/*" in caddy
+    assert "@board-handoff path /boards /boards/* /b/*" in caddy
+    assert "handle @board-handoff" in caddy
+    # Hand-off paths must be intercepted before the fallback to backend.
+    assert caddy.index("handle @board-handoff") < caddy.index("reverse_proxy web:8000")
     assert "reverse_proxy tutorboard:8080" in caddy
     assert "reverse_proxy web:8000" in caddy
     assert "header_up Host localhost:8080" in caddy
@@ -78,6 +82,8 @@ def test_local_smoke_script_is_syntactically_valid_and_covers_vertical_slice() -
     for marker in (
         "/login",
         "/board/",
+        'client.get("/boards")',
+        'client.get(f"/b/{DOCUMENT_ID}")',
         "/collaboration-ticket",
         "/api/v1/geometryos/api/v1/generate",
         "/snapshots",
