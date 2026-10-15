@@ -82,8 +82,8 @@ def test_local_smoke_script_is_syntactically_valid_and_covers_vertical_slice() -
     for marker in (
         "/login",
         "/board/",
-        'client.get("/boards")',
-        'client.get(f"/b/{DOCUMENT_ID}")',
+        'for path in ("/boards", f"/b/{DOCUMENT_ID}"):',
+        "client.get(path)",
         "/collaboration-ticket",
         "/api/v1/geometryos/api/v1/generate",
         "/snapshots",
