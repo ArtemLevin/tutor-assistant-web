@@ -264,10 +264,15 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
             body.title,
             client_lesson_id=body.client_lesson_id,
         )
-        audit(actor, "board.create_requested", document, {
-            "mode": "standalone",
-            "client_lesson_id": body.client_lesson_id,
-        })
+        audit(
+            actor,
+            "board.create_requested",
+            document,
+            {
+                "mode": "standalone",
+                "client_lesson_id": body.client_lesson_id,
+            },
+        )
         return JSONResponse(
             _standalone_board_payload(document),
             status_code=201,
