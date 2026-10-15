@@ -93,6 +93,12 @@ class BoardDocument(Base):
             name="ck_board_documents_bytes_since_snapshot",
         ),
         Index(
+            "uq_board_documents_org_client_lesson",
+            "organization_id",
+            "client_lesson_id",
+            unique=True,
+        ),
+        Index(
             "ix_board_documents_org_owner_updated",
             "organization_id",
             "owner_user_id",
@@ -120,6 +126,7 @@ class BoardDocument(Base):
     student_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     lesson_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     owner_user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    client_lesson_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     title: Mapped[str | None] = mapped_column(String(200), nullable=True)
     guest_writes_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     access_version: Mapped[int] = mapped_column(BigInteger, default=1)

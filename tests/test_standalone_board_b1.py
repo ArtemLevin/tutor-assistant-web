@@ -322,3 +322,101 @@ def test_migration_0015_refuses_schema_downgrade_with_standalone_data(standalone
 
     with pytest.raises(RuntimeError, match="Cannot downgrade standalone board persistence"):
         command.downgrade(_alembic_config(database), "0014_board_origins")
+
+
+def test_client_lesson_key_creates_one_board_across_retries(standalone_api):
+    client, database, context = standalone_api
+    csrf = context["csrfToken"]
+    key = "a" * 32
+    first = client.post(
+        "/api/v1/boards",
+        json={"title": "Занятие", "clientLessonId": key},
+        headers={"x-csrf-token": csrf},
+    )
+    second = client.post(
+        "/api/v1/boards",
+        json={"title": "Повтор после потери ответа", "clientLessonId": key},
+        headers={"x-csrf-token": csrf},
+    )
+    assert first.status_code == 201, first.json()
+    assert second.status_code == 201, second.json()
+    assert second.json()["boardId"] == first.json()["boardId"]
+    assert second.json()["title"] == "Занятие"
+    assert len(client.get("/api/v1/boards").json()["items"]) == 1
+    with database.sessions() as session:
+        board = session.get(
+            BoardDocument,
+            (first.json()["boardId"], DEFAULT_ORGANIZATION_ID),
+        )
+        assert board.client_lesson_id == key
+        assert board.owner_user_id == context["userId"]
+        assert board.lesson_id is None
+
+
+def test_client_lesson_key_is_scoped_to_owner_and_rejects_rebinding(standalone_api):
+    client, database, context = standalone_api
+    key = "b" * 32
+    result = client.post(
+        "/api/v1/boards",
+        json={"clientLessonId": key},
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert result.status_code == 201, result.json()
+    _add_tutor(database)
+    _login(client, "other-tutor@example.test")
+    other_context = _context(client)
+    refused = client.post(
+        "/api/v1/boards",
+        json={"clientLessonId": key},
+        headers={"x-csrf-token": other_context["csrfToken"]},
+    )
+    assert refused.status_code == 409
+    assert client.get("/api/v1/boards").json()["items"] == []
+    # An independent lesson may still create a separate board.
+    new_lesson = client.post(
+        "/api/v1/boards",
+        json={"clientLessonId": "c" * 32},
+        headers={"x-csrf-token": other_context["csrfToken"]},
+    )
+    assert new_lesson.status_code == 201
+    assert new_lesson.json()["boardId"] != result.json()["boardId"]
+
+
+def test_deleted_client_lesson_board_does_not_recreate(standalone_api):
+    client, _, context = standalone_api
+    key = "d" * 32
+    result = client.post(
+        "/api/v1/boards",
+        json={"clientLessonId": key},
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert result.status_code == 201, result.json()
+    removed = client.delete(
+        f"/api/v1/boards/{result.json()['boardId']}",
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert removed.status_code == 204
+    retry = client.post(
+        "/api/v1/boards",
+        json={"clientLessonId": key},
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert retry.status_code == 409
+
+
+def test_client_lesson_key_validation_and_manual_compatibility(standalone_api):
+    client, _, context = standalone_api
+    for invalid in ("../escape", "0" * 33, "A" * 32, ""):
+        response = client.post(
+            "/api/v1/boards",
+            json={"clientLessonId": invalid},
+            headers={"x-csrf-token": context["csrfToken"]},
+        )
+        assert response.status_code == 422
+    created = client.post(
+        "/api/v1/boards",
+        json={"title": "Обычная доска"},
+        headers={"x-csrf-token": context["csrfToken"]},
+    )
+    assert created.status_code == 201
+    assert "clientLessonId" not in created.json()

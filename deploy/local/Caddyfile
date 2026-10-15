@@ -12,6 +12,16 @@
 			}
 		}
 
+		# Desktop Tutor Assistant opens /boards and the callback redirects
+		# to /b/<board-id>; both must serve the TutorBoard SPA on this origin.
+		@board-handoff path /boards /boards/* /b/*
+		handle @board-handoff {
+			reverse_proxy tutorboard:8080 {
+				lb_try_duration 5s
+				lb_try_interval 250ms
+			}
+		}
+
 		handle {
 			reverse_proxy web:8000 {
 				header_up Host localhost:8080

@@ -241,6 +241,12 @@ def main() -> None:
         context = require(client.get("/api/v1/boards/context"), 200).json()
 
         require(client.get("/board/"), 200)
+        # Desktop handoff uses /boards; after linking it redirects to /b/<id>.
+        # Both URLs must render TutorBoard HTML instead of the backend's 404.
+        for path in ("/boards", f"/b/{DOCUMENT_ID}"):
+            page = require(client.get(path), 200)
+            if '<div id="root"></div>' not in page.text or "TutorBoard" not in page.text:
+                raise RuntimeError(f"Incorrect TutorBoard SPA routing at {path}")
         require(
             client.post(
                 f"/api/v1/lessons/{lesson_id}/board",
