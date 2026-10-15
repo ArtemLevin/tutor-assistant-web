@@ -42,6 +42,9 @@ _CREATE_REQUEST_MAX_BYTES = 16 * 1024
 class CreateStandaloneBoardRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str = Field(default="Новая доска", min_length=1, max_length=200)
+    client_lesson_id: str | None = Field(
+        default=None, alias="clientLessonId", pattern=r"^[0-9a-f]{32}$"
+    )
 
 
 class UpdateStandaloneBoardRequest(BaseModel):
@@ -256,8 +259,15 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
         body = await _validated_body(
             request, CreateStandaloneBoardRequest, _CREATE_REQUEST_MAX_BYTES
         )
-        document = service(actor).create_standalone(actor.user_id, body.title)
-        audit(actor, "board.created", document, {"mode": "standalone"})
+        document = service(actor).create_standalone(
+            actor.user_id,
+            body.title,
+            client_lesson_id=body.client_lesson_id,
+        )
+        audit(actor, "board.create_requested", document, {
+            "mode": "standalone",
+            "client_lesson_id": body.client_lesson_id,
+        })
         return JSONResponse(
             _standalone_board_payload(document),
             status_code=201,
