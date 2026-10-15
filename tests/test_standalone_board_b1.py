@@ -338,7 +338,8 @@ def test_client_lesson_key_creates_one_board_across_retries(standalone_api):
         json={"title": "Повтор после потери ответа", "clientLessonId": key},
         headers={"x-csrf-token": csrf},
     )
-    assert first.status_code == second.status_code == 201
+    assert first.status_code == 201, first.json()
+    assert second.status_code == 201, second.json()
     assert second.json()["boardId"] == first.json()["boardId"]
     assert second.json()["title"] == "Занятие"
     assert len(client.get("/api/v1/boards").json()["items"]) == 1
@@ -360,7 +361,7 @@ def test_client_lesson_key_is_scoped_to_owner_and_rejects_rebinding(standalone_a
         json={"clientLessonId": key},
         headers={"x-csrf-token": context["csrfToken"]},
     )
-    assert result.status_code == 201
+    assert result.status_code == 201, result.json()
     _add_tutor(database)
     _login(client, "other-tutor@example.test")
     other_context = _context(client)
@@ -389,7 +390,7 @@ def test_deleted_client_lesson_board_does_not_recreate(standalone_api):
         json={"clientLessonId": key},
         headers={"x-csrf-token": context["csrfToken"]},
     )
-    assert result.status_code == 201
+    assert result.status_code == 201, result.json()
     removed = client.delete(
         f"/api/v1/boards/{result.json()['boardId']}",
         headers={"x-csrf-token": context["csrfToken"]},
