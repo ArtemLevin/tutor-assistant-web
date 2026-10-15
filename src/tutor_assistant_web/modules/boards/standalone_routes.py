@@ -266,7 +266,7 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
         )
         audit(
             actor,
-            "board.create_requested",
+            "board.created" if body.client_lesson_id is None else "board.create_requested",
             document,
             {
                 "mode": "standalone",
