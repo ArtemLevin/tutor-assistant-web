@@ -1,0 +1,20 @@
+name: Temporary backend test formatter
+on:
+  pull_request:
+jobs:
+  formatted-test:
+    if: github.head_ref == 'feat/board-optional-text-typography-20261018'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: uv sync --extra dev
+      - run: uv run ruff format tests/test_board_contracts.py
+      - name: Export formatted test
+        run: |
+          printf 'FMTBACKEND:tests/test_board_contracts.py:'
+          base64 -w0 tests/test_board_contracts.py
+          printf '\n'

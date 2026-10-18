@@ -117,6 +117,22 @@ class StrokeStyle(Enum):
     oil_paint = "oil-paint"
 
 
+class FontFamily(Enum):
+    sans = "sans"
+    serif = "serif"
+    mono = "mono"
+
+
+class FontStyle(Enum):
+    normal = "normal"
+    italic = "italic"
+
+
+class FontWeight(Enum):
+    normal = "normal"
+    bold = "bold"
+
+
 class ObjectStyle(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -126,6 +142,11 @@ class ObjectStyle(BaseModel):
     stroke: str | None = Field(..., max_length=256)
     stroke_width: float = Field(..., alias="strokeWidth", ge=0.0)
     stroke_style: StrokeStyle | None = Field(None, alias="strokeStyle")
+    font_family: FontFamily | None = Field(None, alias="fontFamily")
+    font_size: float | None = Field(None, alias="fontSize", ge=8.0, le=96.0)
+    font_style: FontStyle | None = Field(None, alias="fontStyle")
+    font_weight: FontWeight | None = Field(None, alias="fontWeight")
+    line_height: float | None = Field(None, alias="lineHeight", ge=0.8, le=2.5)
 
 
 MaxExpression = RootModel[str]
@@ -729,6 +750,11 @@ class VisualStyleOverride(BaseModel):
     opacity: float | None = Field(None, ge=0.0, le=1.0)
     stroke: str | None = Field(None, max_length=256)
     stroke_width: float | None = Field(None, alias="strokeWidth", ge=0.0)
+    font_family: FontFamily | None = Field(None, alias="fontFamily")
+    font_size: float | None = Field(None, alias="fontSize", ge=8.0, le=96.0)
+    font_style: FontStyle | None = Field(None, alias="fontStyle")
+    font_weight: FontWeight | None = Field(None, alias="fontWeight")
+    line_height: float | None = Field(None, alias="lineHeight", ge=0.8, le=2.5)
 
 
 class GeometryOsObjectSource(BaseModel):
