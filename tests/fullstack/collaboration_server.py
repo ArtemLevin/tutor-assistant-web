@@ -36,6 +36,8 @@ def settings(database_path: Path, artifact_path: Path) -> Settings:
         app_secret_key="collaboration-e2e-secret-key-32-characters",
         artifact_storage_provider="local",
         artifact_storage_root=str(artifact_path),
+        # Fullstack media tests need real binary uploads, locally isolated.
+        board_media_uploads_enabled=True,
         auto_migrate=False,
         bootstrap_admin_email=COLLABORATION_TEACHER_EMAIL,
         bootstrap_admin_name="E2E Преподаватель",
