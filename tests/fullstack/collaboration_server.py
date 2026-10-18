@@ -46,6 +46,10 @@ def settings(database_path: Path, artifact_path: Path) -> Settings:
         public_base_url="http://127.0.0.1:4173",
         rate_limit_board_reads=10_000,
         rate_limit_board_writes=10_000,
+        # The fullstack suite creates dozens of invitations within one minute.
+        # Scope this higher ceiling to the isolated E2E server only.
+        rate_limit_invitations=1_000,
+        rate_limit_board_media_uploads=1_000,
         rate_limit_login=1_000,
         seed_demo_data=False,
         session_cookie_secure=False,
