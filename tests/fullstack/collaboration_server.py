@@ -21,6 +21,7 @@ from tutor_assistant_web.modules.scheduling.models import Lesson
 from tutor_assistant_web.modules.students.models import Student
 
 LESSON_ID = "20000000-0000-4000-8000-000000000001"
+TEXT_LESSON_ID = "20000000-0000-4000-8000-000000000005"
 STUDENT_ID = "20000000-0000-4000-8000-000000000002"
 STUDENT_USER_ID = "20000000-0000-4000-8000-000000000003"
 STANDALONE_TEACHER_USER_ID = "20000000-0000-4000-8000-000000000004"
@@ -82,6 +83,19 @@ def seed(database: Database, configured: Settings) -> None:
                 starts_at=datetime.now(UTC),
                 ends_at=datetime.now(UTC) + timedelta(hours=1),
                 bbb_meeting_id="collaboration-e2e",
+                attendee_password="attendee",
+                moderator_password="moderator",
+            )
+        )
+        session.add(
+            Lesson(
+                id=TEXT_LESSON_ID,
+                organization_id=DEFAULT_ORGANIZATION_ID,
+                student_id=STUDENT_ID,
+                title="E2E совместный текст",
+                starts_at=datetime.now(UTC),
+                ends_at=datetime.now(UTC) + timedelta(hours=1),
+                bbb_meeting_id="collaboration-text-e2e",
                 attendee_password="attendee",
                 moderator_password="moderator",
             )

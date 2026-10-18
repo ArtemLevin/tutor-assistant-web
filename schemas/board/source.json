@@ -1,6 +1,6 @@
 {
   "contract": "board/v1",
   "manifestSha256": "8edca2492749b877d37b58fb0fd983ff62098f6aa9625c7dedf1ed4d32c73f7a",
-  "sourceCommit": "e1e601861186f991c612db1e2878e98093efca76",
+  "sourceCommit": "d565114652277d1ab95dd05eb5ab74f7e62739d1",
   "sourceRepository": "https://github.com/ArtemLevin/tutorboard"
 }
