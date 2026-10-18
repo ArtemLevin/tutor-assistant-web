@@ -93,7 +93,6 @@ def test_oil_paint_style_round_trips_across_document_snapshot_and_command() -> N
         assert model.model_validate(serialized) == parsed
 
 
-
 def test_optional_text_typography_round_trips_in_document_snapshot_and_commands() -> None:
     typography = {
         "fontSize": 18,
