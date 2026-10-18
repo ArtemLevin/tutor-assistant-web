@@ -7,8 +7,12 @@
 | Semantic 3D solids | `core.solid-3d.*` | BoardDocument 1.3+ | board/v1.3 reader |
 | 3D learning attempts | `core.solid-3d-learning.*` | BoardDocument 1.4+ | board/v1.4 reader |
 | Media asset references | object-bearing `core.*` commands | BoardDocument 1.5+ | board/v1.5 reader; persistence gated until media authority |
+| Single-tap ink dots | `drawing.pen-stroke` with one Vector Ink sample | BoardDocument 1.6+ | board/v1.6 reader |
+| Grouped object replacement | `core.objects.batch-replace` | BoardCommandEnvelope 1.7+ | board/v1.7 reader |
 
 `core.objects.replace` carries complete original and replacement snapshots.
+`core.objects.batch-replace` carries an ordered set of object replacement
+changes, each with complete original and replacement snapshots.
 Older strict readers reject this command explicitly. Deployments using server
 sync must update the board/v1 reader before enabling Smart Ink for shared
 boards. `media.asset` metadata is contract-readable in this release, while
