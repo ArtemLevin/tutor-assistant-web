@@ -114,6 +114,7 @@ class StrokeStyle(Enum):
     hand_pencil = "hand-pencil"
     hand_pen = "hand-pen"
     marker = "marker"
+    oil_paint = "oil-paint"
 
 
 class ObjectStyle(BaseModel):
