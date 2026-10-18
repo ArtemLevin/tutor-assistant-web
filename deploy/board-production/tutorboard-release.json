@@ -1,6 +1,6 @@
 {
   "repository": "ArtemLevin/tutorboard",
-  "sourceCommit": "c49578e46800d4f830d012c7b4a3710dec67b393",
-  "boardContractVersion": "1.5",
+  "sourceCommit": "dc61ec5046d304fe3442d3042c334f114f0dc15f",
+  "boardContractVersion": "1.6",
   "standaloneContractVersion": "1.0"
 }
