@@ -72,6 +72,27 @@ def test_generated_dtos_accept_canonical_tutorboard_fixtures() -> None:
         assert model.model_validate(serialized) == parsed
 
 
+def test_oil_paint_style_round_trips_across_document_snapshot_and_command() -> None:
+    document = _json("fixtures/board-document.json")
+    document["objects"]["object:rectangle-01"]["style"]["strokeStyle"] = "oil-paint"
+
+    snapshot = _json("fixtures/board-snapshot.json")
+    snapshot["document"]["objects"]["object:rectangle-01"]["style"]["strokeStyle"] = "oil-paint"
+
+    envelope = _json("fixtures/board-command-envelope.json")
+    replacement = envelope["commands"][1]["command"]["replacements"][0]
+    replacement["style"]["strokeStyle"] = "oil-paint"
+
+    for model, payload in (
+        (BoardDocument, document),
+        (BoardSnapshot16, snapshot),
+        (BoardCommandEnvelope17, envelope),
+    ):
+        parsed = model.model_validate(payload)
+        serialized = parsed.model_dump(mode="json", by_alias=True)
+        assert model.model_validate(serialized) == parsed
+
+
 def test_generated_dtos_forbid_unknown_transport_fields() -> None:
     payload = _json("fixtures/board-command-envelope.json")
     payload["serverOwnedRevision"] = 8
