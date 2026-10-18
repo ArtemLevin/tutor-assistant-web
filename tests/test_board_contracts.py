@@ -93,6 +93,40 @@ def test_oil_paint_style_round_trips_across_document_snapshot_and_command() -> N
         assert model.model_validate(serialized) == parsed
 
 
+
+def test_optional_text_typography_round_trips_in_document_snapshot_and_commands() -> None:
+    typography = {
+        "fontSize": 18,
+        "lineHeight": 1.4,
+        "fontFamily": "serif",
+        "fontWeight": "bold",
+        "fontStyle": "italic",
+    }
+    document = _json("fixtures/board-document.json")
+    document["objects"]["object:rectangle-01"]["style"].update(typography)
+    snapshot = _json("fixtures/board-snapshot.json")
+    snapshot["document"]["objects"]["object:rectangle-01"]["style"].update(typography)
+    envelope = _json("fixtures/board-command-envelope.json")
+    envelope["commands"][1]["command"]["replacements"][0]["style"].update(typography)
+
+    for model, payload in (
+        (BoardDocument, document),
+        (BoardSnapshot16, snapshot),
+        (BoardCommandEnvelope17, envelope),
+    ):
+        parsed = model.model_validate(payload)
+        serialized = parsed.model_dump(mode="json", by_alias=True)
+        assert model.model_validate(serialized) == parsed
+
+    document["objects"]["object:rectangle-01"]["style"]["fontSize"] = 200
+    try:
+        BoardDocument.model_validate(document)
+    except ValueError as error:
+        assert "fontSize" in str(error)
+    else:
+        raise AssertionError("Out-of-range typography must be rejected")
+
+
 def test_generated_dtos_forbid_unknown_transport_fields() -> None:
     payload = _json("fixtures/board-command-envelope.json")
     payload["serverOwnedRevision"] = 8
