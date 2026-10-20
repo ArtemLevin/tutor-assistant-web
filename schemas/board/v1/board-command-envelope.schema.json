@@ -4255,6 +4255,67 @@
       ],
       "type": "object"
     },
+    "RestoreGraphCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "id": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "kind": {
+          "const": "core.clipboard.restore-graph"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "geometryImports": {
+          "items": {
+            "$ref": "#/$defs/GeometryImportRecord"
+          },
+          "type": "array",
+          "maxItems": 10000
+        },
+        "graphVersion": {
+          "const": "1.0"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/BoardGroup"
+          },
+          "type": "array",
+          "maxItems": 10000
+        },
+        "objects": {
+          "items": {
+            "$ref": "#/$defs/BoardObject"
+          },
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10000
+        },
+        "solidModels": {
+          "items": {
+            "$ref": "#/$defs/Solid3DRecord"
+          },
+          "type": "array",
+          "maxItems": 10000
+        }
+      },
+      "required": [
+        "actorId",
+        "id",
+        "kind",
+        "timestamp",
+        "geometryImports",
+        "graphVersion",
+        "groups",
+        "objects"
+      ],
+      "type": "object"
+    },
     "ProjectSolid3DSectionCommand": {
       "additionalProperties": false,
       "properties": {
@@ -4875,6 +4936,9 @@
         },
         {
           "$ref": "#/$defs/ResetSolid3DLearningCommand"
+        },
+        {
+          "$ref": "#/$defs/RestoreGraphCommand"
         },
         {
           "$ref": "#/$defs/SetGeometryVisualStyleCommand"
