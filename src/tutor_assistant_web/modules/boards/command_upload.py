@@ -17,7 +17,10 @@ from sqlalchemy import delete, func, select
 
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import BoardPersistenceService
-from tutor_assistant_web.modules.boards.contracts import BoardCommandEnvelopeInput, envelope_commands
+from tutor_assistant_web.modules.boards.contracts import (
+    BoardCommandEnvelopeInput,
+    envelope_commands,
+)
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
     BoardCommandUpload,
@@ -87,9 +90,7 @@ class BoardCommandUploadService:
         with self.database.sessions() as session:
             # A bounded active set also cleans abandoned uploads on new work.
             session.execute(
-                delete(BoardCommandUpload).where(
-                    BoardCommandUpload.expires_at < utcnow()
-                )
+                delete(BoardCommandUpload).where(BoardCommandUpload.expires_at < utcnow())
             )
             existing = session.scalar(
                 select(BoardCommandUpload)
@@ -149,11 +150,17 @@ class BoardCommandUploadService:
             raise ValidationError("Недопустимый размер части")
         with self.database.sessions() as session:
             upload = self._upload(
-                session, document_id, actor_id, access_epoch, upload_id,
+                session,
+                document_id,
+                actor_id,
+                access_epoch,
+                upload_id,
                 for_update=True,
             )
-            expected = CHUNK_BYTES if index + 1 < upload.chunk_count else (
-                upload.byte_size - index * CHUNK_BYTES
+            expected = (
+                CHUNK_BYTES
+                if index + 1 < upload.chunk_count
+                else (upload.byte_size - index * CHUNK_BYTES)
             )
             if index < 0 or index >= upload.chunk_count or len(content) != expected:
                 raise ValidationError("Неправильный индекс или размер части")
@@ -191,9 +198,9 @@ class BoardCommandUploadService:
             upload = self._upload(session, document_id, actor_id, access_epoch, upload_id)
             parts = list(
                 session.scalars(
-                    select(BoardCommandUploadChunk).where(
-                        BoardCommandUploadChunk.upload_id == upload_id
-                    ).order_by(BoardCommandUploadChunk.chunk_index)
+                    select(BoardCommandUploadChunk)
+                    .where(BoardCommandUploadChunk.upload_id == upload_id)
+                    .order_by(BoardCommandUploadChunk.chunk_index)
                 )
             )
             if len(parts) != upload.chunk_count:
@@ -217,8 +224,7 @@ class BoardCommandUploadService:
         if envelope.root.document_id.root != document_id:
             raise ValidationError("Документ пакета не совпадает с маршрутом")
         if envelope.root.actor_id.root != actor_id or any(
-            item.root.actor_id.root != actor_id
-            for item in envelope_commands(envelope.root)
+            item.root.actor_id.root != actor_id for item in envelope_commands(envelope.root)
         ):
             raise ValidationError("Пакет содержит команды другого пользователя")
         if envelope.root.idempotency_key != upload_id:
@@ -235,7 +241,10 @@ class BoardCommandUploadService:
         actor_user_id: str | None,
     ) -> BoardCommandBatch:
         envelope = self.validated_envelope(
-            document_id, actor_id, access_epoch, upload_id,
+            document_id,
+            actor_id,
+            access_epoch,
+            upload_id,
         )
         # The board's row lock, revision guard and idempotency key are
         # enforced by append_commands. No partial revision is ever published.
@@ -246,11 +255,19 @@ class BoardCommandUploadService:
         )
 
     def abort(
-        self, document_id: str, actor_id: str, access_epoch: str, upload_id: str,
+        self,
+        document_id: str,
+        actor_id: str,
+        access_epoch: str,
+        upload_id: str,
     ) -> None:
         with self.database.sessions() as session:
             upload = self._upload(
-                session, document_id, actor_id, access_epoch, upload_id,
+                session,
+                document_id,
+                actor_id,
+                access_epoch,
+                upload_id,
                 for_update=True,
             )
             session.delete(upload)
