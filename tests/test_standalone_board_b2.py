@@ -686,32 +686,32 @@ def test_large_graph_restore_commits_one_revision_after_all_multipart_parts(b2_a
         "id": "group:large-graph",
         "objectIds": member_ids,
     }
-    envelope = _command_payload(
-        board_id, guest["actorId"], key="client:large-graph-restore"
-    )
-    envelope["commands"] = [{
-        "order": {"baseRevisionAtCreation": 0, "lamport": 1},
-        "command": {
-            "actorId": guest["actorId"],
-            "id": "command:large-graph",
-            "timestamp": "2026-10-20T14:00:00.000Z",
-            "graphVersion": "1.0",
-            "kind": "core.clipboard.restore-graph",
-            "objects": [
-                {**rectangle, "id": item_id, "groupId": "group:large-graph"}
-                for item_id in member_ids
-            ],
-            "groups": [group],
-            "geometryImports": [],
-        },
-    }]
+    envelope = _command_payload(board_id, guest["actorId"], key="client:large-graph-restore")
+    envelope["commands"] = [
+        {
+            "order": {"baseRevisionAtCreation": 0, "lamport": 1},
+            "command": {
+                "actorId": guest["actorId"],
+                "id": "command:large-graph",
+                "timestamp": "2026-10-20T14:00:00.000Z",
+                "graphVersion": "1.0",
+                "kind": "core.clipboard.restore-graph",
+                "objects": [
+                    {**rectangle, "id": item_id, "groupId": "group:large-graph"}
+                    for item_id in member_ids
+                ],
+                "groups": [group],
+                "geometryImports": [],
+            },
+        }
+    ]
     encoded = json.dumps(envelope, separators=(",", ":")).encode()
     assert len(encoded) > 512 * 1024
     path = f"/api/v1/boards/{board_id}"
     # New graph command cannot bypass the authenticated staged path.
-    direct = client.post(f"{path}/commands", content=encoded, headers={
-        **headers, "content-type": "application/json"
-    })
+    direct = client.post(
+        f"{path}/commands", content=encoded, headers={**headers, "content-type": "application/json"}
+    )
     assert direct.status_code == 422
 
     upload_id = "upload:graph-5200"
@@ -726,10 +726,7 @@ def test_large_graph_restore_commits_one_revision_after_all_multipart_parts(b2_a
         headers=headers,
     )
     assert start.status_code == 201, start.text
-    chunks = [
-        encoded[index:index + 512 * 1024]
-        for index in range(0, len(encoded), 512 * 1024)
-    ]
+    chunks = [encoded[index : index + 512 * 1024] for index in range(0, len(encoded), 512 * 1024)]
     assert len(chunks) > 1
     for index, part in enumerate(chunks[:-1]):
         response = client.put(
