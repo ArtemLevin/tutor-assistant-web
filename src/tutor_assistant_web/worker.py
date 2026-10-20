@@ -305,6 +305,7 @@ def recover_expired_leases_task() -> int:
 @celery_app.task(name="tutor.verify_artifacts")
 def verify_artifacts_task() -> dict[str, int]:
     from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+    from tutor_assistant_web.modules.boards.command_upload import BoardCommandUploadService
     from tutor_assistant_web.modules.boards.models import BoardDocument
     from tutor_assistant_web.modules.materials.retention import ArtifactLifecycleService
 
@@ -376,6 +377,9 @@ def purge_artifacts_task() -> int:
                 limit=settings.artifact_integrity_batch_size,
             )
             purged += boards.purge_due(limit=settings.artifact_integrity_batch_size)
+            purged += BoardCommandUploadService(
+                database, organization_id
+            ).prune_expired(limit=settings.artifact_integrity_batch_size)
         return purged
     finally:
         database.dispose()
