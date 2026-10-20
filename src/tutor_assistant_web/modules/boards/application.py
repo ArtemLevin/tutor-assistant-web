@@ -174,31 +174,73 @@ class BoardPersistenceService:
                     return self._resolve_existing_document(existing, document_id)
             raise ConflictError("Идентификатор доски уже используется") from exc
 
+    def _find_client_lesson_board(
+        self,
+        session: Session,
+        owner_user_id: str,
+        client_lesson_id: str,
+    ) -> BoardDocument | None:
+        existing = session.scalar(
+            select(BoardDocument).where(
+                BoardDocument.organization_id == self.organization_id,
+                BoardDocument.client_lesson_id == client_lesson_id,
+            )
+        )
+        if existing is None:
+            return None
+        # Lesson IDs must not be silently rebound across teacher identities.
+        if (
+            existing.owner_user_id != owner_user_id
+            or existing.lesson_id is not None
+            or existing.deleted_at is not None
+        ):
+            raise ConflictError("Доска занятия уже привязана или удалена")
+        return existing
+
     def create_standalone(
         self,
         owner_user_id: str,
         title: str | None = None,
+        *,
+        client_lesson_id: str | None = None,
     ) -> BoardDocument:
         normalized_title = _normalize_standalone_title(title)
-        with self.database.sessions() as session:
-            self._require_active_membership(session, owner_user_id)
-            document = BoardDocument(
-                id=new_id(),
-                organization_id=self.organization_id,
-                student_id=None,
-                lesson_id=None,
-                owner_user_id=owner_user_id,
-                title=normalized_title,
-                guest_writes_enabled=True,
-                access_version=1,
-            )
-            session.add(document)
-            try:
+        if client_lesson_id is not None and not re.fullmatch(r"[0-9a-f]{32}", client_lesson_id):
+            raise ValidationError("Неверный идентификатор занятия")
+        try:
+            with self.database.sessions() as session:
+                self._require_active_membership(session, owner_user_id)
+                if client_lesson_id is not None:
+                    existing = self._find_client_lesson_board(
+                        session, owner_user_id, client_lesson_id
+                    )
+                    if existing is not None:
+                        return existing
+                document = BoardDocument(
+                    id=new_id(),
+                    organization_id=self.organization_id,
+                    student_id=None,
+                    lesson_id=None,
+                    owner_user_id=owner_user_id,
+                    client_lesson_id=client_lesson_id,
+                    title=normalized_title,
+                    guest_writes_enabled=True,
+                    access_version=1,
+                )
+                session.add(document)
                 session.commit()
-            except IntegrityError as exc:
-                session.rollback()
-                raise ConflictError("Не удалось создать standalone-доску") from exc
-            return document
+                return document
+        except IntegrityError as exc:
+            if client_lesson_id is not None:
+                # Unique index protects cross-process races. Resolve a concurrent
+                # winner only if it belongs to the same authenticated teacher.
+                with self.database.sessions() as session:
+                    existing = self._find_client_lesson_board(
+                        session, owner_user_id, client_lesson_id
+                    )
+                    if existing is not None:
+                        return existing
+            raise ConflictError("Не удалось создать standalone-доску") from exc
 
     def list_owned_standalone(
         self,
