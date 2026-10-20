@@ -22,12 +22,8 @@ def upgrade() -> None:
         sa.Column("sha256", sa.String(64), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint(
-            "byte_size > 0 AND byte_size <= 50331648", name="ck_board_upload_bytes"
-        ),
-        sa.CheckConstraint(
-            "chunk_count > 0 AND chunk_count <= 96", name="ck_board_upload_chunks"
-        ),
+        sa.CheckConstraint("byte_size > 0 AND byte_size <= 50331648", name="ck_board_upload_bytes"),
+        sa.CheckConstraint("chunk_count > 0 AND chunk_count <= 96", name="ck_board_upload_chunks"),
         sa.ForeignKeyConstraint(
             ["organization_id", "board_document_id"],
             ["board_documents.organization_id", "board_documents.id"],
@@ -35,11 +31,10 @@ def upgrade() -> None:
             name="fk_board_command_uploads_org_document",
         ),
     )
+    op.create_index("ix_board_upload_expiry", "board_command_uploads", ["expires_at"])
     op.create_index(
-        "ix_board_upload_expiry", "board_command_uploads", ["expires_at"]
-    )
-    op.create_index(
-        "ix_board_upload_actor", "board_command_uploads",
+        "ix_board_upload_actor",
+        "board_command_uploads",
         ["organization_id", "board_document_id", "actor_id"],
     )
     op.create_table(
@@ -55,14 +50,17 @@ def upgrade() -> None:
             name="ck_board_upload_chunk_bytes",
         ),
         sa.ForeignKeyConstraint(
-            ["upload_id"], ["board_command_uploads.id"],
-            ondelete="CASCADE", name="fk_board_command_chunk_upload",
+            ["upload_id"],
+            ["board_command_uploads.id"],
+            ondelete="CASCADE",
+            name="fk_board_command_chunk_upload",
         ),
         sa.UniqueConstraint("upload_id", "chunk_index", name="uq_board_upload_part"),
     )
     op.create_index(
         "ix_board_command_upload_chunks_upload_id",
-        "board_command_upload_chunks", ["upload_id"],
+        "board_command_upload_chunks",
+        ["upload_id"],
     )
 
 
