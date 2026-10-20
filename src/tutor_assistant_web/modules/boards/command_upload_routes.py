@@ -6,7 +6,8 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError as PydanticValidationError
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ValidationError as PydanticValidationError
 
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import (
@@ -77,9 +78,7 @@ def create_command_upload_router(
         boards, document = document_for_write(actor, document_id)
         validate_mutation(request, actor)
         epoch = (
-            actor.access_epoch
-            if isinstance(actor, GuestPrincipal)
-            else f"teacher:{actor.user_id}"
+            actor.access_epoch if isinstance(actor, GuestPrincipal) else f"teacher:{actor.user_id}"
         )
         return actor, boards, document, epoch
 
@@ -95,8 +94,12 @@ def create_command_upload_router(
         except PydanticValidationError as exc:
             raise HTTPException(422, "Invalid upload descriptor") from exc
         upload = uploads(actor).start(
-            document_id, actor.user_id, epoch, data.upload_id,
-            byte_size=data.byte_size, sha256=data.sha256,
+            document_id,
+            actor.user_id,
+            epoch,
+            data.upload_id,
+            byte_size=data.byte_size,
+            sha256=data.sha256,
         )
         return JSONResponse(
             {
@@ -122,7 +125,11 @@ def create_command_upload_router(
         service = uploads(actor)
         try:
             batch = service.finalize(
-                boards, document_id, actor.user_id, epoch, upload_id,
+                boards,
+                document_id,
+                actor.user_id,
+                epoch,
+                upload_id,
                 None if isinstance(actor, GuestPrincipal) else actor.user_id,
             )
         except BoardLamportConflict as exc:
@@ -149,9 +156,7 @@ def create_command_upload_router(
                         "expectedRevision": exc.expected_revision,
                     },
                     "missingCommandBatches": [serialize_batch(item) for item in missing],
-                    "hasMore": bool(
-                        missing and missing[-1].revision < exc.current_revision
-                    ),
+                    "hasMore": bool(missing and missing[-1].revision < exc.current_revision),
                 },
                 status_code=409,
             )
