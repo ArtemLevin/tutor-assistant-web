@@ -17,6 +17,7 @@ from tutor_assistant_web.modules.boards.collaboration import (
     run_collaboration_socket,
     validate_websocket_origin,
 )
+from tutor_assistant_web.modules.boards.command_upload_routes import create_command_upload_router
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
     BoardCommandEnvelopeInput,
@@ -529,6 +530,10 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
             container.settings.board_command_max_size_mb * 1024 * 1024,
         )
         envelope = envelope_input.root
+        if any(
+            item.root.kind == "core.clipboard.restore-graph" for item in envelope_commands(envelope)
+        ):
+            raise HTTPException(422, "Graph restore requires atomic multipart staging")
         BOARD_SYNC_EVENTS.labels(event=f"envelope_{envelope.schema_version}_received").inc()
         if envelope.document_id.root != document_id:
             raise HTTPException(422, "documentId не совпадает с идентификатором маршрута")
@@ -700,6 +705,37 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
             if websocket.client_state.name != "DISCONNECTED":
                 await websocket.close(code=4403, reason="Collaboration access denied")
 
+    async def publish_command_upload(
+        actor: Principal | GuestPrincipal,
+        document: BoardDocument,
+        batch: BoardCommandBatch,
+    ) -> None:
+        await container.collaboration.publish(
+            actor.organization_id,
+            document.id,
+            {
+                "type": "board.revision",
+                "protocolVersion": "1.1",
+                "documentId": document.id,
+                "revision": batch.revision,
+                "baseRevision": batch.base_revision,
+                "idempotencyKey": batch.idempotency_key,
+                "actorId": actor.user_id,
+            },
+        )
+
+    router.include_router(
+        create_command_upload_router(
+            database=container.database,
+            board_principal=board_principal,
+            document_for_write=lambda actor, document_id: document_for(
+                actor, document_id, operation="write"
+            ),
+            validate_mutation=validate_mutation,
+            on_committed=publish_command_upload,
+            serialize_batch=_command_payload,
+        )
+    )
     root.include_router(router)
     return root
 

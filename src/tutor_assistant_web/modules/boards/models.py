@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -595,3 +596,60 @@ class BoardEvidence(Base):
     document: Mapped[BoardDocument] = relationship("BoardDocument", back_populates="evidence")
     snapshot: Mapped[BoardSnapshot] = relationship("BoardSnapshot", back_populates="evidence")
     lesson: Mapped[Lesson] = relationship("Lesson", back_populates="board_evidence")
+
+
+class BoardCommandUpload(Base):
+    """Bounded, authenticated multipart envelope; never a visible board revision."""
+
+    __tablename__ = "board_command_uploads"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "board_document_id"],
+            ["board_documents.organization_id", "board_documents.id"],
+            ondelete="CASCADE",
+            name="fk_board_command_uploads_org_document",
+        ),
+        CheckConstraint("byte_size > 0 AND byte_size <= 50331648", name="ck_board_upload_bytes"),
+        CheckConstraint("chunk_count > 0 AND chunk_count <= 96", name="ck_board_upload_chunks"),
+        Index("ix_board_upload_expiry", "expires_at"),
+        Index("ix_board_upload_actor", "organization_id", "board_document_id", "actor_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    organization_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    board_document_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    access_epoch: Mapped[str] = mapped_column(String(512), nullable=False)
+    byte_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    chunk_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    chunks: Mapped[list[BoardCommandUploadChunk]] = relationship(
+        "BoardCommandUploadChunk", back_populates="upload", cascade="all, delete-orphan"
+    )
+
+
+class BoardCommandUploadChunk(Base):
+    __tablename__ = "board_command_upload_chunks"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["upload_id"],
+            ["board_command_uploads.id"],
+            ondelete="CASCADE",
+            name="fk_board_command_chunk_upload",
+        ),
+        CheckConstraint(
+            "byte_size > 0 AND byte_size <= 524288",
+            name="ck_board_upload_chunk_bytes",
+        ),
+        UniqueConstraint("upload_id", "chunk_index", name="uq_board_upload_part"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    upload_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    upload: Mapped[BoardCommandUpload] = relationship("BoardCommandUpload", back_populates="chunks")

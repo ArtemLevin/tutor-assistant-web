@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import UTC, datetime, timedelta
@@ -598,3 +599,161 @@ def test_invitation_orm_never_persists_join_secret(b2_api):
             )
         )
         assert secret not in persisted
+
+
+def test_atomic_multipart_guest_upload_publishes_only_after_finalize(b2_api):
+    client, _, settings, board_id, teacher = b2_api
+    invitation = _create_invitation(client, board_id, teacher["csrfToken"])
+    guest, _ = _become_guest(client, settings, invitation)
+    headers = {
+        "x-csrf-token": guest["csrfToken"],
+        "x-board-access-epoch": guest["accessEpoch"],
+    }
+    key = "client:guest-atomic-upload"
+    envelope = _command_payload(board_id, guest["actorId"], key=key)
+    content = json.dumps(envelope, separators=(",", ":")).encode()
+    prefix = f"/api/v1/boards/{board_id}/command-uploads"
+    created = client.post(
+        prefix,
+        json={
+            "uploadId": key,
+            "byteSize": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["chunkCount"] == 1
+    assert client.get(f"/api/v1/boards/{board_id}/commands").json()["currentRevision"] == 0
+    part_url = f"{prefix}/{key}/parts/0"
+    assert (
+        client.put(
+            part_url,
+            content=content,
+            headers={**headers, "content-type": "application/octet-stream"},
+        ).status_code
+        == 204
+    )
+    assert (
+        client.put(
+            part_url,
+            content=content,
+            headers={**headers, "content-type": "application/octet-stream"},
+        ).status_code
+        == 204
+    )
+    assert (
+        client.put(
+            part_url,
+            content=content,
+            headers={
+                "x-csrf-token": guest["csrfToken"],
+                "x-board-access-epoch": "stale-or-revoked",
+                "content-type": "application/octet-stream",
+            },
+        ).status_code
+        != 204
+    )
+    assert client.get(f"/api/v1/boards/{board_id}/commands").json()["currentRevision"] == 0
+
+    finalized = client.post(f"{prefix}/{key}/finalize", headers=headers)
+    assert finalized.status_code == 200, finalized.text
+    assert finalized.json()["revision"] == 1
+    repeated = client.post(f"{prefix}/{key}/finalize", headers=headers)
+    assert repeated.status_code == 200, repeated.text
+    assert repeated.json()["revision"] == 1
+    commands = client.get(f"/api/v1/boards/{board_id}/commands")
+    assert commands.json()["currentRevision"] == 1
+    assert len(commands.json()["items"]) == 1
+
+
+def test_large_graph_restore_commits_one_revision_after_all_multipart_parts(b2_api):
+    client, _, settings, board_id, teacher = b2_api
+    invitation = _create_invitation(client, board_id, teacher["csrfToken"])
+    guest, _ = _become_guest(client, settings, invitation)
+    headers = {
+        "x-csrf-token": guest["csrfToken"],
+        "x-board-access-epoch": guest["accessEpoch"],
+    }
+    document = json.loads((FIXTURES / "board-snapshot.json").read_text())["document"]
+    rectangle = next(
+        item for item in document["objects"].values() if item["kind"] == "drawing.rectangle"
+    )
+    member_ids = [f"object:graph:{index}" for index in range(5_200)]
+    template_group = next(iter(document["groups"].values()))
+    group = {
+        **template_group,
+        "id": "group:large-graph",
+        "objectIds": member_ids,
+    }
+    envelope = _command_payload(board_id, guest["actorId"], key="client:large-graph-restore")
+    envelope["commands"] = [
+        {
+            "order": {"baseRevisionAtCreation": 0, "lamport": 1},
+            "command": {
+                "actorId": guest["actorId"],
+                "id": "command:large-graph",
+                "timestamp": "2026-10-20T14:00:00.000Z",
+                "graphVersion": "1.0",
+                "kind": "core.clipboard.restore-graph",
+                "objects": [
+                    {**rectangle, "id": item_id, "groupId": "group:large-graph"}
+                    for item_id in member_ids
+                ],
+                "groups": [group],
+                "geometryImports": [],
+            },
+        }
+    ]
+    encoded = json.dumps(envelope, separators=(",", ":")).encode()
+    assert len(encoded) > 512 * 1024
+    path = f"/api/v1/boards/{board_id}"
+    # New graph command cannot bypass the authenticated staged path.
+    direct = client.post(
+        f"{path}/commands", content=encoded, headers={**headers, "content-type": "application/json"}
+    )
+    assert direct.status_code == 422
+
+    upload_id = "upload:graph-5200"
+    staging = f"{path}/command-uploads"
+    start = client.post(
+        staging,
+        json={
+            "uploadId": upload_id,
+            "byteSize": len(encoded),
+            "sha256": hashlib.sha256(encoded).hexdigest(),
+        },
+        headers=headers,
+    )
+    assert start.status_code == 201, start.text
+    chunks = [encoded[index : index + 512 * 1024] for index in range(0, len(encoded), 512 * 1024)]
+    assert len(chunks) > 1
+    for index, part in enumerate(chunks[:-1]):
+        response = client.put(
+            f"{staging}/{upload_id}/parts/{index}",
+            content=part,
+            headers={**headers, "content-type": "application/octet-stream"},
+        )
+        assert response.status_code == 204, response.text
+    missing = client.post(f"{staging}/{upload_id}/finalize", headers=headers)
+    assert missing.status_code in (400, 422), missing.text
+    assert client.get(f"{path}/commands").json()["currentRevision"] == 0
+    index = len(chunks) - 1
+    response = client.put(
+        f"{staging}/{upload_id}/parts/{index}",
+        content=chunks[index],
+        headers={**headers, "content-type": "application/octet-stream"},
+    )
+    assert response.status_code == 204
+    accepted = client.post(f"{staging}/{upload_id}/finalize", headers=headers)
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()["revision"] == 1
+    repeat = client.post(f"{staging}/{upload_id}/finalize", headers=headers)
+    assert repeat.status_code == 200
+    assert repeat.json()["revision"] == 1
+    batches = client.get(f"{path}/commands").json()
+    assert batches["currentRevision"] == 1
+    assert len(batches["items"]) == 1
+    assert batches["items"][0]["envelope"]["commands"][0]["command"]["kind"] == (
+        "core.clipboard.restore-graph"
+    )

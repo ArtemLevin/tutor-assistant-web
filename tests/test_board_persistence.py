@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -12,10 +13,13 @@ from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import (
     BoardPersistenceService,
     BoardRevisionConflict,
+    canonical_json,
 )
+from tutor_assistant_web.modules.boards.command_upload import BoardCommandUploadService
 from tutor_assistant_web.modules.boards.contracts import BoardCommandEnvelopeInput
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
+    BoardCommandUpload,
     BoardDocument,
     BoardGeometryImport,
     BoardSnapshot,
@@ -376,3 +380,219 @@ def test_cross_tenant_board_rows_are_not_visible(board_context):
         other_service.get("document:lesson-01")
     with pytest.raises(NotFoundError):
         other_service.append_commands(load_command(), user.id)
+
+
+def actor_scoped_upload_envelope(actor_user_id: str, **changes):
+    raw = canonical_json(load_command(**changes))[0]
+    raw["actorId"] = actor_user_id
+    for item in raw["commands"]:
+        item["command"]["actorId"] = actor_user_id
+    return BoardCommandEnvelopeInput.model_validate(raw).root
+
+
+def test_multipart_command_upload_is_atomic_idempotent_and_bound_to_actor(board_context):
+    database, _, boards, actor_user_id, lesson = board_context
+    boards.create_for_lesson(lesson.id, "document:lesson-01")
+    envelope = actor_scoped_upload_envelope(
+        actor_user_id, documentId="document:lesson-01", idempotencyKey="upload:atomic-01"
+    )
+    data = canonical_json(envelope)[1]
+    upload = BoardCommandUploadService(database, DEFAULT_ORGANIZATION_ID)
+    digest = hashlib.sha256(data).hexdigest()
+    record = upload.start(
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch-1",
+        "upload:atomic-01",
+        byte_size=len(data),
+        sha256=digest,
+    )
+    assert record.chunk_count == 1
+    upload.start(
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch-1",
+        "upload:atomic-01",
+        byte_size=len(data),
+        sha256=digest,
+    )
+    with pytest.raises(NotFoundError):
+        upload.put_part(
+            "document:lesson-01",
+            "actor:other",
+            "teacher:epoch-1",
+            record.id,
+            0,
+            data,
+        )
+    with pytest.raises(NotFoundError):
+        upload.put_part(
+            "document:lesson-01",
+            actor_user_id,
+            "teacher:stale",
+            record.id,
+            0,
+            data,
+        )
+    assert boards.get("document:lesson-01").current_revision == 0
+    upload.put_part(
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch-1",
+        record.id,
+        0,
+        data,
+    )
+    upload.put_part(
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch-1",
+        record.id,
+        0,
+        data,
+    )
+    with pytest.raises(ConflictError):
+        upload.put_part(
+            "document:lesson-01",
+            actor_user_id,
+            "teacher:epoch-1",
+            record.id,
+            0,
+            data[:-1] + b"!",
+        )
+    assert boards.get("document:lesson-01").current_revision == 0
+    first = upload.finalize(
+        boards,
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch-1",
+        record.id,
+        actor_user_id,
+    )
+    repeated = upload.finalize(
+        boards,
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch-1",
+        record.id,
+        actor_user_id,
+    )
+    assert first.id == repeated.id
+    assert first.revision == repeated.revision == 1
+    assert boards.get("document:lesson-01").current_revision == 1
+    assert len(boards.commands_after("document:lesson-01", 0)) == 1
+
+
+def test_multipart_upload_rejects_missing_digest_reuse_and_stale_revision(board_context):
+    database, _, boards, actor_user_id, lesson = board_context
+    boards.create_for_lesson(lesson.id, "document:lesson-01")
+    upload = BoardCommandUploadService(database, DEFAULT_ORGANIZATION_ID)
+    envelope = actor_scoped_upload_envelope(
+        actor_user_id, documentId="document:lesson-01", idempotencyKey="upload:atomic-02"
+    )
+    payload = canonical_json(envelope)[1]
+    with pytest.raises(ValidationError):
+        upload.start(
+            "document:lesson-01",
+            actor_user_id,
+            "epoch",
+            "upload:atomic-02",
+            byte_size=49 * 1024 * 1024,
+            sha256="a" * 64,
+        )
+    upload.start(
+        "document:lesson-01",
+        actor_user_id,
+        "epoch",
+        "upload:atomic-02",
+        byte_size=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+    )
+    with pytest.raises(ConflictError):
+        upload.start(
+            "document:lesson-01",
+            actor_user_id,
+            "epoch",
+            "upload:atomic-02",
+            byte_size=len(payload),
+            sha256="b" * 64,
+        )
+    with pytest.raises(ValidationError, match="неполная"):
+        upload.finalize(
+            boards,
+            "document:lesson-01",
+            actor_user_id,
+            "epoch",
+            "upload:atomic-02",
+            actor_user_id,
+        )
+    upload.put_part(
+        "document:lesson-01",
+        actor_user_id,
+        "epoch",
+        "upload:atomic-02",
+        0,
+        payload,
+    )
+    boards.append_commands(
+        load_command(documentId="document:lesson-01", idempotencyKey="upload:other"),
+        actor_user_id,
+    )
+    with pytest.raises(BoardRevisionConflict):
+        upload.finalize(
+            boards,
+            "document:lesson-01",
+            actor_user_id,
+            "epoch",
+            "upload:atomic-02",
+            actor_user_id,
+        )
+    assert boards.get("document:lesson-01").current_revision == 1
+    upload.abort(
+        "document:lesson-01",
+        actor_user_id,
+        "epoch",
+        "upload:atomic-02",
+    )
+    with pytest.raises(NotFoundError):
+        upload.finalize(
+            boards,
+            "document:lesson-01",
+            actor_user_id,
+            "epoch",
+            "upload:atomic-02",
+            actor_user_id,
+        )
+
+
+def test_multipart_expiry_worker_prunes_abandoned_chunks_per_tenant(board_context):
+    database, _, boards, actor_user_id, lesson = board_context
+    boards.create_for_lesson(lesson.id, "document:lesson-01")
+    staging = BoardCommandUploadService(database, DEFAULT_ORGANIZATION_ID)
+    envelope = actor_scoped_upload_envelope(
+        actor_user_id, documentId="document:lesson-01", idempotencyKey="client:expired"
+    )
+    payload = canonical_json(envelope)[1]
+    staging.start(
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch",
+        "upload:expired",
+        byte_size=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+    )
+    staging.put_part(
+        "document:lesson-01", actor_user_id, "teacher:epoch", "upload:expired", 0, payload
+    )
+    with database.sessions() as session:
+        old = session.get(BoardCommandUpload, "upload:expired")
+        assert old is not None
+        old.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()
+    assert staging.prune_expired(limit=1) == 1
+    assert staging.prune_expired(limit=1) == 0
+    with pytest.raises(NotFoundError):
+        staging.validated_envelope(
+            "document:lesson-01", actor_user_id, "teacher:epoch", "upload:expired"
+        )
+    assert boards.get("document:lesson-01").current_revision == 0

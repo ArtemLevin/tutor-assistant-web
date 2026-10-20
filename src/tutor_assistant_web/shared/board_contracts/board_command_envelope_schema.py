@@ -1661,6 +1661,23 @@ class PasteContentCommand(BaseModel):
     solid_models: list[Solid3DRecord] | None = Field(None, alias="solidModels")
 
 
+class RestoreGraphCommand(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    actor_id: Identifier = Field(..., alias="actorId")
+    id: Identifier
+    kind: Literal["core.clipboard.restore-graph"]
+    timestamp: AwareDatetime
+    geometry_imports: list[GeometryImportRecord] = Field(
+        ..., alias="geometryImports", max_length=10000
+    )
+    graph_version: Literal["1.0"] = Field(..., alias="graphVersion")
+    groups: list[BoardGroup] = Field(..., max_length=10000)
+    objects: list[BoardObject] = Field(..., max_length=10000, min_length=1)
+    solid_models: list[Solid3DRecord] | None = Field(None, alias="solidModels", max_length=10000)
+
+
 class ProjectSolid3DSectionCommand(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1773,6 +1790,7 @@ BoardCommand = RootModel[
     | ReorderLayersCommand
     | ReplaceObjectsCommand
     | ResetSolid3DLearningCommand
+    | RestoreGraphCommand
     | SetGeometryVisualStyleCommand
     | SetGroupTransformCommand
     | SetLayerVisibilityCommand
