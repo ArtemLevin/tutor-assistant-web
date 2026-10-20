@@ -13,7 +13,7 @@ import re
 from datetime import timedelta
 
 from pydantic import ValidationError as PydanticValidationError
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 
 from tutor_assistant_web.db import Database
 from tutor_assistant_web.modules.boards.application import BoardPersistenceService, canonical_json
@@ -42,6 +42,28 @@ class BoardCommandUploadService:
     def __init__(self, database: Database, organization_id: str) -> None:
         self.database = database
         self.organization_id = organization_id
+
+    def prune_expired(self, *, limit: int = 100) -> int:
+        """Bounded periodic cleanup of expired uploads in this tenant."""
+        if limit < 1:
+            raise ValueError("Cleanup limit must be positive")
+        with self.database.sessions() as session:
+            expired = list(
+                session.scalars(
+                    select(BoardCommandUpload)
+                    .where(
+                        BoardCommandUpload.organization_id == self.organization_id,
+                        BoardCommandUpload.expires_at <= utcnow(),
+                    )
+                    .order_by(BoardCommandUpload.expires_at)
+                    .limit(limit)
+                    .with_for_update(skip_locked=True)
+                )
+            )
+            for upload in expired:
+                session.delete(upload)
+            session.commit()
+            return len(expired)
 
     def _upload(
         self,
@@ -88,10 +110,6 @@ class BoardCommandUploadService:
             raise ValidationError("Размер или SHA-256 передачи неверен")
         chunk_count = math.ceil(byte_size / CHUNK_BYTES)
         with self.database.sessions() as session:
-            # A bounded active set also cleans abandoned uploads on new work.
-            session.execute(
-                delete(BoardCommandUpload).where(BoardCommandUpload.expires_at < utcnow())
-            )
             existing = session.scalar(
                 select(BoardCommandUpload)
                 .where(
@@ -117,6 +135,7 @@ class BoardCommandUploadService:
                     BoardCommandUpload.organization_id == self.organization_id,
                     BoardCommandUpload.board_document_id == document_id,
                     BoardCommandUpload.actor_id == actor_id,
+                    BoardCommandUpload.expires_at > utcnow(),
                 )
             )
             if (active_count or 0) >= MAX_ACTIVE_UPLOADS_PER_ACTOR:
