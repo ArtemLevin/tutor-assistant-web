@@ -417,7 +417,7 @@ def test_multipart_command_upload_is_atomic_idempotent_and_bound_to_actor(board_
     with pytest.raises(ConflictError):
         upload.put_part(
             "document:lesson-01", actor_user_id, "teacher:epoch-1",
-            record.id, 0, data + b"x",
+            record.id, 0, data[:-1] + b"!",
         )
     assert boards.get("document:lesson-01").current_revision == 0
     first = upload.finalize(
