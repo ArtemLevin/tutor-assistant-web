@@ -13,7 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tutor_assistant_web.bootstrap.container import AppContainer
 from tutor_assistant_web.modules.boards.access import BoardAccessPolicy, StandaloneBoardAccessPolicy
-from tutor_assistant_web.modules.boards.command_upload_routes import create_command_upload_router
 from tutor_assistant_web.modules.boards.application import (
     BoardLamportConflict,
     BoardPersistenceService,
@@ -24,6 +23,7 @@ from tutor_assistant_web.modules.boards.collaboration import (
     run_collaboration_socket,
     validate_websocket_origin,
 )
+from tutor_assistant_web.modules.boards.command_upload_routes import create_command_upload_router
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelope,
     BoardCommandEnvelopeInput,
