@@ -381,10 +381,20 @@ def test_cross_tenant_board_rows_are_not_visible(board_context):
         other_service.append_commands(load_command(), user.id)
 
 
+def actor_scoped_upload_envelope(actor_user_id: str, **changes):
+    raw = canonical_json(load_command(**changes))[0]
+    raw["actorId"] = actor_user_id
+    for item in raw["commands"]:
+        item["command"]["actorId"] = actor_user_id
+    return BoardCommandEnvelopeInput.model_validate(raw).root
+
+
 def test_multipart_command_upload_is_atomic_idempotent_and_bound_to_actor(board_context):
     database, _, boards, actor_user_id, lesson = board_context
     boards.create_for_lesson(lesson.id, "document:lesson-01")
-    envelope = load_command(documentId="document:lesson-01", idempotencyKey="upload:atomic-01")
+    envelope = actor_scoped_upload_envelope(
+        actor_user_id, documentId="document:lesson-01", idempotencyKey="upload:atomic-01"
+    )
     data = canonical_json(envelope)[1]
     upload = BoardCommandUploadService(database, DEFAULT_ORGANIZATION_ID)
     digest = hashlib.sha256(data).hexdigest()
@@ -476,7 +486,9 @@ def test_multipart_upload_rejects_missing_digest_reuse_and_stale_revision(board_
     database, _, boards, actor_user_id, lesson = board_context
     boards.create_for_lesson(lesson.id, "document:lesson-01")
     upload = BoardCommandUploadService(database, DEFAULT_ORGANIZATION_ID)
-    envelope = load_command(documentId="document:lesson-01", idempotencyKey="upload:atomic-02")
+    envelope = actor_scoped_upload_envelope(
+        actor_user_id, documentId="document:lesson-01", idempotencyKey="upload:atomic-02"
+    )
     payload = canonical_json(envelope)[1]
     with pytest.raises(ValidationError):
         upload.start(
