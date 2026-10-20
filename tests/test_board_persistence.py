@@ -565,7 +565,6 @@ def test_multipart_upload_rejects_missing_digest_reuse_and_stale_revision(board_
         )
 
 
-
 def test_multipart_expiry_worker_prunes_abandoned_chunks_per_tenant(board_context):
     database, _, boards, actor_user_id, lesson = board_context
     boards.create_for_lesson(lesson.id, "document:lesson-01")
