@@ -1,0 +1,46 @@
+name: Temporary Atomic Graph DTO Vendor
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/atomic-graph-vendor.yml
+
+permissions:
+  contents: read
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout matching frontend PR head
+        uses: actions/checkout@v4
+        with:
+          repository: ArtemLevin/tutorboard
+          ref: a0b7b877f601ebc4998d1dce1985cb5808ef29f3
+          path: integrations/tutorboard
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - run: uv run python scripts/vendor_board_contract.py --source-root integrations/tutorboard
+      - run: uv run python scripts/generate_board_contract_models.py
+      - name: Export the generated cross-repo contract delta
+        run: |
+          python - <<'PY'
+          import base64
+          import subprocess
+          from pathlib import Path
+          changes = subprocess.check_output(["git", "status", "--porcelain"], text=True)
+          for entry in changes.splitlines():
+              path = entry[3:]
+              if not path.startswith(("schemas/board/", "src/tutor_assistant_web/shared/board_contracts/")):
+                  continue
+              if not Path(path).is_file():
+                  continue
+              encoded = base64.b64encode(Path(path).read_bytes()).decode()
+              for index in range(0, len(encoded), 4000):
+                  print(f"GRAPH_VENDOR:{path}:{index // 4000}:{encoded[index:index + 4000]}")
+          PY
