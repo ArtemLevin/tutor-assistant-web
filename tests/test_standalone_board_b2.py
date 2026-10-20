@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -601,7 +601,6 @@ def test_invitation_orm_never_persists_join_secret(b2_api):
         assert secret not in persisted
 
 
-
 def test_atomic_multipart_guest_upload_publishes_only_after_finalize(b2_api):
     client, _, settings, board_id, teacher = b2_api
     invitation = _create_invitation(client, board_id, teacher["csrfToken"])
@@ -627,25 +626,34 @@ def test_atomic_multipart_guest_upload_publishes_only_after_finalize(b2_api):
     assert created.json()["chunkCount"] == 1
     assert client.get(f"/api/v1/boards/{board_id}/commands").json()["currentRevision"] == 0
     part_url = f"{prefix}/{key}/parts/0"
-    assert client.put(
-        part_url,
-        content=content,
-        headers={**headers, "content-type": "application/octet-stream"},
-    ).status_code == 204
-    assert client.put(
-        part_url,
-        content=content,
-        headers={**headers, "content-type": "application/octet-stream"},
-    ).status_code == 204
-    assert client.put(
-        part_url,
-        content=content,
-        headers={
-            "x-csrf-token": guest["csrfToken"],
-            "x-board-access-epoch": "stale-or-revoked",
-            "content-type": "application/octet-stream",
-        },
-    ).status_code != 204
+    assert (
+        client.put(
+            part_url,
+            content=content,
+            headers={**headers, "content-type": "application/octet-stream"},
+        ).status_code
+        == 204
+    )
+    assert (
+        client.put(
+            part_url,
+            content=content,
+            headers={**headers, "content-type": "application/octet-stream"},
+        ).status_code
+        == 204
+    )
+    assert (
+        client.put(
+            part_url,
+            content=content,
+            headers={
+                "x-csrf-token": guest["csrfToken"],
+                "x-board-access-epoch": "stale-or-revoked",
+                "content-type": "application/octet-stream",
+            },
+        ).status_code
+        != 204
+    )
     assert client.get(f"/api/v1/boards/{board_id}/commands").json()["currentRevision"] == 0
 
     finalized = client.post(f"{prefix}/{key}/finalize", headers=headers)
