@@ -227,8 +227,6 @@ class BoardCommandUploadService:
             item.root.actor_id.root != actor_id for item in envelope_commands(envelope.root)
         ):
             raise ValidationError("Пакет содержит команды другого пользователя")
-        if envelope.root.idempotency_key != upload_id:
-            raise ValidationError("Idempotency key пакета не совпадает с передачей")
         return envelope
 
     def finalize(
