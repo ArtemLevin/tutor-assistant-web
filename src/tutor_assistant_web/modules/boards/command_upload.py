@@ -16,7 +16,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import delete, func, select
 
 from tutor_assistant_web.db import Database
-from tutor_assistant_web.modules.boards.application import BoardPersistenceService
+from tutor_assistant_web.modules.boards.application import BoardPersistenceService, canonical_json
 from tutor_assistant_web.modules.boards.contracts import (
     BoardCommandEnvelopeInput,
     envelope_commands,
@@ -227,6 +227,11 @@ class BoardCommandUploadService:
             item.root.actor_id.root != actor_id for item in envelope_commands(envelope.root)
         ):
             raise ValidationError("Пакет содержит команды другого пользователя")
+        # Chunk transport must not silently bypass the existing per-command
+        # 2 MiB JSON boundary. Every staged item still obeys the old contract.
+        for command in envelope_commands(envelope.root):
+            if len(canonical_json(command)[1]) > 2 * 1024 * 1024:
+                raise ValidationError("Команда превышает ограничение 2 MiB")
         return envelope
 
     def finalize(
