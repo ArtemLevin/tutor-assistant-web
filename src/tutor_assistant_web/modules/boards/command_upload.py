@@ -246,11 +246,18 @@ class BoardCommandUploadService:
             item.root.actor_id.root != actor_id for item in envelope_commands(envelope.root)
         ):
             raise ValidationError("Пакет содержит команды другого пользователя")
-        # Chunk transport must not silently bypass the existing per-command
-        # 2 MiB JSON boundary. Every staged item still obeys the old contract.
+        # Existing commands retain their original 2 MiB boundary. A graph
+        # restore is a separately versioned whole-graph operation and may use
+        # the bounded multipart transport only.
         for command in envelope_commands(envelope.root):
-            if len(canonical_json(command)[1]) > 2 * 1024 * 1024:
-                raise ValidationError("Команда превышает ограничение 2 MiB")
+            byte_count = len(canonical_json(command)[1])
+            maximum = (
+                40 * 1024 * 1024
+                if command.root.kind == "core.clipboard.restore-graph"
+                else 2 * 1024 * 1024
+            )
+            if byte_count > maximum:
+                raise ValidationError("Команда превышает допустимый лимит")
         return envelope
 
     def finalize(
