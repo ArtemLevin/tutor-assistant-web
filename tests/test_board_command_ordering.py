@@ -101,7 +101,6 @@ def test_unknown_transport_field_fails_closed() -> None:
         BoardCommandEnvelopeInput.model_validate(value)
 
 
-
 def test_graph_restore_version_1_handles_one_indivisible_5200_object_group() -> None:
     raw = payload()
     snapshot = json.loads((CONTRACT / "board-snapshot.json").read_text())["document"]
