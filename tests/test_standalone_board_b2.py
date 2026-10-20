@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -598,3 +599,61 @@ def test_invitation_orm_never_persists_join_secret(b2_api):
             )
         )
         assert secret not in persisted
+
+
+
+def test_atomic_multipart_guest_upload_publishes_only_after_finalize(b2_api):
+    client, _, settings, board_id, teacher = b2_api
+    invitation = _create_invitation(client, board_id, teacher["csrfToken"])
+    guest, _ = _become_guest(client, settings, invitation)
+    headers = {
+        "x-csrf-token": guest["csrfToken"],
+        "x-board-access-epoch": guest["accessEpoch"],
+    }
+    key = "client:guest-atomic-upload"
+    envelope = _command_payload(board_id, guest["actorId"], key=key)
+    content = json.dumps(envelope, separators=(",", ":")).encode()
+    prefix = f"/api/v1/boards/{board_id}/command-uploads"
+    created = client.post(
+        prefix,
+        json={
+            "uploadId": key,
+            "byteSize": len(content),
+            "sha256": hashlib.sha256(content).hexdigest(),
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["chunkCount"] == 1
+    assert client.get(f"/api/v1/boards/{board_id}/commands").json()["currentRevision"] == 0
+    part_url = f"{prefix}/{key}/parts/0"
+    assert client.put(
+        part_url,
+        content=content,
+        headers={**headers, "content-type": "application/octet-stream"},
+    ).status_code == 204
+    assert client.put(
+        part_url,
+        content=content,
+        headers={**headers, "content-type": "application/octet-stream"},
+    ).status_code == 204
+    assert client.put(
+        part_url,
+        content=content,
+        headers={
+            "x-csrf-token": guest["csrfToken"],
+            "x-board-access-epoch": "stale-or-revoked",
+            "content-type": "application/octet-stream",
+        },
+    ).status_code != 204
+    assert client.get(f"/api/v1/boards/{board_id}/commands").json()["currentRevision"] == 0
+
+    finalized = client.post(f"{prefix}/{key}/finalize", headers=headers)
+    assert finalized.status_code == 200, finalized.text
+    assert finalized.json()["revision"] == 1
+    repeated = client.post(f"{prefix}/{key}/finalize", headers=headers)
+    assert repeated.status_code == 200, repeated.text
+    assert repeated.json()["revision"] == 1
+    commands = client.get(f"/api/v1/boards/{board_id}/commands")
+    assert commands.json()["currentRevision"] == 1
+    assert len(commands.json()["items"]) == 1
