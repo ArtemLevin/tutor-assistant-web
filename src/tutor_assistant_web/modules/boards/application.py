@@ -283,7 +283,8 @@ class BoardPersistenceService:
     ) -> BoardCommandBatch:
         payload, encoded, payload_sha256 = canonical_json(envelope)
         media_references = envelope_media_asset_references(envelope)
-        if len(encoded) > (self.max_command_bytes if max_bytes_override is None else max_bytes_override):
+        maximum = self.max_command_bytes if max_bytes_override is None else max_bytes_override
+        if len(encoded) > maximum:
             raise ValidationError("Пакет команд превышает допустимый размер")
         document_id = envelope.document_id.root
         contract_actor_id = envelope.actor_id.root
