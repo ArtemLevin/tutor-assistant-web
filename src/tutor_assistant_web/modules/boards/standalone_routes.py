@@ -530,6 +530,11 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
             container.settings.board_command_max_size_mb * 1024 * 1024,
         )
         envelope = envelope_input.root
+        if any(
+            item.root.kind == "core.clipboard.restore-graph"
+            for item in envelope_commands(envelope)
+        ):
+            raise HTTPException(422, "Graph restore requires atomic multipart staging")
         BOARD_SYNC_EVENTS.labels(event=f"envelope_{envelope.schema_version}_received").inc()
         if envelope.document_id.root != document_id:
             raise HTTPException(422, "documentId не совпадает с идентификатором маршрута")
