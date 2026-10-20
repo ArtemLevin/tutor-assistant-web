@@ -531,8 +531,7 @@ def create_standalone_router(container: BoardAppContainer) -> APIRouter:
         )
         envelope = envelope_input.root
         if any(
-            item.root.kind == "core.clipboard.restore-graph"
-            for item in envelope_commands(envelope)
+            item.root.kind == "core.clipboard.restore-graph" for item in envelope_commands(envelope)
         ):
             raise HTTPException(422, "Graph restore requires atomic multipart staging")
         BOARD_SYNC_EVENTS.labels(event=f"envelope_{envelope.schema_version}_received").inc()
