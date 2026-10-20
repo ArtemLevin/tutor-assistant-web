@@ -1670,7 +1670,9 @@ class RestoreGraphCommand(BaseModel):
     graph_version: Literal["1.0"] = Field(..., alias="graphVersion")
     kind: Literal["core.clipboard.restore-graph"]
     timestamp: AwareDatetime
-    geometry_imports: list[GeometryImportRecord] = Field(..., alias="geometryImports", max_length=10000)
+    geometry_imports: list[GeometryImportRecord] = Field(
+        ..., alias="geometryImports", max_length=10000
+    )
     groups: list[BoardGroup] = Field(..., max_length=10000)
     objects: list[BoardObject] = Field(..., min_length=1, max_length=10000)
     solid_models: list[Solid3DRecord] | None = Field(None, alias="solidModels", max_length=10000)
