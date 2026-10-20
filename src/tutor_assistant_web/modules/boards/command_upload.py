@@ -199,7 +199,10 @@ class BoardCommandUploadService:
             if len(parts) != upload.chunk_count:
                 raise ValidationError("Передача команд неполная")
             for index, part in enumerate(parts):
-                if part.chunk_index != index or hashlib.sha256(part.content).hexdigest() != part.sha256:
+                if (
+                    part.chunk_index != index
+                    or hashlib.sha256(part.content).hexdigest() != part.sha256
+                ):
                     raise ValidationError("Передача команд повреждена")
             payload = b"".join(part.content for part in parts)
             if (
