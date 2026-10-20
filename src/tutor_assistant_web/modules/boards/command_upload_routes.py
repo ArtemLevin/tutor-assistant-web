@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TypeAlias
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -24,8 +23,8 @@ from tutor_assistant_web.modules.boards.guest_access import GuestPrincipal
 from tutor_assistant_web.modules.boards.models import BoardCommandBatch, BoardDocument
 from tutor_assistant_web.modules.identity.application import Principal
 
-Actor: TypeAlias = Principal | GuestPrincipal
-BoardLookup: TypeAlias = Callable[[Actor, str], tuple[BoardPersistenceService, BoardDocument]]
+type Actor = Principal | GuestPrincipal
+type BoardLookup = Callable[[Actor, str], tuple[BoardPersistenceService, BoardDocument]]
 
 
 class StartUpload(BaseModel):
