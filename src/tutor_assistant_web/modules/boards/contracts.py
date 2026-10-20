@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
@@ -122,12 +123,71 @@ type BoardCommandEnvelope = Annotated[
 ]
 
 
+_GRAPH_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
+_UNSAFE_GRAPH_IDENTIFIERS = {"constructor", "prototype", "__proto__"}
+
+
+def _validate_graph_restore(command: BaseModel) -> None:
+    """Enforce complete graph referential integrity on the trusted server."""
+
+    payload = command.model_dump(mode="json", by_alias=True)
+    objects = payload["objects"]
+    groups = payload["groups"]
+    imports = payload["geometryImports"]
+    solids = payload.get("solidModels") or []
+
+    def ids(items: list[dict]) -> set[str]:
+        values = [item["id"] for item in items]
+        if (
+            len(values) != len(set(values))
+            or any(
+                identifier in _UNSAFE_GRAPH_IDENTIFIERS
+                or not _GRAPH_IDENTIFIER.fullmatch(identifier)
+                for identifier in values
+            )
+        ):
+            raise ValueError("Graph restore has duplicate or unsafe identifiers")
+        return set(values)
+
+    object_ids = ids(objects)
+    group_ids = ids(groups)
+    import_ids = ids(imports)
+    ids(solids)
+
+    membership: dict[str, str] = {}
+    for group in groups:
+        if not group["objectIds"]:
+            raise ValueError("Graph restore contains an empty group")
+        for identifier in group["objectIds"]:
+            if identifier not in object_ids or identifier in membership:
+                raise ValueError("Graph restore group references missing or repeated object")
+            membership[identifier] = group["id"]
+
+    for obj in objects:
+        group = obj["groupId"]
+        if group is not None and group not in group_ids:
+            raise ValueError("Graph restore has an orphaned group reference")
+        if membership.get(obj["id"]) != group:
+            raise ValueError("Graph restore group ownership mismatch")
+        source = obj["source"]
+        if source["kind"] == "geometryos" and source["importId"] not in import_ids:
+            raise ValueError("Graph restore has an orphaned GeometryOS source")
+    for entry in (*imports, *solids):
+        if entry["rootGroupId"] not in group_ids:
+            raise ValueError("Graph restore record references an absent group")
+        if not set(entry["boardObjectIds"]).issubset(object_ids):
+            raise ValueError("Graph restore record references absent objects")
+
+
 class BoardCommandEnvelopeInput(RootModel[BoardCommandEnvelope]):
     """Runtime boundary shared by routes and persistence."""
 
     @model_validator(mode="after")
     def validate_ordering(self) -> BoardCommandEnvelopeInput:
         envelope_lamport_range(self.root)
+        for command in envelope_commands(self.root):
+            if command.root.kind == "core.clipboard.restore-graph":
+                _validate_graph_restore(command.root)
         return self
 
 
