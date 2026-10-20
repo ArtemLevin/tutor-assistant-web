@@ -19,6 +19,7 @@ from tutor_assistant_web.modules.boards.command_upload import BoardCommandUpload
 from tutor_assistant_web.modules.boards.contracts import BoardCommandEnvelopeInput
 from tutor_assistant_web.modules.boards.models import (
     BoardCommandBatch,
+    BoardCommandUpload,
     BoardDocument,
     BoardGeometryImport,
     BoardSnapshot,
@@ -562,3 +563,37 @@ def test_multipart_upload_rejects_missing_digest_reuse_and_stale_revision(board_
             "upload:atomic-02",
             actor_user_id,
         )
+
+
+
+def test_multipart_expiry_worker_prunes_abandoned_chunks_per_tenant(board_context):
+    database, _, boards, actor_user_id, lesson = board_context
+    boards.create_for_lesson(lesson.id, "document:lesson-01")
+    staging = BoardCommandUploadService(database, DEFAULT_ORGANIZATION_ID)
+    envelope = actor_scoped_upload_envelope(
+        actor_user_id, documentId="document:lesson-01", idempotencyKey="client:expired"
+    )
+    payload = canonical_json(envelope)[1]
+    staging.start(
+        "document:lesson-01",
+        actor_user_id,
+        "teacher:epoch",
+        "upload:expired",
+        byte_size=len(payload),
+        sha256=hashlib.sha256(payload).hexdigest(),
+    )
+    staging.put_part(
+        "document:lesson-01", actor_user_id, "teacher:epoch", "upload:expired", 0, payload
+    )
+    with database.sessions() as session:
+        old = session.get(BoardCommandUpload, "upload:expired")
+        assert old is not None
+        old.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+        session.commit()
+    assert staging.prune_expired(limit=1) == 1
+    assert staging.prune_expired(limit=1) == 0
+    with pytest.raises(NotFoundError):
+        staging.validated_envelope(
+            "document:lesson-01", actor_user_id, "teacher:epoch", "upload:expired"
+        )
+    assert boards.get("document:lesson-01").current_revision == 0
