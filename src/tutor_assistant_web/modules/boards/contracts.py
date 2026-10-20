@@ -138,13 +138,9 @@ def _validate_graph_restore(command: BaseModel) -> None:
 
     def ids(items: list[dict]) -> set[str]:
         values = [item["id"] for item in items]
-        if (
-            len(values) != len(set(values))
-            or any(
-                identifier in _UNSAFE_GRAPH_IDENTIFIERS
-                or not _GRAPH_IDENTIFIER.fullmatch(identifier)
-                for identifier in values
-            )
+        if len(values) != len(set(values)) or any(
+            identifier in _UNSAFE_GRAPH_IDENTIFIERS or not _GRAPH_IDENTIFIER.fullmatch(identifier)
+            for identifier in values
         ):
             raise ValueError("Graph restore has duplicate or unsafe identifiers")
         return set(values)
