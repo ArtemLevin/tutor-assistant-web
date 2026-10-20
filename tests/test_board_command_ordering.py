@@ -99,3 +99,40 @@ def test_unknown_transport_field_fails_closed() -> None:
     value["unexpected"] = True
     with pytest.raises(PydanticValidationError):
         BoardCommandEnvelopeInput.model_validate(value)
+
+
+
+def test_graph_restore_version_1_handles_one_indivisible_5200_object_group() -> None:
+    raw = payload()
+    snapshot = json.loads((CONTRACT / "board-snapshot.json").read_text())["document"]
+    template = next(iter(snapshot["objects"].values()))
+    ids = [f"object:huge:{index}" for index in range(5200)]
+    graph_objects = [{**template, "id": object_id, "groupId": "group:huge"} for object_id in ids]
+    template_group = next(iter(snapshot["groups"].values()))
+    group = {**template_group, "id": "group:huge", "objectIds": ids}
+    raw["commands"] = [
+        {
+            "order": {"baseRevisionAtCreation": 7, "lamport": 8},
+            "command": {
+                "actorId": raw["actorId"],
+                "id": "command:graph-5200",
+                "timestamp": "2026-08-08T12:00:00.000Z",
+                "graphVersion": "1.0",
+                "kind": "core.clipboard.restore-graph",
+                "objects": graph_objects,
+                "groups": [group],
+                "geometryImports": [],
+                "solidModels": [],
+            },
+        },
+    ]
+    envelope = BoardCommandEnvelopeInput.model_validate(raw)
+    assert envelope.root.commands[0].command.root.kind == "core.clipboard.restore-graph"
+    assert len(envelope.root.commands[0].command.root.objects) == 5200
+    raw["commands"][0]["command"]["graphVersion"] = "2.0"
+    with pytest.raises(PydanticValidationError):
+        BoardCommandEnvelopeInput.model_validate(raw)
+    raw["commands"][0]["command"]["graphVersion"] = "1.0"
+    raw["commands"][0]["command"]["objects"].append({**template, "id": "constructor"})
+    with pytest.raises(PydanticValidationError):
+        BoardCommandEnvelopeInput.model_validate(raw)
