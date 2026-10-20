@@ -639,7 +639,10 @@ class BoardCommandUploadChunk(Base):
             ondelete="CASCADE",
             name="fk_board_command_chunk_upload",
         ),
-        CheckConstraint("byte_size > 0 AND byte_size <= 524288", name="ck_board_upload_chunk_bytes"),
+        CheckConstraint(
+            "byte_size > 0 AND byte_size <= 524288",
+            name="ck_board_upload_chunk_bytes",
+        ),
         UniqueConstraint("upload_id", "chunk_index", name="uq_board_upload_part"),
     )
 
