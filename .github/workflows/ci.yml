@@ -90,15 +90,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --extra dev
-      - name: Extract formatter output for new cleanup paths
-        run: |
-          uv run ruff format src/tutor_assistant_web/worker.py tests/test_board_persistence.py
-          python - <<'PY'
-          from pathlib import Path
-          import base64
-          for name in ["src/tutor_assistant_web/worker.py", "tests/test_board_persistence.py"]:
-              print("RUFF_B64:" + name + ":" + base64.b64encode(Path(name).read_bytes()).decode())
-          PY
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run bandit -r src -ll
