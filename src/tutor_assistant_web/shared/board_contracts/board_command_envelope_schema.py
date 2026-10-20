@@ -1661,6 +1661,21 @@ class PasteContentCommand(BaseModel):
     solid_models: list[Solid3DRecord] | None = Field(None, alias="solidModels")
 
 
+class RestoreGraphCommand(BaseModel):
+    """Versioned, bounded full-graph restore; accepted only through staged transport."""
+
+    model_config = ConfigDict(extra="forbid")
+    actor_id: Identifier = Field(..., alias="actorId")
+    id: Identifier
+    graph_version: Literal["1.0"] = Field(..., alias="graphVersion")
+    kind: Literal["core.clipboard.restore-graph"]
+    timestamp: AwareDatetime
+    geometry_imports: list[GeometryImportRecord] = Field(..., alias="geometryImports", max_length=10000)
+    groups: list[BoardGroup] = Field(..., max_length=10000)
+    objects: list[BoardObject] = Field(..., min_length=1, max_length=10000)
+    solid_models: list[Solid3DRecord] | None = Field(None, alias="solidModels", max_length=10000)
+
+
 class ProjectSolid3DSectionCommand(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1766,6 +1781,7 @@ BoardCommand = RootModel[
     | MoveSelectionCommand
     | OffsetGeometryLabelCommand
     | PasteContentCommand
+    | RestoreGraphCommand
     | ProjectSolid3DSectionCommand
     | RemoveGroupsCommand
     | RemoveSolid3DLearningCommand
