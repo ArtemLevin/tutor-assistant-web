@@ -93,7 +93,7 @@ jobs:
       - name: Temporary formatter extraction (remove after applying)
         run: |
           uv run ruff check --fix .
-          uv run ruff format src/tutor_assistant_web/migrations/versions/0020_board_command_uploads.py src/tutor_assistant_web/modules/boards/application.py src/tutor_assistant_web/modules/boards/command_upload.py src/tutor_assistant_web/modules/boards/command_upload_routes.py src/tutor_assistant_web/modules/boards/models.py tests/test_board_persistence.py
+          uv run ruff format src/tutor_assistant_web/migrations/versions/0020_board_command_uploads.py src/tutor_assistant_web/modules/boards/application.py src/tutor_assistant_web/modules/boards/command_upload.py src/tutor_assistant_web/modules/boards/command_upload_routes.py src/tutor_assistant_web/modules/boards/models.py tests/test_board_persistence.py tests/test_standalone_board_b2.py
           python - <<'PY'
           import base64
           from pathlib import Path
@@ -106,6 +106,7 @@ jobs:
               "src/tutor_assistant_web/modules/boards/command_upload_routes.py",
               "src/tutor_assistant_web/modules/boards/models.py",
               "tests/test_board_persistence.py",
+              "tests/test_standalone_board_b2.py",
           ]:
               print("FORMATTED_B64:" + path + ":" + base64.b64encode(Path(path).read_bytes()).decode())
           PY
