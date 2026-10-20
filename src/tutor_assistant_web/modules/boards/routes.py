@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from tutor_assistant_web.bootstrap.container import AppContainer
 from tutor_assistant_web.modules.boards.access import BoardAccessPolicy, StandaloneBoardAccessPolicy
+from tutor_assistant_web.modules.boards.command_upload_routes import create_command_upload_router
 from tutor_assistant_web.modules.boards.application import (
     BoardLamportConflict,
     BoardPersistenceService,
@@ -1156,6 +1157,37 @@ def create_router(container: AppContainer) -> APIRouter:
         await publish_revocations(deleted)
         return Response(status_code=204)
 
+    async def publish_command_upload(
+        actor: Principal | GuestPrincipal,
+        document: BoardDocument,
+        batch: BoardCommandBatch,
+    ) -> None:
+        await container.collaboration.publish(
+            actor.organization_id,
+            document.id,
+            {
+                "type": "board.revision",
+                "protocolVersion": "1.1",
+                "documentId": document.id,
+                "revision": batch.revision,
+                "baseRevision": batch.base_revision,
+                "idempotencyKey": batch.idempotency_key,
+                "actorId": actor.user_id,
+            },
+        )
+
+    router.include_router(
+        create_command_upload_router(
+            database=container.database,
+            board_principal=board_principal,
+            document_for_write=lambda actor, document_id: document_for(
+                actor, document_id, operation="write"
+            ),
+            validate_mutation=validate_mutation,
+            on_committed=publish_command_upload,
+            serialize_batch=_command_payload,
+        )
+    )
     root.include_router(router)
     return root
 
