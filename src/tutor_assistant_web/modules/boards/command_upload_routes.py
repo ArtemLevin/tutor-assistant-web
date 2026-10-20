@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import TypeAlias
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError as PydanticValidationError
 
@@ -115,7 +115,7 @@ def create_command_upload_router(
         actor, _, _, epoch = authorized(request, document_id)
         content = await _read_bytes(request, CHUNK_BYTES, "application/octet-stream")
         uploads(actor).put_part(document_id, actor.user_id, epoch, upload_id, index, content)
-        return JSONResponse(None, status_code=204)
+        return Response(status_code=204)
 
     @router.post("/boards/{document_id}/command-uploads/{upload_id}/finalize")
     async def finalize_upload(request: Request, document_id: str, upload_id: str):
